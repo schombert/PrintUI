@@ -1,0 +1,1553 @@
+#include "printui_utility.hpp"
+
+#ifndef UNICODE
+#define UNICODE
+#endif
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+
+#include <dwrite_3.h>
+#include <d2d1_3.h>
+
+namespace printui {
+	void vertical_2x2_icon_base::render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) {
+
+		render_interface::render_composite(rect, win, under_mouse);
+		if(saved_state.holds_key()) {
+			auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, 0, 2, 1, rect);
+			if(horizontal(win.orientation)) {
+				render::interactable(win, win.d2d_device_context, screen_space_point{ new_top_left.x + win.layout_size / 2, new_top_left.y}, saved_state, rect.foreground_index, true);
+
+				win.d2d_device_context->SetTransform(D2D1::Matrix3x2F::Translation(float(new_top_left.x + win.layout_size / 2), float(new_top_left.y)));
+			} else {
+				render::interactable(win, win.d2d_device_context, screen_space_point{ new_top_left.x, new_top_left.y + win.layout_size / 2 }, saved_state, rect.foreground_index, true);
+			}
+		}
+	}
+
+
+	ui_rectangle vertical_2x2_icon_base::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
+		ui_rectangle retvalue;
+
+		retvalue.background_index = parent_background_index;
+		retvalue.foreground_index = parent_foreground_index;
+		retvalue.display_flags = ui_rectangle::flag_interactable;
+		retvalue.parent_object = this;
+
+		return retvalue;
+	}
+	layout_node_type vertical_2x2_icon_base::get_node_type() {
+		return layout_node_type::control;
+	}
+	simple_layout_specification vertical_2x2_icon_base::get_specification(window_data const&) {
+		simple_layout_specification spec;
+		
+		spec.minimum_page_size = 3ui16;
+		spec.minimum_line_size = 2ui16;
+
+		spec.page_flags = size_flags::none;
+		spec.line_flags = size_flags::none;
+
+		return spec;
+	}
+	void vertical_2x2_icon_base::render_foreground(ui_rectangle const& rect, window_data& win) {
+		auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, 1, 2, 2, rect);
+
+		ico.present_image(float(new_top_left.x), float(new_top_left.y), win.d2d_device_context, win.dummy_brush);
+	}
+
+	single_line_centered_header::~single_line_centered_header() {
+	}
+
+	ui_rectangle single_line_centered_header::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
+		ui_rectangle retvalue;
+
+		retvalue.background_index = parent_background_index;
+		retvalue.foreground_index = parent_foreground_index;
+		retvalue.display_flags = 0ui8;
+		retvalue.parent_object = this;
+
+		return retvalue;
+	}
+	simple_layout_specification single_line_centered_header::get_specification(window_data const& win) {
+		simple_layout_specification spec;
+
+		text.prepare_text(win, 4 * win.layout_size);
+
+		spec.minimum_page_size = 1ui16;
+		spec.minimum_line_size = uint16_t(text.resolved_text_size.x + 4);
+		spec.page_flags = size_flags::none;
+		spec.line_flags = size_flags::fill_to_max;
+
+		return spec;
+	}
+	void single_line_centered_header::render_foreground(ui_rectangle const& rect, window_data& win) {
+
+		text.relayout_text(win, horizontal(win.orientation) ? screen_space_point{ rect.width - 4 * win.layout_size, rect.height } : screen_space_point{ rect.width, rect.height - 4 * win.layout_size });
+
+
+		auto tpoint_a = screen_point_from_layout(win.orientation, win.layout_size * 2, 0, rect);
+		auto tpoint_b = screen_point_from_layout(win.orientation, win.layout_size * 2, win.layout_size, rect);
+
+		text.draw_text(win, std::min(tpoint_a.x, tpoint_b.x), std::min(tpoint_a.y, tpoint_b.y));
+	}
+	void single_line_centered_header::render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) {
+
+		D2D1_RECT_F content_rect{
+			float(rect.x_position), float(rect.y_position),
+			float(rect.x_position + rect.width), float(rect.y_position + rect.height) };
+
+		render::background_rectangle(content_rect, win, rect.display_flags, rect.background_index, under_mouse);
+
+		auto new_content_top_left = screen_topleft_from_layout_in_ui(win,
+			2, 0, 2, 1, rect);
+
+		D2D1_RECT_F adjusted_content_rect{
+			float(new_content_top_left.x), float(new_content_top_left.y),
+			content_rect.right - float(new_content_top_left.x - rect.x_position),
+			content_rect.bottom
+		};
+
+		win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.foreground_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, adjusted_content_rect, adjusted_content_rect);
+
+		auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, 0, 1, 1, rect);
+		render::interactable(win, win.d2d_device_context, new_top_left, saved_state, rect.foreground_index, true);
+
+		if(saved_state.holds_key()) {
+			// TODO
+		} else if(saved_state.holds_group()) {
+			// TODO
+		}
+	}
+	void single_line_centered_header::recreate_contents(window_data& win, layout_node& self) {
+		auto button = win.create_node(&close_button, 2, 1, false);
+		auto& button_node = win.get_node(button);
+		button_node.x = uint16_t(self.width - 2);
+		button_node.parent = l_id;
+		self.container_info()->children.push_back(button);
+	}
+	
+	ui_rectangle single_line_empty_header::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
+
+		ui_rectangle retvalue;
+		retvalue.background_index = parent_background_index;
+		retvalue.foreground_index = parent_foreground_index;
+		retvalue.display_flags = 0ui8;
+		retvalue.parent_object = this;
+		return retvalue;
+	}
+	simple_layout_specification single_line_empty_header::get_specification(window_data const&) {
+		simple_layout_specification spec;
+		spec.minimum_page_size = 1ui16;
+		spec.minimum_line_size = 4ui16;
+		spec.page_flags = size_flags::none;
+		spec.line_flags = size_flags::fill_to_max;
+		return spec;
+	}
+	void single_line_empty_header::render_composite(ui_rectangle const& rect, window_data& win, bool) {
+		auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, 0, 1, 1, rect);
+		render::interactable(win, win.d2d_device_context, new_top_left, saved_state, rect.foreground_index, true);
+
+		if(saved_state.holds_key()) {
+			// TODO
+		} else if(saved_state.holds_group()) {
+			// TODO
+		} else {
+
+		}
+	}
+
+	button_control_base::~button_control_base() {
+	}
+	layout_node_type button_control_base::get_node_type() {
+		return layout_node_type::control;
+	}
+	ui_rectangle button_control_base::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
+
+		ui_rectangle retvalue;
+
+		retvalue.background_index = parent_background_index;
+		retvalue.foreground_index = parent_foreground_index;
+		retvalue.display_flags = (!disabled) ? ui_rectangle::flag_interactable : 0ui8;
+		retvalue.parent_object = this;
+
+		return retvalue;
+	}
+	void button_control_base::recreate_contents(window_data&, layout_node&) {
+	}
+
+	layout_position common_prepare_base_text_layout(window_data const& win, IDWriteTextLayout*& formatted_text, std::wstring const& text, int32_t given_width, content_alignment text_alignment) {
+		layout_position result;
+
+		win.common_text_format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+		win.common_text_format->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+		win.common_text_format->SetReadingDirection(DWRITE_READING_DIRECTION(reading_direction_from_orientation(win.orientation)));
+		win.common_text_format->SetFlowDirection(DWRITE_FLOW_DIRECTION(flow_direction_from_orientation(win.orientation)));
+		win.common_text_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
+		win.common_text_format->SetOpticalAlignment(DWRITE_OPTICAL_ALIGNMENT_NO_SIDE_BEARINGS);
+
+		if(!horizontal(win.orientation)) {
+			win.common_text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, win.dynamic_settings.primary_font.line_spacing, win.dynamic_settings.primary_font.vertical_baseline);
+		} else {
+			win.common_text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, win.dynamic_settings.primary_font.line_spacing, win.dynamic_settings.primary_font.baseline);
+		}
+
+		if(horizontal(win.orientation)) {
+
+			win.dwrite_factory->CreateTextLayout(text.c_str(), uint32_t(text.length()), win.common_text_format, float(given_width), float(win.layout_size), &formatted_text);
+
+			DWRITE_TEXT_METRICS text_metrics;
+			formatted_text->GetMetrics(&text_metrics);
+
+			//resolved_text_size.x = int16_t(std::ceil((text_metrics.width - text_metrics.left) / float(win.layout_size)));
+			result.x = int16_t(std::ceil((text_metrics.width) / float(win.layout_size)));
+
+			if(result.x <= win.dynamic_settings.line_width) {
+				formatted_text->SetMaxWidth(float(result.x * win.layout_size));
+				formatted_text->SetMaxHeight(float(win.layout_size));
+				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
+
+				result.y = 1;
+			} else {
+				formatted_text->SetMaxWidth(float(win.dynamic_settings.line_width * win.layout_size));
+				formatted_text->SetMaxHeight(float(100 * win.layout_size));
+				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
+
+				formatted_text->GetMetrics(&text_metrics);
+				result.y = int16_t(text_metrics.lineCount);
+				result.x = int16_t(win.dynamic_settings.line_width);
+				formatted_text->SetMaxHeight(float(text_metrics.lineCount * win.layout_size));
+				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
+			}
+
+		} else {
+			win.dwrite_factory->CreateTextLayout(text.c_str(), uint32_t(text.length()), win.common_text_format, float(win.layout_size), float(given_width), &formatted_text);
+
+			/*
+			IDWriteTypography* typo;
+			win.dwrite_factory->CreateTypography(&typo);
+			typo->AddFontFeature(DWRITE_FONT_FEATURE{ DWRITE_FONT_FEATURE_TAG_VERTICAL_ALTERNATES_AND_ROTATION, 1});
+			typo->AddFontFeature(DWRITE_FONT_FEATURE{ DWRITE_FONT_FEATURE_TAG_VERTICAL_WRITING, 1 });
+			formatted_text->SetTypography(typo, DWRITE_TEXT_RANGE{0, uint32_t(text.length()) });
+			safe_release(typo);
+			*/
+
+			DWRITE_TEXT_METRICS text_metrics;
+			formatted_text->GetMetrics(&text_metrics);
+
+			result.x = int16_t(std::ceil(text_metrics.height / float(win.layout_size)));
+			if(result.x <= win.dynamic_settings.line_width) {
+				formatted_text->SetMaxHeight(float(result.x * win.layout_size));
+				formatted_text->SetMaxWidth(float(win.layout_size));
+				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
+				result.y = 1;
+			} else {
+				formatted_text->SetMaxHeight(float(win.dynamic_settings.line_width * win.layout_size));
+				formatted_text->SetMaxWidth(float(100 * win.layout_size));
+				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
+
+				formatted_text->GetMetrics(&text_metrics);
+				result.y = int16_t(text_metrics.lineCount);
+				result.x = int16_t(win.dynamic_settings.line_width);
+				formatted_text->SetMaxWidth(float(text_metrics.lineCount * win.layout_size));
+				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
+			}
+		}
+
+		return result;
+	}
+
+	stored_text::~stored_text() {
+		safe_release(formatted_text);
+	}
+	void stored_text::invalidate() {
+		safe_release(formatted_text);
+	}
+	void stored_text::relayout_text(window_data const& win, screen_space_point sz) {
+		if(!std::holds_alternative<std::monostate>(text_content)) {
+			if(std::holds_alternative<wrapped_text_instance>(text_content)) {
+				if(std::get<wrapped_text_instance>(text_content).text_generation != win.text_data.text_generation) {
+					safe_release(formatted_text);
+					std::get<wrapped_text_instance>(text_content).text_generation = win.text_data.text_generation;
+				}
+			} else if(std::holds_alternative<std::wstring>(text_content)) {
+				if(formatted_text) {
+					if(formatted_text->GetReadingDirection() !=
+						DWRITE_READING_DIRECTION(reading_direction_from_orientation(win.orientation)) ||
+						formatted_text->GetFlowDirection() != DWRITE_FLOW_DIRECTION(flow_direction_from_orientation(win.orientation))) {
+						safe_release(formatted_text);
+					}
+				}
+			}
+
+			if(!formatted_text) {
+				prepare_text(win, horizontal(win.orientation) ? sz.x : sz.y);
+			}
+			if(formatted_text->GetMaxWidth() != float(sz.x))
+				formatted_text->SetMaxWidth(float(sz.x));
+			if(formatted_text->GetMaxHeight() != float(sz.y))
+				formatted_text->SetMaxHeight(float(sz.y));
+		}
+	}
+
+	void stored_text::prepare_text(window_data const& win, int32_t given_width) {
+		given_width = std::max(given_width, 1);
+
+		if(std::holds_alternative<wrapped_text_instance>(text_content)) {
+			if(std::get<wrapped_text_instance>(text_content).text_generation != win.text_data.text_generation) {
+				safe_release(formatted_text);
+				std::get<wrapped_text_instance>(text_content).text_generation = win.text_data.text_generation;
+			}
+
+		} else if(std::holds_alternative<std::wstring>(text_content)) {
+			if(formatted_text) {
+				if(formatted_text->GetReadingDirection() !=
+					DWRITE_READING_DIRECTION(reading_direction_from_orientation(win.orientation)) ||
+					formatted_text->GetFlowDirection() != DWRITE_FLOW_DIRECTION(flow_direction_from_orientation(win.orientation))) {
+					safe_release(formatted_text);
+				}
+			}
+		}
+
+		if(!formatted_text) {
+			if(std::holds_alternative<wrapped_text_instance>(text_content)) {
+				auto text_with_format = win.text_data.instantiate_text(std::get<wrapped_text_instance>(text_content).text_id, std::get<wrapped_text_instance>(text_content).stored_params, std::get<wrapped_text_instance>(text_content).stored_params + std::get<wrapped_text_instance>(text_content).params_count).text_content;
+
+				resolved_text_size = common_prepare_base_text_layout(win, formatted_text, text_with_format.text, given_width, text_alignment);
+
+				text::apply_formatting(formatted_text, text_with_format.formatting, win.dynamic_settings.named_fonts, win.dwrite_factory);
+			} else if(std::holds_alternative<std::wstring>(text_content)) {
+				resolved_text_size = common_prepare_base_text_layout(win, formatted_text, std::get<std::wstring>(text_content), given_width, text_alignment);
+			}
+		}
+	}
+	void stored_text::draw_text(window_data const& win, int32_t x, int32_t y) const {
+		win.d2d_device_context->DrawTextLayout(D2D1_POINT_2F{ float(x), float(y) }, formatted_text, win.dummy_brush, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+	}
+	void stored_text::set_text(std::wstring const& v) {
+		invalidate();
+		text_content = v;
+	}
+	void stored_text::set_text(uint16_t text_id, text::text_parameter const* begin, text::text_parameter const* end) {
+		invalidate();
+		wrapped_text_instance temp;
+		temp.params_count = uint8_t(end - begin);
+		std::copy_n(begin, temp.params_count, temp.stored_params);
+		temp.text_id = text_id;
+		text_content = temp;
+	}
+	void stored_text::set_text() {
+		invalidate();
+		text_content = std::monostate{};
+	}
+	void stored_text::set_text(stored_text const& v) {
+		invalidate();
+		text_content = v.text_content;
+	}
+
+	ui_rectangle labeled_control::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
+
+		ui_rectangle retvalue;
+
+		retvalue.background_index = parent_background_index;
+		retvalue.foreground_index = parent_foreground_index;
+		retvalue.parent_object = this;
+
+		return retvalue;
+	}
+	simple_layout_specification labeled_control::get_specification(window_data const& win) {
+		label_text.prepare_text(win, (interior_left_margin + interior_right_margin) * win.layout_size);
+
+		simple_layout_specification spec = sub_control->get_specification(win);
+
+		spec.minimum_page_size += uint16_t(label_text.resolved_text_size.y);
+		spec.minimum_line_size = std::max(spec.minimum_line_size, uint16_t(label_text.resolved_text_size.x + (interior_left_margin + interior_right_margin)));
+		spec.page_flags = size_flags::none;
+		spec.line_flags = size_flags::none;
+
+		return spec;
+	}
+	void labeled_control::render_foreground(ui_rectangle const& rect, window_data& win) {
+		auto sub_control_size = win.get_node(sub_control->l_id).height;
+
+		label_text.relayout_text(win,
+			horizontal(win.orientation) ?
+			screen_space_point{ rect.width - (interior_left_margin + interior_right_margin) * win.layout_size, rect.height - sub_control_size * win.layout_size } :
+			screen_space_point{ rect.width - sub_control_size * win.layout_size, rect.height - (interior_left_margin + interior_right_margin) * win.layout_size });
+
+		// get sub layout positions
+
+		auto text_bounding_rect = screen_rectangle_from_layout_in_ui(win, interior_left_margin, 0, win.get_node(l_id).width - (interior_left_margin + interior_right_margin), win.get_node(l_id).height - sub_control_size, rect);
+
+		label_text.draw_text(win, text_bounding_rect.x, text_bounding_rect.y);
+	}
+	void labeled_control::render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) {
+
+		D2D1_RECT_F bg_rect{
+			float(rect.x_position), float(rect.y_position),
+			float(rect.x_position + rect.width), float(rect.y_position + rect.height) };
+
+		render::background_rectangle(bg_rect, win, rect.display_flags, rect.background_index, under_mouse);
+		
+		auto text_rect = screen_rectangle_from_layout_in_ui(win, interior_left_margin, 0, win.get_node(l_id).width - (interior_left_margin + interior_right_margin), label_text.resolved_text_size.y, rect);
+
+		D2D1_RECT_F content_rect{
+			float(text_rect.x), float(text_rect.y),
+			float(text_rect.x + text_rect.width), float(text_rect.y + text_rect.height) };
+
+		win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.foreground_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, content_rect, content_rect);
+	}
+	void labeled_control::recreate_contents(window_data& win, layout_node& n) {
+
+		auto child_control = win.create_node(sub_control, n.width, n.height - label_text.resolved_text_size.y, false);
+
+		auto& child_node = win.get_node(child_control);
+		child_node.parent = l_id;
+		auto& self = win.get_node(l_id);
+
+		self.container_info()->children.push_back(child_control);
+		child_node.y = label_text.resolved_text_size.y;
+		child_node.x = 0;
+
+		self.width = std::max(self.width, child_node.width);
+		if(child_node.width < self.width) {
+			win.immediate_resize(child_node, self.width, child_node.height);
+		}
+	}
+
+	simple_layout_specification button_control_base::get_specification(window_data const& win) {
+		simple_layout_specification spec;
+
+		button_text.prepare_text(win, (interior_left_margin + interior_right_margin) * win.layout_size);
+
+		spec.minimum_page_size = uint16_t(button_text.resolved_text_size.y);
+		spec.minimum_line_size = uint16_t(button_text.resolved_text_size.x + (interior_left_margin + interior_right_margin));
+		spec.page_flags = size_flags::none;
+		spec.line_flags = size_flags::none;
+
+		return spec;
+	}
+
+	void button_control_base::render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) {
+		// get sub layout positions
+
+		auto fg_index = rect.foreground_index;
+		auto bg_index = rect.background_index;
+
+		if(selected)
+			std::swap(fg_index, bg_index);
+
+		D2D1_RECT_F content_rect{
+			float(rect.x_position), float(rect.y_position),
+			float(rect.x_position + rect.width), float(rect.y_position + rect.height) };
+
+		render::background_rectangle(content_rect, win,
+			selected ? (rect.display_flags & ~ui_rectangle::flag_skip_bg) : rect.display_flags,
+			bg_index, under_mouse);
+
+		if(!disabled) {
+			auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, ((button_text.resolved_text_size.y - 1) / 2), 1, (((button_text.resolved_text_size.y - 1) / 2) + 1), rect);
+			render::interactable_or_foreground(win, win.d2d_device_context, new_top_left, saved_state, fg_index, false);
+		}
+
+		auto new_content_rect = screen_rectangle_from_layout_in_ui(win, interior_left_margin, 0, win.get_node(l_id).width - (interior_left_margin + interior_right_margin), button_text.resolved_text_size.y, rect);
+
+		D2D1_RECT_F adjusted_content_rect{
+			float(new_content_rect.x), float(new_content_rect.y),
+			float(new_content_rect.x + new_content_rect.width), float(new_content_rect.y + new_content_rect.height)
+		};
+
+		if(!disabled) {
+			win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[fg_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, adjusted_content_rect, adjusted_content_rect);
+		} else {
+			win.palette[fg_index]->SetOpacity(0.6f);
+			win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[fg_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, adjusted_content_rect, adjusted_content_rect);
+			win.palette[fg_index]->SetOpacity(1.0f);
+		}
+	}
+	void button_control_base::render_foreground(ui_rectangle const& rect, window_data& win) {
+
+		button_text.relayout_text(win, horizontal(win.orientation) ? screen_space_point{ rect.width - (interior_left_margin + interior_right_margin) * win.layout_size, rect.height } : screen_space_point{ rect.width, rect.height - (interior_left_margin + interior_right_margin) * win.layout_size });
+
+		auto icon_location = screen_topleft_from_layout_in_ui(win, 0, ((button_text.resolved_text_size.y - 1) / 2), 1, (((button_text.resolved_text_size.y - 1) / 2) + 1), rect);
+
+		win.d2d_device_context->SetTransform(D2D1::Matrix3x2F::Translation(float(icon_location.x), float(icon_location.y)));
+
+		win.d2d_device_context->FillOpacityMask(
+			win.common_icons.icons[icon].rendered_layer,
+			win.dummy_brush,
+			D2D1_OPACITY_MASK_CONTENT_GRAPHICS);
+
+		win.d2d_device_context->SetTransform(D2D1::Matrix3x2F::Identity());
+
+		// get sub layout positions
+
+		auto text_bounding_rect = screen_rectangle_from_layout_in_ui(win, interior_left_margin, 0, win.get_node(l_id).width - (interior_left_margin + interior_right_margin), button_text.resolved_text_size.y, rect);
+
+
+		button_text.draw_text(win, text_bounding_rect.x, text_bounding_rect.y);
+	}
+
+	void page_header_button::render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) {
+		D2D1_RECT_F content_rect{
+			float(rect.x_position), float(rect.y_position),
+			float(rect.x_position + rect.width), float(rect.y_position + rect.height) };
+
+		render::background_rectangle(content_rect, win, rect.display_flags, rect.background_index, under_mouse);
+
+		auto int_top_left = screen_topleft_from_layout_in_ui(win, 0, 0, 1, 1, rect);
+		render::interactable(win, win.d2d_device_context, int_top_left, saved_state, rect.foreground_index, false);
+		
+
+		auto new_top_left = screen_topleft_from_layout_in_ui(win, 1, 0, 1, 1, rect);
+
+		win.d2d_device_context->SetTransform(D2D1::Matrix3x2F::Translation(float(new_top_left.x), float(new_top_left.y)));
+
+		win.d2d_device_context->FillOpacityMask(
+			win.common_icons.icons[standard_icons::header_close].rendered_layer,
+			win.palette[rect.foreground_index],
+			D2D1_OPACITY_MASK_CONTENT_GRAPHICS);
+
+		win.d2d_device_context->SetTransform(D2D1::Matrix3x2F::Identity());
+	}
+
+	ui_rectangle page_footer_button::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
+		ui_rectangle r;
+		r.parent_object = this;
+		r.background_index = parent_background_index;
+		r.foreground_index = parent_foreground_index;
+		return r;
+	}
+	layout_node_type page_footer_button::get_node_type() {
+		return layout_node_type::control;
+	}
+	simple_layout_specification page_footer_button::get_specification(window_data const&) {
+		simple_layout_specification spec;
+		spec.minimum_line_size = 4;
+		spec.minimum_page_size = 1;
+		spec.line_flags = size_flags::fill_to_max;
+		spec.page_flags = size_flags::none;
+		return spec;
+	}
+	void page_footer_button::render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) {
+		
+		D2D1_RECT_F content_rect{
+			float(rect.x_position), float(rect.y_position),
+			float(rect.x_position + rect.width), float(rect.y_position + rect.height) };
+
+		render::background_rectangle(content_rect, win, rect.display_flags, rect.background_index, under_mouse && stored_page_total > 1);
+
+		auto icon_location = screen_topleft_from_layout_in_ui(win, 0, 0, 1, 1, rect);
+		render::interactable_or_icon(win, win.d2d_device_context, icon_location, saved_state, rect.foreground_index, false, win.common_icons.icons[standard_icons::control_pages]);
+
+		win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.foreground_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, content_rect, content_rect);
+	}
+	void page_footer_button::render_foreground(ui_rectangle const& rect, window_data& win) {
+
+		update_page(win);
+
+		text::text_parameter page_numbers[2] = { text::int_param{ stored_page + 1 }, text::int_param{ stored_page_total } };
+
+		fraction_text.set_text(text_id::page_fraction, page_numbers, page_numbers + 2);
+		fraction_text.relayout_text(win, horizontal(win.orientation) ? screen_space_point{ rect.width - 2 * win.layout_size, rect.height } : screen_space_point{ rect.width, rect.height - 2 * win.layout_size });
+
+		auto text_bounding_rect = screen_rectangle_from_layout_in_ui(win, 1, 0, win.get_node(l_id).width - 2, 1, rect);
+
+		fraction_text.draw_text(win, text_bounding_rect.x, text_bounding_rect.y);
+	}
+	void page_footer_button::recreate_contents(window_data&, layout_node&) {
+	}
+	void page_footer_button::update_page(window_data& win) {
+		if(l_id != layout_reference_none) {
+			auto page_container = win.get_containing_page(l_id);
+			page_information* parent_pginfo = (page_container != layout_reference_none) ? win.get_node(page_container).page_info() : nullptr;
+
+			auto current_page = parent_pginfo ? uint32_t(parent_pginfo->subpage_offset) : 0;
+			auto max_page = parent_pginfo ? uint32_t(parent_pginfo->subpage_divisions.size() + 1) : 0;
+
+			if(current_page != stored_page || max_page != stored_page_total) {
+				fraction_text.invalidate();
+				stored_page = current_page;
+				stored_page_total = max_page;
+			}
+		} else {
+			stored_page = 0;
+			stored_page_total = 0;
+		}
+	}
+	void page_footer_button::on_click(window_data& win, uint32_t, uint32_t) {
+		if(l_id != layout_reference_none) {
+			auto parent = win.get_node(l_id).parent;
+			if(parent != layout_reference_none) {
+				page_footer* cf = static_cast<page_footer*>(win.get_node(parent).l_interface);
+				if(cf->is_open) {
+					cf->close_footer(win, true);
+				} else {
+					cf->open_footer(win, true);
+				}
+			}
+		}
+	}
+
+	bool page_back_button::is_disabled(window_data const& win)  {
+		if(l_id == layout_reference_none)
+			return true;
+
+		auto page_container = win.get_containing_page(l_id);
+		page_information* parent_pginfo = (page_container != layout_reference_none) ? win.get_node(page_container).page_info() : nullptr;
+
+		return parent_pginfo ? parent_pginfo->subpage_offset == 0 : true;
+	}
+
+	void page_back_button::on_click(window_data& win, uint32_t, uint32_t) {
+		if(l_id == layout_reference_none)
+			return;
+
+		auto page_container = win.get_containing_page(l_id);
+		page_information* parent_pginfo = (page_container != layout_reference_none) ? win.get_node(page_container).page_info() : nullptr;
+		auto disabled = parent_pginfo ? parent_pginfo->subpage_offset == 0 : true;
+
+		if(disabled)
+			return;
+
+		if(page_footer::page_turn_down.type != animation_type::none)
+				win.prepare_ui_animation();
+
+		parent_pginfo->subpage_offset -= 1ui16;
+
+		if(page_footer::page_turn_down.type != animation_type::none) {
+			if(page_footer::page_turn_down.type != animation_type::none) {
+				win.start_ui_animation(animation_description{
+					win.get_current_location(l_id),
+					page_footer::page_turn_down.type,
+					win.get_default_animation_direction(l_id),
+					page_footer::page_turn_down.duration_seconds,
+					page_footer::page_turn_down.animate_in });
+			}
+		}
+
+		win.redraw_ui();
+	}
+
+	bool page_jump_back_button::is_disabled(window_data const& win) {
+		if(l_id == layout_reference_none)
+			return true;
+
+		auto page_container = win.get_containing_page(l_id);
+		page_information* parent_pginfo = (page_container != layout_reference_none) ? win.get_node(page_container).page_info() : nullptr;
+
+		return parent_pginfo ? parent_pginfo->subpage_offset == 0 : true;
+	}
+
+	void page_jump_back_button::on_click(window_data& win, uint32_t, uint32_t) {
+		if(l_id == layout_reference_none)
+			return;
+
+		auto page_container = win.get_containing_page(l_id);
+		page_information* parent_pginfo = (page_container != layout_reference_none) ? win.get_node(page_container).page_info() : nullptr;
+		auto disabled = parent_pginfo ? parent_pginfo->subpage_offset == 0 : true;
+
+		if(disabled)
+			return;
+
+		if(page_footer::page_turn_down.type != animation_type::none)
+			win.prepare_ui_animation();
+
+		auto amount = std::ceil(std::sqrt(float(parent_pginfo->subpage_divisions.size() + 1)));
+		auto int_amount = std::min(parent_pginfo->subpage_offset, uint16_t(amount));
+		parent_pginfo->subpage_offset -= int_amount;
+
+		if(page_footer::page_turn_down.type != animation_type::none) {
+			if(page_footer::page_turn_down.type != animation_type::none) {
+				win.start_ui_animation(animation_description{
+					win.get_current_location(l_id),
+					page_footer::page_turn_down.type,
+					win.get_default_animation_direction(l_id),
+					page_footer::page_turn_down.duration_seconds,
+					page_footer::page_turn_down.animate_in });
+			}
+		}
+
+		win.redraw_ui();
+	}
+
+	bool page_forward_button::is_disabled(window_data const& win) {
+		if(l_id == layout_reference_none)
+			return true;
+
+		auto page_container = win.get_containing_page(l_id);
+		page_information* parent_pginfo = (page_container != layout_reference_none) ? win.get_node(page_container).page_info() : nullptr;
+
+		return parent_pginfo ? parent_pginfo->subpage_offset >= parent_pginfo->subpage_divisions.size() : true;
+	}
+
+	void page_forward_button::on_click(window_data& win, uint32_t, uint32_t) {
+		if(l_id == layout_reference_none)
+			return;
+
+		auto page_container = win.get_containing_page(l_id);
+		page_information* parent_pginfo = (page_container != layout_reference_none) ? win.get_node(page_container).page_info() : nullptr;
+		auto disabled = parent_pginfo ? parent_pginfo->subpage_offset >= parent_pginfo->subpage_divisions.size() : true;
+
+		if(disabled)
+			return;
+
+		if(page_footer::page_turn_up.type != animation_type::none)
+			win.prepare_ui_animation();
+
+		parent_pginfo->subpage_offset += 1ui16;
+
+		if(page_footer::page_turn_up.type != animation_type::none) {
+			if(page_footer::page_turn_up.type != animation_type::none) {
+				win.start_ui_animation(animation_description{
+					win.get_current_location(l_id),
+					page_footer::page_turn_up.type,
+					win.get_default_animation_direction(l_id),
+					page_footer::page_turn_up.duration_seconds,
+					page_footer::page_turn_up.animate_in });
+			}
+		}
+
+		win.redraw_ui();
+	}
+
+	bool page_jump_forward_button::is_disabled(window_data const& win) {
+		if(l_id == layout_reference_none)
+			return true;
+
+		auto page_container = win.get_containing_page(l_id);
+		page_information* parent_pginfo = (page_container != layout_reference_none) ? win.get_node(page_container).page_info() : nullptr;
+
+		return parent_pginfo ? parent_pginfo->subpage_offset >= parent_pginfo->subpage_divisions.size() : true;
+	}
+
+	void page_jump_forward_button::on_click(window_data& win, uint32_t, uint32_t) {
+		if(l_id == layout_reference_none)
+			return;
+
+		auto page_container = win.get_containing_page(l_id);
+		page_information* parent_pginfo = (page_container != layout_reference_none) ? win.get_node(page_container).page_info() : nullptr;
+		auto disabled = parent_pginfo ? parent_pginfo->subpage_offset >= parent_pginfo->subpage_divisions.size() : true;
+
+		if(disabled)
+			return;
+
+		if(page_footer::page_turn_up.type != animation_type::none)
+			win.prepare_ui_animation();
+
+		auto amount = std::ceil(std::sqrt(float(parent_pginfo->subpage_divisions.size() + 1)));
+		auto int_amount = uint16_t(amount);
+		parent_pginfo->subpage_offset += int_amount;
+		parent_pginfo->subpage_offset = std::min(parent_pginfo->subpage_offset, uint16_t(parent_pginfo->subpage_divisions.size()));
+
+		if(page_footer::page_turn_up.type != animation_type::none) {
+			if(page_footer::page_turn_up.type != animation_type::none) {
+				win.start_ui_animation(animation_description{
+					win.get_current_location(l_id),
+					page_footer::page_turn_up.type,
+					win.get_default_animation_direction(l_id),
+					page_footer::page_turn_up.duration_seconds,
+					page_footer::page_turn_up.animate_in });
+			}
+		}
+
+		win.redraw_ui();
+	}
+
+	ui_rectangle small_icon_button::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
+		ui_rectangle retvalue;
+
+		retvalue.background_index = parent_background_index;
+		retvalue.foreground_index = parent_foreground_index;
+		retvalue.display_flags = ui_rectangle::flag_interactable;
+		retvalue.parent_object = this;
+
+		return retvalue;
+	}
+	simple_layout_specification small_icon_button::get_specification(window_data const&) {
+		simple_layout_specification spec;
+
+		spec.minimum_page_size = 1ui16;
+		spec.minimum_line_size = 2ui16;
+		spec.page_flags = size_flags::none;
+		spec.line_flags = size_flags::none;
+
+		return spec;
+	}
+
+	void small_icon_button::render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) {
+		auto disabled = is_disabled(win);
+
+		D2D1_RECT_F content_rect{
+			float(rect.x_position), float(rect.y_position),
+			float(rect.x_position + rect.width), float(rect.y_position + rect.height) };
+
+		render::background_rectangle(content_rect, win, rect.display_flags, rect.background_index, under_mouse && !disabled);
+
+		if(!disabled) {
+			auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, 0, 1, 1, rect);
+			render::interactable(win, win.d2d_device_context, new_top_left, saved_state, rect.foreground_index, false);
+		}
+
+		auto new_top_left = screen_topleft_from_layout_in_ui(win, 1, 0, 1, 1, rect);
+
+		win.d2d_device_context->SetTransform(D2D1::Matrix3x2F::Translation(float(new_top_left.x), float(new_top_left.y)));
+		if(!disabled) {
+			win.d2d_device_context->FillOpacityMask(
+				win.common_icons.icons[icon_id].rendered_layer,
+				win.palette[rect.foreground_index],
+				D2D1_OPACITY_MASK_CONTENT_GRAPHICS);
+		} else {
+			win.palette[rect.foreground_index]->SetOpacity(0.6f);
+			win.d2d_device_context->FillOpacityMask(
+				win.common_icons.icons[icon_id].rendered_layer,
+				win.palette[rect.foreground_index],
+				D2D1_OPACITY_MASK_CONTENT_GRAPHICS);
+			win.palette[rect.foreground_index]->SetOpacity(1.0f);
+		}
+
+		win.d2d_device_context->SetTransform(D2D1::Matrix3x2F::Identity());
+	}
+
+	ui_rectangle page_header_button::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
+
+		ui_rectangle retvalue;
+
+		retvalue.background_index = parent_background_index;
+		retvalue.foreground_index = parent_foreground_index;
+		retvalue.display_flags = ui_rectangle::flag_interactable;
+		retvalue.parent_object = this;
+
+		return retvalue;
+	}
+
+	simple_layout_specification page_header_button::get_specification(window_data const&) {
+		simple_layout_specification spec;
+
+		spec.minimum_page_size = 1ui16;
+		spec.minimum_line_size = 2ui16;
+		spec.page_flags = size_flags::none;
+		spec.line_flags = size_flags::none;
+
+		return spec;
+	}
+
+	void page_header_button::on_click(window_data& win, uint32_t, uint32_t) {
+		if(l_id == layout_reference_none)
+			return;
+
+		auto& this_node = win.get_node(l_id);
+		if(this_node.parent == layout_reference_none)
+			return;
+
+		auto& header_node = win.get_node(this_node.parent);
+		auto page_node_id = header_node.parent;
+		if(page_node_id == layout_reference_none)
+			return;
+
+		close_action(win, page_node_id);
+		win.update_window_focus();
+	}
+
+	void list_open::on_click(window_data& win, uint32_t, uint32_t) {
+		if(l_id != layout_reference_none) {
+			auto parent = win.get_node(l_id).parent;
+			if(parent != layout_reference_none) {
+				auto& list_node = win.get_node(parent);
+				list_control* container = static_cast<list_control*>(list_node.l_interface);
+				if(container) {
+					container->open_list(win, true);
+				}
+			}
+		}
+	}
+	void list_option::on_click(window_data& win, uint32_t, uint32_t) {
+		if(!disabled && l_id != layout_reference_none) {
+			auto parent = win.get_node(l_id).parent;
+			if(parent != layout_reference_none) {
+				auto& list_node = win.get_node(parent);
+				list_control* container = static_cast<list_control*>(list_node.l_interface);
+				if(container) {
+					container->select_option_by_value(win, data);
+				}
+			}
+		}
+	}
+
+	ui_rectangle list_control::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
+
+		ui_rectangle retvalue;
+
+		retvalue.background_index = parent_background_index;
+		retvalue.foreground_index = parent_foreground_index;
+		retvalue.parent_object = l_id;
+
+		if(list_is_open) {
+			retvalue.left_border = 1;
+			retvalue.right_border = 1;
+			retvalue.top_border = 1;
+			retvalue.bottom_border = 1;
+		}
+
+
+		return retvalue;
+	}
+	simple_layout_specification list_control::get_specification(window_data const& win) {
+		simple_layout_specification spec;
+
+		populate_list(win);
+
+		uint16_t max_line_required = 2;
+		uint16_t max_page_required = 1;
+		for(auto& b : options) {
+			auto sub_spec = b.get_specification(win);
+			max_line_required = std::max(max_line_required, sub_spec.minimum_line_size);
+			max_page_required = std::max(max_page_required, sub_spec.minimum_page_size);
+		}
+
+		spec.minimum_page_size = max_page_required;
+		spec.minimum_line_size = max_line_required;
+		spec.page_flags = size_flags::none;
+		spec.line_flags = size_flags::none;
+
+		return spec;
+	}
+	void list_control::recreate_contents(window_data& win, layout_node& n) {
+		populate_list(win);
+		auto contents = n.container_info();
+		auto const node_height = n.height;
+		auto const node_width = n.width;
+
+		if(list_is_open) {
+			int32_t running_height = 0;
+			for(auto& opt : options) {
+				auto child_ref = win.create_node(&opt,
+					node_width, node_height, false, true);
+				auto& child_node = win.get_node(child_ref);
+
+				child_node.parent = l_id;
+				child_node.x = 0;
+				child_node.y = int16_t(running_height);
+
+				running_height += node_height;
+				win.immediate_resize(child_node, node_width, node_height);
+
+				contents->children.push_back(child_ref);
+				opt.button_text.invalidate();
+			}
+
+		} else {
+			auto child_ref = win.create_node(&open_button,
+				node_width, node_height, false, true);
+			auto& child_node = win.get_node(child_ref);
+
+			child_node.parent = l_id;
+			child_node.x = 0;
+			child_node.y = 0;
+
+			win.immediate_resize(child_node, node_width, node_height);
+			
+			contents->children.push_back(child_ref);
+		}
+	}
+	void list_control::on_lose_focus(window_data& win) {
+		close_list(win, false);
+	}
+	layout_rect list_control::get_content_rectangle(window_data& win) {
+		if(list_is_open) {
+			auto nheight = l_id != layout_reference_none ? win.get_node(l_id).height : 1ui16;
+			return layout_rect{ 0i16, int16_t(-(nheight * currently_selected)), 0i16, int16_t(nheight * (options.size() - 1)) };
+		} else {
+			return layout_rect{0i16,0i16,0i16,0i16};
+		}
+	}
+
+	void list_control::open_list(window_data& win, bool move_focus) {
+		if(l_id != layout_reference_none) {
+			if(list_control::list_appearance.type != animation_type::none)
+				win.prepare_ui_animation();
+
+			list_is_open = true;
+
+			win.recreate_contents(this, &(win.get_node(l_id)));
+			win.redraw_ui();
+			win.get_layout();
+
+			if(move_focus) {
+				if(!win.window_interface->is_mouse_cursor_visible())
+					win.set_window_focus(this);
+				else
+					win.update_window_focus();
+			} else {
+				win.repopulate_key_actions();
+			}
+			
+			if(list_control::list_appearance.type != animation_type::none) {
+				win.start_ui_animation(animation_description{
+					win.get_current_location(l_id),
+					list_control::list_appearance.type,
+					win.get_default_animation_direction(l_id),
+					list_control::list_appearance.duration_seconds,
+					list_control::list_appearance.animate_in });
+			}
+		}
+	}
+
+	void list_control::close_list(window_data& win, bool move_focus) {
+		if(list_is_open && l_id != layout_reference_none) {
+			screen_space_rect loc{};
+			if(list_control::list_disappearance.type != animation_type::none) {
+				win.prepare_ui_animation();
+				loc = win.get_current_location(l_id);
+			}
+
+			list_is_open = false;
+
+			win.recreate_contents(this, &(win.get_node(l_id)));
+			win.redraw_ui();
+			win.get_layout();
+
+			if(move_focus) {
+				if(!win.window_interface->is_mouse_cursor_visible())
+					win.back_focus_out_of(this);
+				else
+					win.update_window_focus();
+			} else {
+				win.repopulate_key_actions();
+			}
+
+			if(list_control::list_disappearance.type != animation_type::none) {
+				win.start_ui_animation(animation_description{
+					loc,
+					list_control::list_disappearance.type,
+					win.get_default_animation_direction(l_id),
+					list_control::list_disappearance.duration_seconds,
+					list_control::list_disappearance.animate_in });
+			} else {
+				win.stop_ui_animations();
+			}
+		}
+	}
+	void list_control::quiet_select_option_by_value(size_t d) {
+		if(!options.empty()) {
+			int32_t count = 0;
+			for(auto& b : options) {
+				if(b.data == d) {
+					options[currently_selected].selected = false;
+
+					currently_selected = count;
+
+					open_button.button_text.set_text(options[currently_selected].button_text);
+					options[currently_selected].selected = true;
+					return;
+				}
+				++count;
+			}
+		}
+
+
+	}
+	void list_control::select_option_by_value(window_data& win, size_t d) {
+		close_list(win, true);
+		quiet_select_option_by_value(d);
+		on_select(win, d);
+	}
+	button_control_base* list_control::get_option(size_t d) {
+		for(auto& b : options) {
+			if(b.data == d) {
+				return &b;
+			}
+		}
+		return nullptr;
+	}
+	void list_control::populate_list(window_data const& win) {
+		if(options.empty()) {
+			for(uint32_t i = 0; ; ++i) {
+				auto option = describe_option(win, i);
+
+				if(option.text_id == uint16_t(-1))
+					break;
+
+				options.emplace_back();
+				options.back().button_text.set_text(option.text_id);
+				options.back().alt_text = option.alt_text_id;
+				options.back().data = option.data;
+				options.back().button_text.text_alignment = text_alignment;
+			}
+
+			currently_selected = std::min(currently_selected, int32_t(options.size()) - 1);
+			open_button.button_text.set_text(options[currently_selected].button_text);
+			options[currently_selected].selected = true;
+			open_button.button_text.text_alignment = text_alignment;
+			open_button.alt_text = alt_text_id;
+			open_button.button_text.invalidate();
+			open_button.icon = standard_icons::control_list;
+
+			on_create(win);
+		}
+	}
+
+	animation_defintion list_control::list_appearance;
+	animation_defintion list_control::list_disappearance;
+
+	void menu_open::on_click(window_data& win, uint32_t, uint32_t) {
+		if(l_id != layout_reference_none) {
+			auto parent = win.get_node(l_id).parent;
+			if(parent != layout_reference_none) {
+				auto& list_node = win.get_node(parent);
+				menu_control* container = static_cast<menu_control*>(list_node.l_interface);
+				if(container) {
+					container->open_menu(win, true);
+				}
+			}
+		}
+	}
+
+	ui_rectangle menu_control::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
+
+		ui_rectangle retvalue;
+
+		retvalue.background_index = parent_background_index;
+		retvalue.foreground_index = parent_foreground_index;
+		retvalue.parent_object = l_id;
+
+		if(list_is_open) {
+			retvalue.left_border = 1;
+			retvalue.right_border = 1;
+			retvalue.top_border = 1;
+			retvalue.bottom_border = 1;
+		}
+
+		return retvalue;
+	}
+	page_layout_specification menu_control::get_page_layout_specification(window_data const& win) {
+		page_layout_specification retvalue;
+		retvalue.header = &header_space;
+		retvalue.footer = &menu_footer;
+
+		layout_node const* self_node = l_id != layout_reference_none ? &win.get_node(l_id) : nullptr;
+
+		retvalue.min_column_line_size = uint8_t(self_node ? self_node->width : 6);
+		retvalue.max_column_line_size = uint8_t(self_node ? self_node->width : 6);
+
+		retvalue.column_content_alignment = content_alignment::justified;
+		retvalue.column_in_page_alignment = content_alignment::centered;
+
+		retvalue.max_columns = 1;
+		retvalue.line_trailing_margin_min = 0;
+		retvalue.line_trailing_margin_max = 0;
+		retvalue.column_size_flags = size_flags::fill_to_max;
+
+		return retvalue;
+	}
+	simple_layout_specification menu_control::get_specification(window_data const&) {
+		simple_layout_specification spec;
+		spec.minimum_page_size = uint16_t(page_size);
+		spec.minimum_line_size = uint16_t(line_size);
+		return spec;
+	}
+
+	void menu_control::recreate_contents(window_data& win, layout_node& n) {
+		if(list_is_open) {
+			auto old_height = n.height;
+			auto old_width = n.width;
+			auto parent_page = win.get_containing_page(l_id);
+			auto parent_height = parent_page != layout_reference_none ? win.get_node(parent_page).height : old_height;
+			n.height = parent_height;
+			default_recreate_page(win, this, &n, get_options(win));
+
+			auto& nn = win.get_node(l_id);
+
+			if(!vertically_cover_parent) {
+
+				auto pi = nn.page_info();
+				int32_t cheight = 2;
+				if(pi) {
+					for(auto c : pi->columns) {
+						cheight = std::max(cheight, win.get_node(c).height + 2);
+					}
+				}
+				formatting_values v;
+				v.o = content_orientation::page;
+				v.footer_size = 1;
+				v.header_size = 1;
+				v.column_in_page = content_alignment::centered;
+				v.content_in_column = content_alignment::justified;
+				v.column_size = size_flags::fill_to_max;
+
+				format_columns(*pi, win, cheight, old_width, v);
+				win.get_node(menu_footer.l_id).y = uint16_t(cheight - 1);
+			}
+
+			nn.width = old_width;
+			nn.height = old_height;
+		} else {
+			open_button.icon = standard_icons::control_list;
+
+			auto pi = n.page_info();
+			pi->header = layout_reference_none;
+			pi->footer = layout_reference_none;
+			pi->subpage_offset = 0;
+			pi->subpage_divisions.clear();
+
+			auto n_width = n.width;
+			auto n_height = n.height;
+			auto open_button_id = win.create_node(&open_button, n_width, n_height, false);
+			auto& open_button_node = win.get_node(open_button_id);
+			open_button_node.parent = l_id;
+			open_button_node.x = 0;
+			open_button_node.y = 0;
+			win.immediate_resize(open_button_node, n_width, n_height);
+			pi->columns.push_back(open_button_id);
+		}
+	}
+	void menu_control::on_lose_focus(window_data& win) {
+		close_menu(win, false);
+	}
+
+	int32_t menu_control::get_menu_height(window_data const& win) const {
+		int32_t cheight = 0;
+		if(l_id == layout_reference_none)
+			return 0;
+		if(vertically_cover_parent) {
+			auto parent_page = win.get_containing_page(l_id);
+			auto parent_height = parent_page != layout_reference_none ? win.get_node(parent_page).height : 0;
+			if(parent_page != layout_reference_none) {
+				cheight = parent_height;
+			}
+		} else {
+			auto pi = win.get_node(l_id).page_info();
+			if(pi) {
+				for(auto n : pi->columns) {
+					cheight = std::max(cheight, win.get_node(n).height + 2);
+				}
+			}
+		}
+		return cheight;
+	}
+
+	layout_rect menu_control::get_content_rectangle(window_data& win) {
+		if(list_is_open) {
+			if(l_id == layout_reference_none)
+				return layout_rect{ 0i16,0i16,0i16,0i16 };
+
+			auto parent_page = win.get_containing_page(l_id);
+			auto parent_height = parent_page != layout_reference_none ? win.get_node(parent_page).height : 0;
+
+			auto nheight = win.get_node(l_id).height;
+			int16_t cheight = int16_t(get_menu_height(win) - nheight);
+			
+			auto parent_location = parent_page != layout_reference_none ? win.get_current_location(parent_page) : screen_space_rect{0,0};
+			auto self_location = win.get_current_location(l_id);
+
+			auto y_offset = -cheight / 2;
+			// ensure
+			// node pos.y + offset > page_loc. y
+			y_offset = std::max(y_offset, parent_location.y - self_location.y);
+			// ensure
+			// node pos .y + offset + cheight + nheight < page_loc. y + page height
+			y_offset = std::min(y_offset, parent_location.y + parent_height - (self_location.y + cheight + nheight));
+			// ensure
+			// offset >= 0 (i.e. not below the menu button)
+			y_offset = std::min(y_offset, 0);
+
+			return layout_rect{ 0i16, int16_t(y_offset), 0i16, std::max(cheight, 0i16) };
+		} else {
+			return layout_rect{ 0i16,0i16,0i16,0i16 };
+		}
+	}
+
+	void menu_control::open_menu(window_data& win, bool move_focus) {
+		if(l_id != layout_reference_none) {
+
+			if(menu_control::list_appearance.type != animation_type::none)
+				win.prepare_ui_animation();
+
+			list_is_open = true;
+
+			win.recreate_contents(this, &(win.get_node(l_id)));
+			win.redraw_ui();
+			win.get_layout();
+
+			if(move_focus) {
+				if(!win.window_interface->is_mouse_cursor_visible())
+					win.set_window_focus(this);
+				else
+					win.update_window_focus();
+			} else {
+				win.repopulate_key_actions();
+			}
+
+			if(menu_control::list_appearance.type != animation_type::none) {
+				win.start_ui_animation(animation_description{
+					win.get_current_location(l_id),
+					menu_control::list_appearance.type,
+					win.get_default_animation_direction(l_id),
+					menu_control::list_appearance.duration_seconds,
+					menu_control::list_appearance.animate_in });
+			}
+
+			on_open(win);
+		}
+	}
+	void menu_control::close_menu(window_data& win, bool move_focus) {
+		if(list_is_open && l_id != layout_reference_none) {
+			screen_space_rect loc{};
+
+			if(menu_control::list_disappearance.type != animation_type::none) {
+				win.prepare_ui_animation();
+				loc = win.get_current_location(l_id);
+			}
+
+			list_is_open = false;
+
+			win.recreate_contents(this, &(win.get_node(l_id)));
+			win.redraw_ui();
+			win.get_layout();
+
+			if(move_focus) {
+				if(!win.window_interface->is_mouse_cursor_visible())
+					win.back_focus_out_of(this);
+				else
+					win.update_window_focus();
+			} else {
+				win.repopulate_key_actions();
+			}
+
+			if(menu_control::list_disappearance.type != animation_type::none) {
+				win.start_ui_animation(animation_description{
+					loc,
+					menu_control::list_disappearance.type,
+					win.get_default_animation_direction(l_id),
+					menu_control::list_disappearance.duration_seconds,
+					menu_control::list_disappearance.animate_in });
+			} else {
+				win.stop_ui_animations();
+			}
+
+			on_close(win);
+		}
+	}
+
+	animation_defintion menu_control::list_appearance;
+	animation_defintion menu_control::list_disappearance;
+
+
+	ui_rectangle page_footer::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
+
+		ui_rectangle retvalue;
+
+		retvalue.background_index = parent_background_index;
+		retvalue.foreground_index = parent_foreground_index;
+		retvalue.parent_object = l_id;
+
+		if(is_open) {
+			retvalue.top_border = 1;
+			retvalue.bottom_border = 1;
+			retvalue.left_border = 1;
+			retvalue.right_border = 1;
+		}
+
+		return retvalue;
+	}
+	simple_layout_specification page_footer::get_specification(window_data const&) {
+		simple_layout_specification spec;
+		spec.minimum_page_size = 1;
+		spec.minimum_line_size = 4;
+		return spec;
+	}
+	void page_footer::recreate_contents(window_data& win, layout_node& n) {
+		auto contents = n.container_info();
+		auto const node_height = n.height;
+		auto const node_width = n.width;
+
+		if(is_open) {
+			if(node_width <= 8) {
+				{
+					auto child_ref = win.create_node(&jump_back, 2, 1, false, true);
+					auto& child_node = win.get_node(child_ref);
+					child_node.parent = l_id;
+					child_node.x = 0;
+					child_node.y = 0;
+					contents->children.push_back(child_ref);
+				}
+				{
+					auto child_ref = win.create_node(&back, 2, 1, false, true);
+					auto& child_node = win.get_node(child_ref);
+					child_node.parent = l_id;
+					child_node.x = 0;
+					child_node.y = 1;
+					contents->children.push_back(child_ref);
+				}
+				{
+					auto child_ref = win.create_node(&forward, 2, 1, false, true);
+					auto& child_node = win.get_node(child_ref);
+					child_node.parent = l_id;
+					child_node.x = 2;
+					child_node.y = 1;
+					contents->children.push_back(child_ref);
+				}
+				{
+					auto child_ref = win.create_node(&jump_forward, 2, 1, false, true);
+					auto& child_node = win.get_node(child_ref);
+					child_node.parent = l_id;
+					child_node.x = 2;
+					child_node.y = 0;
+					contents->children.push_back(child_ref);
+				}
+			} else {
+				auto base_offset = ((node_width - 8)) / 2;
+				auto even_offset = 1 - (node_width % 2);
+				{
+					auto child_ref = win.create_node(&jump_back, 2, 1, false, true);
+					auto& child_node = win.get_node(child_ref);
+					child_node.parent = l_id;
+					child_node.x = uint16_t(base_offset + 0 - even_offset);
+					child_node.y = 0;
+					contents->children.push_back(child_ref);
+				}
+				{
+					auto child_ref = win.create_node(&back, 2, 1, false, true);
+					auto& child_node = win.get_node(child_ref);
+					child_node.parent = l_id;
+					child_node.x = uint16_t(base_offset + 2 - even_offset);
+					child_node.y = 0;
+					contents->children.push_back(child_ref);
+				}
+				{
+					auto child_ref = win.create_node(&forward, 2, 1, false, true);
+					auto& child_node = win.get_node(child_ref);
+					child_node.parent = l_id;
+					child_node.x = uint16_t(base_offset + 4);
+					child_node.y = 0;
+					contents->children.push_back(child_ref);
+				}
+				{
+					auto child_ref = win.create_node(&jump_forward, 2, 1, false, true);
+					auto& child_node = win.get_node(child_ref);
+					child_node.parent = l_id;
+					child_node.x = uint16_t(base_offset + 6);
+					child_node.y = 0;
+					contents->children.push_back(child_ref);
+				}
+			}
+
+			{
+				auto child_ref = win.create_node(&primary_display,
+					node_width, node_height, false, true);
+
+				auto& child_node = win.get_node(child_ref);
+				child_node.parent = l_id;
+				child_node.x = 0;
+				child_node.y = node_width <= 8 ? 2ui16 : 1ui16;
+
+				win.immediate_resize(child_node, node_width, node_height);
+
+				contents->children.push_back(child_ref);
+			}
+
+		} else {
+			auto child_ref = win.create_node(&primary_display,
+				node_width, node_height, false, true);
+
+			auto& child_node = win.get_node(child_ref);
+			child_node.parent = l_id;
+			child_node.x = 0;
+			child_node.y = 0;
+
+			win.immediate_resize(child_node, node_width, node_height);
+
+			contents->children.push_back(child_ref);
+		}
+	}
+	layout_rect page_footer::get_content_rectangle(window_data& win) {
+		if(is_open) {
+			auto nwidth = l_id != layout_reference_none ? win.get_node(l_id).width : 0ui16;
+			return layout_rect{ 0i16, (nwidth <= 8ui16) ? -2i16 : -1i16, 0i16, (nwidth <= 8ui16) ? 2i16 : 1i16 };
+		} else {
+			return layout_rect{ 0i16,0i16,0i16,0i16 };
+		}
+	}
+	void page_footer::on_focus(window_data& win) {
+		open_footer(win, false);
+	}
+	void page_footer::on_lose_focus(window_data& win) {
+		close_footer(win, false);
+	}
+
+	void page_footer::open_footer(window_data& win, bool move_focus) {
+		if(!is_open && l_id != layout_reference_none) {
+
+			if(page_footer::footer_appearance.type != animation_type::none)
+				win.prepare_ui_animation();
+
+			is_open = true;
+
+			win.recreate_contents(this, &(win.get_node(l_id)));
+			win.redraw_ui();
+			win.get_layout();
+
+			if(move_focus) {
+				if(!win.window_interface->is_mouse_cursor_visible())
+					win.set_window_focus(this);
+				else
+					win.update_window_focus();
+			} else {
+				win.repopulate_key_actions();
+			}
+
+			if(page_footer::footer_appearance.type != animation_type::none) {
+				auto nwidth = win.get_node(l_id).width;
+				auto loc = win.get_layout_rect_in_current_location(
+					layout_rect{ 0, 0, -1, (nwidth <= 8ui16) ? 2 : 1 }, l_id);
+				win.start_ui_animation(animation_description{
+					loc, 
+					page_footer::footer_appearance.type,
+					animation_direction::bottom,
+					page_footer::footer_appearance.duration_seconds,
+					page_footer::footer_appearance.animate_in });
+			}
+		}
+	}
+	void page_footer::close_footer(window_data& win, bool move_focus) {
+		if(is_open && l_id != layout_reference_none) {
+			screen_space_rect loc{};
+			if(page_footer::footer_disappearance.type != animation_type::none) {
+				auto nwidth = win.get_node(l_id).width;
+				loc = win.get_layout_rect_in_current_location(
+					layout_rect{0, 0, -1, (nwidth <= 8ui16) ? 2 : 1 }, l_id);
+				win.prepare_ui_animation();
+			}
+
+			is_open = false;
+
+			win.recreate_contents(this, &(win.get_node(l_id)));
+			win.redraw_ui();
+			win.get_layout();
+
+			if(move_focus) {
+				if(!win.window_interface->is_mouse_cursor_visible())
+					win.back_focus_out_of(this);
+				else
+					win.update_window_focus();
+			} else {
+				win.repopulate_key_actions();
+			}
+
+			if(page_footer::footer_disappearance.type != animation_type::none) {
+				win.start_ui_animation(animation_description{
+					loc,
+					page_footer::footer_disappearance.type,
+					animation_direction::bottom,
+					page_footer::footer_disappearance.duration_seconds,
+					page_footer::footer_disappearance.animate_in });
+			}
+		}
+	}
+
+	animation_defintion page_footer::footer_appearance;
+	animation_defintion page_footer::footer_disappearance;
+
+	animation_defintion page_footer::page_turn_up;
+	animation_defintion page_footer::page_turn_down;
+}
