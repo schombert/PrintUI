@@ -72,7 +72,7 @@ namespace printui {
 	simple_layout_specification single_line_centered_header::get_specification(window_data const& win) {
 		simple_layout_specification spec;
 
-		text.prepare_text(win, 4 * win.layout_size);
+		text.prepare_text(win);
 
 		spec.minimum_page_size = 1ui16;
 		spec.minimum_line_size = uint16_t(text.resolved_text_size.x + 4);
@@ -176,80 +176,75 @@ namespace printui {
 	void button_control_base::recreate_contents(window_data&, layout_node&) {
 	}
 
-	layout_position common_prepare_base_text_layout(window_data const& win, IDWriteTextLayout*& formatted_text, std::wstring const& text, int32_t given_width, content_alignment text_alignment) {
+	layout_position common_prepare_base_text_layout(window_data const& win, IDWriteTextLayout*& formatted_text, std::wstring const& text, content_alignment text_alignment, bool use_large_size) {
 		layout_position result;
 
-		win.common_text_format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-		win.common_text_format->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
-		win.common_text_format->SetReadingDirection(DWRITE_READING_DIRECTION(reading_direction_from_orientation(win.orientation)));
-		win.common_text_format->SetFlowDirection(DWRITE_FLOW_DIRECTION(flow_direction_from_orientation(win.orientation)));
-		win.common_text_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
-		win.common_text_format->SetOpticalAlignment(DWRITE_OPTICAL_ALIGNMENT_NO_SIDE_BEARINGS);
+		auto text_format = use_large_size ? win.common_text_format : win.small_text_format;
+		auto& font = use_large_size ? win.dynamic_settings.primary_font : win.dynamic_settings.small_font;
+		auto const line_width = use_large_size ? win.dynamic_settings.line_width : win.dynamic_settings.small_width;
+
+		text_format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+		text_format->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+		text_format->SetReadingDirection(DWRITE_READING_DIRECTION(reading_direction_from_orientation(win.orientation)));
+		text_format->SetFlowDirection(DWRITE_FLOW_DIRECTION(flow_direction_from_orientation(win.orientation)));
+		text_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
+		text_format->SetOpticalAlignment(DWRITE_OPTICAL_ALIGNMENT_NO_SIDE_BEARINGS);
 
 		if(!horizontal(win.orientation)) {
-			win.common_text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, win.dynamic_settings.primary_font.line_spacing, win.dynamic_settings.primary_font.vertical_baseline);
+			text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, font.line_spacing, font.vertical_baseline);
 		} else {
-			win.common_text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, win.dynamic_settings.primary_font.line_spacing, win.dynamic_settings.primary_font.baseline);
+			text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, font.line_spacing, font.baseline);
 		}
 
 		if(horizontal(win.orientation)) {
 
-			win.dwrite_factory->CreateTextLayout(text.c_str(), uint32_t(text.length()), win.common_text_format, float(given_width), float(win.layout_size), &formatted_text);
+			win.dwrite_factory->CreateTextLayout(text.c_str(), uint32_t(text.length()), text_format, float(font.line_spacing), float(font.line_spacing), &formatted_text);
 
 			DWRITE_TEXT_METRICS text_metrics;
 			formatted_text->GetMetrics(&text_metrics);
 
-			//resolved_text_size.x = int16_t(std::ceil((text_metrics.width - text_metrics.left) / float(win.layout_size)));
 			result.x = int16_t(std::ceil((text_metrics.width) / float(win.layout_size)));
 
-			if(result.x <= win.dynamic_settings.line_width) {
+			if(result.x <= line_width) {
 				formatted_text->SetMaxWidth(float(result.x * win.layout_size));
-				formatted_text->SetMaxHeight(float(win.layout_size));
+				formatted_text->SetMaxHeight(float(font.line_spacing));
 				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
-
+				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
 				result.y = 1;
 			} else {
-				formatted_text->SetMaxWidth(float(win.dynamic_settings.line_width * win.layout_size));
-				formatted_text->SetMaxHeight(float(100 * win.layout_size));
+				formatted_text->SetMaxWidth(float(line_width * win.layout_size));
+				formatted_text->SetMaxHeight(float(100 * font.line_spacing));
 				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
 
 				formatted_text->GetMetrics(&text_metrics);
-				result.y = int16_t(text_metrics.lineCount);
-				result.x = int16_t(win.dynamic_settings.line_width);
-				formatted_text->SetMaxHeight(float(text_metrics.lineCount * win.layout_size));
+				result.y = int16_t(std::ceil(text_metrics.lineCount * font.line_spacing / float(win.layout_size)));
+				result.x = int16_t(line_width);
+				formatted_text->SetMaxHeight(float(text_metrics.lineCount * font.line_spacing));
 				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
 			}
 
 		} else {
-			win.dwrite_factory->CreateTextLayout(text.c_str(), uint32_t(text.length()), win.common_text_format, float(win.layout_size), float(given_width), &formatted_text);
-
-			/*
-			IDWriteTypography* typo;
-			win.dwrite_factory->CreateTypography(&typo);
-			typo->AddFontFeature(DWRITE_FONT_FEATURE{ DWRITE_FONT_FEATURE_TAG_VERTICAL_ALTERNATES_AND_ROTATION, 1});
-			typo->AddFontFeature(DWRITE_FONT_FEATURE{ DWRITE_FONT_FEATURE_TAG_VERTICAL_WRITING, 1 });
-			formatted_text->SetTypography(typo, DWRITE_TEXT_RANGE{0, uint32_t(text.length()) });
-			safe_release(typo);
-			*/
+			win.dwrite_factory->CreateTextLayout(text.c_str(), uint32_t(text.length()), text_format, float(font.line_spacing), float(font.line_spacing), &formatted_text);
 
 			DWRITE_TEXT_METRICS text_metrics;
 			formatted_text->GetMetrics(&text_metrics);
 
 			result.x = int16_t(std::ceil(text_metrics.height / float(win.layout_size)));
-			if(result.x <= win.dynamic_settings.line_width) {
-				formatted_text->SetMaxHeight(float(result.x * win.layout_size));
-				formatted_text->SetMaxWidth(float(win.layout_size));
+			if(result.x <= line_width) {
+				formatted_text->SetMaxHeight(float(result.x * font.line_spacing));
+				formatted_text->SetMaxWidth(float(font.line_spacing));
 				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
+				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
 				result.y = 1;
 			} else {
-				formatted_text->SetMaxHeight(float(win.dynamic_settings.line_width * win.layout_size));
-				formatted_text->SetMaxWidth(float(100 * win.layout_size));
+				formatted_text->SetMaxHeight(float(line_width * win.layout_size));
+				formatted_text->SetMaxWidth(float(100 * font.line_spacing));
 				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
 
 				formatted_text->GetMetrics(&text_metrics);
-				result.y = int16_t(text_metrics.lineCount);
-				result.x = int16_t(win.dynamic_settings.line_width);
-				formatted_text->SetMaxWidth(float(text_metrics.lineCount * win.layout_size));
+				result.y = int16_t(std::ceil(text_metrics.lineCount * font.line_spacing / float(win.layout_size)));
+				result.x = int16_t(line_width);
+				formatted_text->SetMaxWidth(float(text_metrics.lineCount * font.line_spacing));
 				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
 			}
 		}
@@ -257,6 +252,16 @@ namespace printui {
 		return result;
 	}
 
+	int32_t stored_text::get_lines_height(window_data const& win) const {
+		if(formatted_text) {
+			DWRITE_TEXT_METRICS text_metrics;
+			formatted_text->GetMetrics(&text_metrics);
+			return int32_t(text_metrics.lineCount * (draw_standard_size ? win.dynamic_settings.primary_font.line_spacing : win.dynamic_settings.small_font.line_spacing));
+		} else {
+			return 0;
+		}
+
+	}
 	stored_text::~stored_text() {
 		safe_release(formatted_text);
 	}
@@ -281,7 +286,7 @@ namespace printui {
 			}
 
 			if(!formatted_text) {
-				prepare_text(win, horizontal(win.orientation) ? sz.x : sz.y);
+				prepare_text(win);
 			}
 			if(formatted_text->GetMaxWidth() != float(sz.x))
 				formatted_text->SetMaxWidth(float(sz.x));
@@ -290,8 +295,7 @@ namespace printui {
 		}
 	}
 
-	void stored_text::prepare_text(window_data const& win, int32_t given_width) {
-		given_width = std::max(given_width, 1);
+	void stored_text::prepare_text(window_data const& win) {
 
 		if(std::holds_alternative<wrapped_text_instance>(text_content)) {
 			if(std::get<wrapped_text_instance>(text_content).text_generation != win.text_data.text_generation) {
@@ -313,11 +317,11 @@ namespace printui {
 			if(std::holds_alternative<wrapped_text_instance>(text_content)) {
 				auto text_with_format = win.text_data.instantiate_text(std::get<wrapped_text_instance>(text_content).text_id, std::get<wrapped_text_instance>(text_content).stored_params, std::get<wrapped_text_instance>(text_content).stored_params + std::get<wrapped_text_instance>(text_content).params_count).text_content;
 
-				resolved_text_size = common_prepare_base_text_layout(win, formatted_text, text_with_format.text, given_width, text_alignment);
+				resolved_text_size = common_prepare_base_text_layout(win, formatted_text, text_with_format.text, text_alignment, draw_standard_size);
 
 				text::apply_formatting(formatted_text, text_with_format.formatting, win.dynamic_settings.named_fonts, win.dwrite_factory);
 			} else if(std::holds_alternative<std::wstring>(text_content)) {
-				resolved_text_size = common_prepare_base_text_layout(win, formatted_text, std::get<std::wstring>(text_content), given_width, text_alignment);
+				resolved_text_size = common_prepare_base_text_layout(win, formatted_text, std::get<std::wstring>(text_content), text_alignment, draw_standard_size);
 			}
 		}
 	}
@@ -356,7 +360,7 @@ namespace printui {
 		return retvalue;
 	}
 	simple_layout_specification labeled_control::get_specification(window_data const& win) {
-		label_text.prepare_text(win, (interior_left_margin + interior_right_margin) * win.layout_size);
+		label_text.prepare_text(win);
 
 		simple_layout_specification spec = sub_control->get_specification(win);
 
@@ -418,7 +422,7 @@ namespace printui {
 	simple_layout_specification button_control_base::get_specification(window_data const& win) {
 		simple_layout_specification spec;
 
-		button_text.prepare_text(win, (interior_left_margin + interior_right_margin) * win.layout_size);
+		button_text.prepare_text(win);
 
 		spec.minimum_page_size = uint16_t(button_text.resolved_text_size.y);
 		spec.minimum_line_size = uint16_t(button_text.resolved_text_size.x + (interior_left_margin + interior_right_margin));

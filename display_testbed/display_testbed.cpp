@@ -58,6 +58,13 @@ void main_window::load_default_dynamic_settings() {
 	text_data.register_name("language_label", text_id::language_label);
 
 	text_data.register_name("page_fraction", text_id::page_fraction);
+
+	text_data.register_name("minimize_info", text_id::minimize_info);
+	text_data.register_name("maximize_info", text_id::maximize_info);
+	text_data.register_name("restore_info", text_id::restore_info);
+	text_data.register_name("settings_info", text_id::settings_info);
+	text_data.register_name("info_info", text_id::info_info);
+	text_data.register_name("close_info", text_id::close_info);
 }
 
 int WINAPI wWinMain(

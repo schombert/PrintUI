@@ -60,7 +60,14 @@ namespace text_id {
 	constexpr uint16_t page_fraction = 14;
 	constexpr uint16_t language_label = 15;
 
-	constexpr uint16_t first_free_id = 16;
+	constexpr uint16_t minimize_info = 16;
+	constexpr uint16_t maximize_info = 17;
+	constexpr uint16_t restore_info = 18;
+	constexpr uint16_t settings_info = 19;
+	constexpr uint16_t info_info = 20;
+	constexpr uint16_t close_info = 21;
+
+	constexpr uint16_t first_free_id = 22;
 }
 
 namespace printui {
@@ -253,7 +260,8 @@ namespace printui {
 	screen_space_rect screen_rectangle_from_layout_in_ui(window_data const& win,
 		int32_t line_position, int32_t page_position, int32_t line_width, int32_t page_height,
 		ui_rectangle const& rect);
-
+	screen_space_rect reverse_screen_space_orientation(window_data const& win, screen_space_rect source);
+	screen_space_rect intersection(screen_space_rect a, screen_space_rect b);
 	struct icon {
 		std::wstring file_name;
 		ID2D1Bitmap1* rendered_layer = nullptr;
@@ -610,16 +618,18 @@ namespace printui {
 	public:
 		layout_position resolved_text_size{ 0,1 };
 		content_alignment text_alignment = content_alignment::leading;
+		bool draw_standard_size = true;
 	public:
 		~stored_text();
 		void set_text(std::wstring const& v);
 		void set_text(uint16_t text_id, text::text_parameter const* begin = nullptr, text::text_parameter const* end = nullptr);
 		void set_text();
 		void set_text(stored_text const& v);
-		void prepare_text(window_data const& win, int32_t given_width);
+		void prepare_text(window_data const& win);
 		void relayout_text(window_data const& win, screen_space_point sz);
 		void draw_text(window_data const& win, int32_t x, int32_t y) const;
 		void invalidate();
+		int32_t get_lines_height(window_data const& win) const;
 	};
 
 	struct title_bar_element : public render_interface {
@@ -994,6 +1004,96 @@ namespace printui {
 
 		void open_footer(window_data&, bool move_focus);
 		void close_footer(window_data&, bool move_focus);
+	};
+
+	struct close_info_window : public small_icon_button {
+		close_info_window() {
+			icon_id = standard_icons::header_close;
+		}
+		virtual ~close_info_window() {
+		}
+		virtual void on_click(window_data&, uint32_t, uint32_t) override;
+	};
+
+	struct info_window : public render_interface {
+		struct parameters {
+			layout_reference attached_to = layout_reference_none;
+			int32_t left_margin = 0;
+			int32_t right_margin = 0;
+			int32_t width_value = 6;
+			bool appear_on_left = false;
+			bool reverse_fg_bg = false;
+			uint16_t text_id = uint16_t(-1);
+			text::text_parameter const* b = nullptr;
+			text::text_parameter const* e = nullptr;
+
+			parameters(layout_reference attached_to) : attached_to(attached_to) { }
+
+			parameters left(bool v = true) {
+				appear_on_left = v;
+				return *this;
+			}
+			parameters right(bool v = false) {
+				appear_on_left = v;
+				return *this;
+			}
+			parameters internal_margins(int32_t left, int32_t right) {
+				left_margin = left;
+				right_margin = right;
+				return *this;
+			}
+			parameters width(int32_t o) {
+				width_value = o;
+				return *this;
+			}
+			parameters reverse_palette(bool v = true) {
+				reverse_fg_bg = v;
+				return *this;
+			}
+			parameters text(uint16_t t, text::text_parameter const* f = nullptr, text::text_parameter const* g = nullptr) {
+				text_id = t; b = f; e = g;
+				return *this;
+			}
+		};
+
+		static animation_defintion info_appearance;
+		static animation_defintion info_disappearance;
+
+		close_info_window close_button;
+		stored_text text;
+		
+		screen_space_rect seeking_rect{0,0,0,0};
+
+		bool currently_visible = false;
+		animation_direction appearance_direction = animation_direction::left;
+
+		int16_t connected_to_line = 0;
+
+		uint8_t foreground = 1;
+		uint8_t background = 0;
+
+		info_window() {
+			text.text_alignment = content_alignment::leading;
+			text.draw_standard_size = false;
+		}
+		virtual ~info_window() { }
+		virtual layout_node_type get_node_type() override {
+			return layout_node_type::container;
+		}
+		virtual int32_t interactable_count() override {
+			return 0;
+		}
+
+		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
+		virtual simple_layout_specification get_specification(window_data const&) override;
+		virtual void render_foreground(ui_rectangle const& rect, window_data& win) override;
+		virtual void render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) override;
+		virtual void recreate_contents(window_data&, layout_node&) override;
+		virtual void on_lose_focus(window_data&) override;
+		virtual void on_focus(window_data&) override;
+
+		void open(window_data& win, parameters const& params);
+		void close(window_data& win, bool move_focus);
 	};
 
 	struct single_line_centered_header : public render_interface {
@@ -1757,7 +1857,9 @@ namespace printui {
 		void intitialize_fonts();
 
 		void remove_references_to(layout_interface* l);
-
+		bool is_title_set() const {
+			return has_window_title;
+		}
 		// layout functions
 
 		void recreate_contents(layout_interface* l_interface, layout_node* node);
@@ -1769,6 +1871,7 @@ namespace printui {
 
 		window_bar_element window_bar;
 		title_bar_element title_bar;
+		info_window info_popup;
 
 		layout_reference create_node(layout_interface* l_interface, int32_t max_width, int32_t max_height, bool force_create_children, bool force_create = false);
 

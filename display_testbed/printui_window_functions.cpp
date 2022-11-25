@@ -525,6 +525,37 @@ namespace printui {
 			}
 		}
 
+		if(info_popup.currently_visible && info_popup.seeking_rect.width > 0) {
+			auto margin = int32_t(5 * dpi / 96.0f);
+			auto& info_node = get_node(info_popup.l_id);
+
+			if(int32_t(x) < info_popup.seeking_rect.x || int32_t(y) < info_popup.seeking_rect.y || int32_t(x) > info_popup.seeking_rect.x + info_popup.seeking_rect.width || int32_t(y) > info_popup.seeking_rect.y + info_popup.seeking_rect.height) {
+				info_popup.close(*this, false);
+			} else {
+				auto screen_location = screen_rectangle_from_layout(*this, info_node.x, info_node.y, info_node.width, info_node.height);
+				if(int32_t(last_cursor_x_position) < screen_location.x) {
+					screen_location.width += (screen_location.x - last_cursor_x_position);
+					screen_location.x = last_cursor_x_position;
+				}
+				if(int32_t(last_cursor_y_position) < screen_location.y) {
+					screen_location.height += (screen_location.y - last_cursor_y_position);
+					screen_location.y = last_cursor_y_position;
+				}
+				if(int32_t(last_cursor_x_position) > screen_location.x + screen_location.width) {
+					screen_location.width = (screen_location.x - last_cursor_x_position);
+				}
+				if(int32_t(last_cursor_y_position) > screen_location.y + screen_location.height) {
+					screen_location.height = (screen_location.y - last_cursor_y_position);
+				}
+				screen_location.x -= margin;
+				screen_location.y -= margin;
+				screen_location.width += margin * 2;
+				screen_location.height += margin * 2;
+
+				info_popup.seeking_rect = intersection(info_popup.seeking_rect, screen_location);
+			}
+		}
+
 		return true;
 	}
 
@@ -1036,6 +1067,8 @@ namespace printui {
 		IDXGISurface* back_buffer = nullptr;
 
 		if(ui_width == nWidth && ui_height == nHeight) return;
+
+		info_popup.currently_visible = false;
 
 		ui_width = nWidth;
 		ui_height = nHeight;

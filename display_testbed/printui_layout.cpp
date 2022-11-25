@@ -941,7 +941,14 @@ namespace printui {
 	}
 	void window_data::repopulate_ui_rects() {
 		clear_prepared_layout();
-
+		if(info_popup.currently_visible && info_popup.l_id != layout_reference_none) {
+			auto& n = get_node(info_popup.l_id);
+			repopulate_ui_rects(info_popup.l_id, layout_position{ int16_t(n.x), int16_t(n.y) }, 1, 0);
+			ui_rectangle vr = get_ui_rects()[n.visible_rect];
+			vr.display_flags = ui_rectangle::flag_preserve_rect;
+			vr.parent_object = nullptr;
+			prepared_layout.push_back(vr);
+		}
 		if(top_node_id != layout_reference_none) {
 			repopulate_ui_rects(top_node_id,
 				layout_position{ int16_t(layout_nodes.get_node(top_node_id).x), int16_t(layout_nodes.get_node(top_node_id).y) },
@@ -1002,6 +1009,8 @@ namespace printui {
 			update_generation(title_bar.l_id);
 		if(window_bar.l_id != layout_reference_none)
 			update_generation(window_bar.l_id);
+		if(info_popup.l_id != layout_reference_none)
+			update_generation(info_popup.l_id);
 
 		layout_nodes.garbage_collect();
 	}
@@ -1063,6 +1072,9 @@ namespace printui {
 			temp_window_min_size_x = std::max(temp_window_min_size_x, uint32_t(layout_nodes.get_node(bottom_node_id).width));
 
 		auto wbar = create_node(&window_bar, 2, layout_y, true);
+
+		if(info_popup.currently_visible)
+			create_node(&info_popup, layout_x, layout_y, false);
 
 		temp_window_min_size_x = std::max(temp_window_min_size_x, uint32_t(layout_nodes.get_node(window_bar.settings_pages.l_id).width));
 
@@ -1140,6 +1152,7 @@ namespace printui {
 		stop_ui_animations();
 
 		++text_data.text_generation;
+		info_popup.currently_visible = false;
 
 		init_layout_graphics();
 		common_icons.redraw_icons(*this);

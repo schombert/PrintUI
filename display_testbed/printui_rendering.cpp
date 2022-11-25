@@ -26,6 +26,18 @@ namespace printui {
 		safe_release(rendered_layer);
 	}
 
+	screen_space_rect intersection(screen_space_rect a, screen_space_rect b) {
+		auto max_left = std::max(a.x, b.x);
+		auto max_top = std::max(a.y, b.y);
+		auto min_right = std::min(a.x + a.width, b.x + b.width);
+		auto min_bottom = std::min(a.y + a.height, b.y + b.height);
+		if(max_left < min_right && max_top < min_bottom) {
+			return screen_space_rect{ max_left, max_top, min_right - max_left, min_bottom - max_top };
+		} else {
+			return screen_space_rect{ 0,0,0,0 };
+		}
+	}
+
 	screen_space_point screen_point_from_layout(layout_orientation o,
 		int32_t x_pos, int32_t y_pos, ui_rectangle const& in_rect) {
 
@@ -57,6 +69,28 @@ namespace printui {
 		retvalue.y = std::min(point_a.y, point_b.y);
 
 		return retvalue;
+	}
+
+	screen_space_rect reverse_screen_space_orientation(window_data const& win, screen_space_rect source) {
+		screen_space_rect retval = source;
+
+		switch(win.orientation) {
+			case layout_orientation::horizontal_left_to_right:
+				break;
+			case layout_orientation::horizontal_right_to_left:
+				retval.x = win.ui_width - source.width;
+				break;
+			case layout_orientation::vertical_left_to_right:
+				std::swap(retval.width, retval.height);
+				std::swap(retval.x, retval.y);
+				break;
+			case layout_orientation::vertical_right_to_left:
+				retval.x = win.ui_width - source.width;
+				std::swap(retval.width, retval.height);
+				std::swap(retval.x, retval.y);
+				break;
+		}
+		return retval;
 	}
 
 	screen_space_rect screen_rectangle_from_layout_in_ui(window_data const& win,
