@@ -36,7 +36,7 @@ namespace printui {
 
 		settings_items.emplace_back(count, (layout_interface*)(&win.window_bar.print_ui_settings));
 		settings_items.back().button_text.set_text(text_id::ui_settings_name);
-		settings_items.back().alt_text = -1;
+		settings_items.back().alt_text = text_id::ui_settings_info;
 		settings_items.back().interior_right_margin = 1;
 		settings_items.back().interior_left_margin = 2;
 		settings_items.back().button_text.text_alignment = content_alignment::trailing;
@@ -89,7 +89,7 @@ namespace printui {
 		}
 		int32_t source_index = 0;
 		int32_t running_list_position = -1;
-		auto cres = make_column(setting_i_list, win, source_index, content_orientation::page, n.height, 4, 0, running_list_position, true);
+		auto cres = make_column(setting_i_list, win, source_index, content_orientation::page, n.height, 4, 0, running_list_position, column_break_condition{ false, false, false, true });
 
 		//&n becomes potentially invalid HERE
 
@@ -102,7 +102,7 @@ namespace printui {
 			column_container.layout_deferred = false;
 			column_container.parent = l_id;
 			column_container.height = uint16_t(cres.along_column_size);
-			column_container.width = uint16_t(cres.accross_column_max);
+			column_container.width = uint16_t(cres.across_column_max);
 
 			column_container.container_info()->children = std::move(cres.contents);
 			
@@ -114,14 +114,14 @@ namespace printui {
 			auto& self = win.get_node(l_id);
 			self.height = std::max(self.height, uint16_t(2 + cres.along_column_size));
 			resolved_height = self.height;
-			self.width = std::max(self.width, uint16_t(cres.accross_column_max));
+			self.width = std::max(self.width, uint16_t(cres.across_column_max));
 			resolved_width = self.width;
 		}
 		auto column_container_info = win.get_node(column_container_id).container_info();
 		for(auto child_result : column_container_info->children) {
 			auto& child = win.get_node(child_result);
 			child.parent = column_container_id;
-			child.x = uint16_t(cres.accross_column_max - child.width);
+			child.x = uint16_t(cres.across_column_max - child.width);
 		}
 
 		//create each settings page
@@ -129,11 +129,11 @@ namespace printui {
 		int32_t max_child_width = 0;
 		for(auto& si : settings_items) {
 
-			auto node_id = win.create_node(si.settings_contents, resolved_width - cres.accross_column_max, resolved_height - 1, true);
+			auto node_id = win.create_node(si.settings_contents, resolved_width - cres.across_column_max, resolved_height - 1, true);
 
 			pi->columns.push_back(node_id);
 			auto& child_page = win.get_node(node_id);
-			child_page.x = uint16_t(cres.accross_column_max);
+			child_page.x = uint16_t(cres.across_column_max);
 			child_page.y = 1ui16;
 
 			max_child_width = std::max(max_child_width, int32_t(child_page.width));
@@ -144,13 +144,13 @@ namespace printui {
 			auto& self = win.get_node(l_id);
 			self.height = uint16_t(std::max(max_child_height + 1, cres.along_column_size + 2));
 			resolved_height = self.height;
-			self.width = std::max(self.width, uint16_t(max_child_width + cres.accross_column_max));
+			self.width = std::max(self.width, uint16_t(max_child_width + cres.across_column_max));
 			resolved_width = self.width;
 		}
 
 		for(auto node_id : pi->columns) {
 			auto& child_page = win.get_node(node_id);
-			win.immediate_resize(child_page, resolved_width - cres.accross_column_max, resolved_height - 1);
+			win.immediate_resize(child_page, resolved_width - cres.across_column_max, resolved_height - 1);
 		}
 
 		{
@@ -196,23 +196,28 @@ namespace printui {
 	}
 
 	common_printui_settings::common_printui_settings() {
-		language_label.sub_control = &lang_menu;
 		language_label.label_text.text_alignment = content_alignment::leading;
 		language_label.label_text.set_text(text_id::language_label);
 		lang_menu.open_button.button_text.text_alignment = content_alignment::trailing;
 		lang_menu.page_size = 1;
 		lang_menu.line_size = 10;
 
-		orientation_label.sub_control = &orientation_list;
 		orientation_label.label_text.set_text(text_id::orientation_label);
 		orientation_label.label_text.text_alignment = content_alignment::leading;
 		orientation_list.text_alignment = content_alignment::trailing;
 
-		input_mode_label.sub_control = &input_mode_list;
 		input_mode_label.label_text.set_text(text_id::input_mode_label);
 		input_mode_label.label_text.text_alignment = content_alignment::leading;
 		input_mode_list.text_alignment = content_alignment::trailing;
 
+		language_label.alt_text = text_id::language_info;
+		lang_menu.alt_text = text_id::language_info;
+
+		orientation_label.alt_text = text_id::orientation_info;
+		orientation_list.alt_text_id = text_id::orientation_info;
+
+		input_mode_label.alt_text = text_id::input_mode_info;
+		input_mode_list.alt_text_id = text_id::input_mode_info;
 	}
 
 	ui_rectangle common_printui_settings::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
@@ -251,8 +256,11 @@ namespace printui {
 	void common_printui_settings::recreate_contents(window_data& win, layout_node& n) {
 		std::vector<layout_interface*> contents;
 		contents.push_back(&language_label);
+		contents.push_back(&lang_menu);
 		contents.push_back(&orientation_label);
+		contents.push_back(&orientation_list);
 		contents.push_back(&input_mode_label);
+		contents.push_back(&input_mode_list);
 		default_recreate_page(win, this, &n, contents);
 	}
 
@@ -280,17 +288,17 @@ namespace printui {
 	list_option_description settings_input_mode_list::describe_option(window_data const&, uint32_t i) {
 		switch(i) {
 			case 0:
-				return list_option_description{ size_t(input_mode::follow_input), text_id::input_mode_follow_input, uint16_t(-1) };
+				return list_option_description{ size_t(input_mode::follow_input), text_id::input_mode_follow_input, text_id::input_mode_automatic_info };
 			case 1:
-				return list_option_description{ size_t(input_mode::mouse_and_keyboard), text_id::input_mode_mouse_and_keyboard, uint16_t(-1) };
+				return list_option_description{ size_t(input_mode::mouse_and_keyboard), text_id::input_mode_mouse_and_keyboard, text_id::input_mode_mk_hybrid_info };
 			case 2:
-				return list_option_description{ size_t(input_mode::mouse_only), text_id::input_mode_mouse_only, uint16_t(-1) };
+				return list_option_description{ size_t(input_mode::mouse_only), text_id::input_mode_mouse_only, text_id::input_mode_mouse_info };
 			case 3:
-				return list_option_description{ size_t(input_mode::keyboard_only), text_id::input_mode_keyboard_only, uint16_t(-1) };
+				return list_option_description{ size_t(input_mode::keyboard_only), text_id::input_mode_keyboard_only, text_id::input_mode_keyboard_info };
 			case 4:
-				return list_option_description{ size_t(input_mode::controller_only), text_id::input_mode_controller_only, uint16_t(-1) };
+				return list_option_description{ size_t(input_mode::controller_only), text_id::input_mode_controller_only, text_id::input_mode_controller_info };
 			case 5:
-				return list_option_description{ size_t(input_mode::controller_with_pointer), text_id::input_mode_controller_with_pointer, uint16_t(-1) };
+				return list_option_description{ size_t(input_mode::controller_with_pointer), text_id::input_mode_controller_with_pointer, text_id::input_mode_controller_hybrid_info };
 			default:
 				return list_option_description{ 0, uint16_t(-1), uint16_t(-1) };
 		}

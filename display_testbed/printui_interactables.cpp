@@ -679,7 +679,7 @@ namespace printui {
 
 			if(pending_right_click) {
 
-				if((GetKeyState(MapVirtualKey(primary_right_click_modifier_sc, MAPVK_VSC_TO_VK)) == 0 && GetKeyState(MapVirtualKey(primary_right_click_modifier_sc, MAPVK_VSC_TO_VK)) == 0) || dynamic_settings.imode == input_mode::mouse_only) {
+				if((window_interface->get_key_state(primary_right_click_modifier_sc) == 0 && window_interface->get_key_state(secondary_right_click_modifier_sc) == 0) || dynamic_settings.imode == input_mode::mouse_only) {
 					pending_right_click = false; // right click modifier not held down
 					window_bar.info_i.mark_for_update(*this);
 				}

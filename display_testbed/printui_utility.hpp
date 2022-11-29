@@ -40,6 +40,7 @@ struct IDWriteTypography;
 struct IDXGIFactory2;
 struct D2D_RECT_F;
 struct DXGI_SWAP_CHAIN_DESC1;
+struct IUnknown;
 
 // for text ids common to the shared prinui controls
 namespace text_id {
@@ -67,7 +68,18 @@ namespace text_id {
 	constexpr uint16_t info_info = 20;
 	constexpr uint16_t close_info = 21;
 
-	constexpr uint16_t first_free_id = 22;
+	constexpr uint16_t orientation_info = 22;
+	constexpr uint16_t input_mode_info = 23;
+	constexpr uint16_t input_mode_mouse_info = 24;
+	constexpr uint16_t input_mode_automatic_info = 25;
+	constexpr uint16_t input_mode_controller_info = 26;
+	constexpr uint16_t input_mode_controller_hybrid_info = 27;
+	constexpr uint16_t input_mode_keyboard_info = 28;
+	constexpr uint16_t input_mode_mk_hybrid_info = 29;
+	constexpr uint16_t language_info = 30;
+	constexpr uint16_t ui_settings_info = 31;
+
+	constexpr uint16_t first_free_id = 32;
 }
 
 namespace printui {
@@ -250,6 +262,62 @@ namespace printui {
 		}
 	}
 
+	template<typename I>
+	class iunk_ptr {
+		I* ptr = nullptr;
+	public:
+		iunk_ptr() noexcept { }
+		iunk_ptr(I* ptr) noexcept : ptr(ptr) { }
+		iunk_ptr(iunk_ptr<I> const& o) noexcept {
+			ptr = o.ptr;
+			if(ptr)
+				ptr->AddRef();
+		}
+		iunk_ptr(iunk_ptr<I>&& o) noexcept {
+			ptr = o.ptr;
+			o.ptr = nullptr;
+		}
+		~iunk_ptr() {
+			if(ptr)
+				ptr->Release();
+			ptr = nullptr;
+		}
+		iunk_ptr<I>& operator=(iunk_ptr<I> const& o) noexcept {
+			if(ptr)
+				ptr->Release();
+			ptr = o.ptr;
+			if(ptr)
+				ptr->AddRef();
+			return *this;
+		}
+		iunk_ptr<I>& operator=(iunk_ptr<I>&& o) noexcept {
+			if(ptr)
+				ptr->Release();
+			ptr = o.ptr;
+			o.ptr = nullptr;
+			return *this;
+		}
+		I* operator->() const noexcept {
+			return ptr;
+		}
+		operator bool() const noexcept {
+			return ptr != nullptr;
+		}
+		operator I* () const noexcept {
+			return ptr;
+		}
+		template<typename T>
+		[[nodiscard]] iunk_ptr<T> query_interface() const noexcept {
+			T* temp = nullptr;
+			ptr->QueryInterface(__uuidof(T), reinterpret_cast<void**>(&temp));
+			return temp;
+		}
+	};
+	template<typename I, typename ... P>
+	[[nodiscard]] iunk_ptr<I> make_iunk(P&&...p) {
+		return iunk_ptr<I>(new I(std::forward<P>(p)...));
+	}
+
 	struct ui_rectangle;
 
 	screen_space_rect screen_rectangle_from_layout(window_data const& win,
@@ -343,8 +411,8 @@ namespace printui {
 		size_flags column_size_flags = size_flags::none;
 	};
 
-	enum class pargraph_break_behavior : uint8_t {
-		standard, break_before, break_after, break_both
+	enum class paragraph_break_behavior : uint8_t {
+		standard, break_before, break_after, break_both, dont_break_after
 	};
 
 	struct simple_layout_specification {
@@ -354,7 +422,7 @@ namespace printui {
 		size_flags page_flags = size_flags::none;
 		size_flags line_flags = size_flags::none;
 		
-		pargraph_break_behavior paragraph_breaking = pargraph_break_behavior::standard;
+		paragraph_break_behavior paragraph_breaking = paragraph_break_behavior::standard;
 	};
 
 	struct auto_layout_specification {
@@ -546,6 +614,9 @@ namespace printui {
 		virtual void go_to_page(uint32_t pg, page_information& pi) {
 			pi.subpage_offset = uint16_t(pg);
 		}
+		virtual IUnknown* get_accessibility_interface(window_data&) {
+			return nullptr;
+		}
 	};
 
 
@@ -720,7 +791,7 @@ namespace printui {
 	struct button_control_base : public render_interface {
 		stored_text button_text;
 
-		int32_t alt_text = -1;
+		uint16_t alt_text = uint16_t(-1);
 
 		interactable_state saved_state;
 		uint8_t interior_left_margin = 2;
@@ -752,31 +823,29 @@ namespace printui {
 		}
 		virtual void on_click(window_data&, uint32_t, uint32_t) override {
 		}
-		virtual void on_right_click(window_data&, uint32_t, uint32_t) override {
-		}
+		virtual void on_right_click(window_data&, uint32_t, uint32_t) override;
 	};
 
-	struct labeled_control : public render_interface {
+	struct label_control : public render_interface {
 		stored_text label_text;
 		uint16_t alt_text = uint16_t(-1);
-		layout_interface* sub_control = nullptr;
 
 		uint8_t interior_left_margin = 2;
 		uint8_t interior_right_margin = 2;
 
-		labeled_control() {
+		label_control() {
 		}
-		virtual ~labeled_control() {
+		virtual ~label_control() {
 		}
 
 		virtual layout_node_type get_node_type() override {
-			return layout_node_type::container;
+			return layout_node_type::visible;
 		};
 		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
 		virtual simple_layout_specification get_specification(window_data const&) override;
 		virtual void render_foreground(ui_rectangle const& rect, window_data& win) override;
 		virtual void render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) override;
-		virtual void recreate_contents(window_data&, layout_node&) override;
+		virtual void on_right_click(window_data&, uint32_t, uint32_t) override;
 	};
 
 	struct list_control;
@@ -1034,7 +1103,7 @@ namespace printui {
 				return *this;
 			}
 			parameters right(bool v = false) {
-				appear_on_left = v;
+				appear_on_left = !v;
 				return *this;
 			}
 			parameters internal_margins(int32_t left, int32_t right) {
@@ -1172,6 +1241,7 @@ namespace printui {
 		content_alignment text_alignment = content_alignment::leading;
 		bool list_is_open = false;
 		bool vertically_cover_parent = false;
+		uint16_t alt_text = uint16_t(-1);
 
 		menu_control() {
 		}
@@ -1204,8 +1274,8 @@ namespace printui {
 
 	struct settings_menu_item {
 		layout_interface* settings_contents = nullptr;
-		int32_t text = -1;
-		int32_t alt_text = -1;
+		uint16_t text = uint16_t(-1);
+		uint16_t alt_text = uint16_t(-1);
 	};
 
 	struct settings_item_button : public button_control_base {
@@ -1260,13 +1330,13 @@ namespace printui {
 		single_line_empty_header header;
 		page_footer footer;
 
-		labeled_control language_label;
+		label_control language_label;
 		language_menu lang_menu;
 
-		labeled_control orientation_label;
+		label_control orientation_label;
 		settings_orientation_list orientation_list;
 
-		labeled_control input_mode_label;
+		label_control input_mode_label;
 		settings_input_mode_list input_mode_list;
 
 		common_printui_settings();
@@ -1331,7 +1401,7 @@ namespace printui {
 		std::vector<layout_reference> contents;
 
 		int32_t along_column_size = 0;
-		int32_t accross_column_max = 0;
+		int32_t across_column_max = 0;
 	};
 
 	struct formatting_values {
@@ -1354,8 +1424,13 @@ namespace printui {
 		int32_t header_size = 0;
 		int32_t footer_size = 0;
 	};
-
-	column_content make_column(std::vector<layout_interface*> const& source, window_data& win, int32_t& index_into_source, content_orientation o, int32_t max_space, int32_t acoss_column_min, int32_t acoss_column_max, int32_t& running_list_position, bool single_col);
+	struct column_break_condition {
+		bool limit_to_max_size = true;
+		bool only_glued = false;
+		bool obey_break_requests = true;
+		bool column_must_not_be_empty = true;
+	};
+	column_content make_column(std::vector<layout_interface*> const& source, window_data& win, int32_t& index_into_source, content_orientation o, int32_t max_space, int32_t across_column_min, int32_t across_column_max, int32_t& running_list_position, column_break_condition const& conditions);
 	void format_columns(page_information& containing_page_info, window_data& layout_nodes,
 		int32_t max_v_size, int32_t max_h_size, formatting_values const& values);
 	void default_recreate_container(window_data& win, layout_interface* l_interface, layout_node* retvalue, std::vector<layout_interface*> const& children);
@@ -1609,6 +1684,15 @@ namespace printui {
 		
 	};
 
+	class root_window_provider;
+
+	enum class os_handle_type {
+		windows_hwnd
+	};
+
+	struct os_direct_access_base {
+	};
+
 	struct window_wrapper {
 		virtual ~window_wrapper() { }
 		virtual void invalidate_window() = 0;
@@ -1627,48 +1711,30 @@ namespace printui {
 		virtual void display_fatal_error_message(wchar_t const*) = 0;
 		virtual long create_swap_chain(IDXGIFactory2* fac, ID3D11Device* dev, DXGI_SWAP_CHAIN_DESC1 const* desc, IDXGISwapChain1** out) = 0;
 		virtual bool is_maximized() const = 0;
-		virtual void maximize() = 0;
-		virtual void minimize() = 0;
-		virtual void restore() = 0;
-		virtual void close() = 0;
+		virtual bool is_minimized() const = 0;
+		virtual void maximize(window_data&) = 0;
+		virtual void minimize(window_data&) = 0;
+		virtual void restore(window_data&) = 0;
+		virtual void close(window_data&) = 0;
 		virtual void set_text_rendering_parameters(ID2D1DeviceContext5* dc, IDWriteFactory6* fac) = 0;
 		virtual void set_window_title(wchar_t const* t) = 0;
-	};
-
-	struct os_win32_wrapper : public window_wrapper {
-		void* m_hwnd = nullptr;
-		bool cursor_visible = false;
-
-		os_win32_wrapper();
-		virtual ~os_win32_wrapper() {}
-		virtual void invalidate_window() override;
-		virtual screen_space_rect get_available_workspace() const override;
-		virtual screen_space_rect get_window_placement() const override;
-		virtual screen_space_rect get_window_location() const override;
-		virtual void set_window_placement(screen_space_rect r) override;
-		virtual void hide_mouse_cursor() override;
-		virtual void show_mouse_cursor() override;
-		virtual bool is_mouse_cursor_visible() const override;
-		virtual void reshow_mouse_cursor() override;
-		virtual int32_t get_key_state(uint32_t scan_code) const override;
-		virtual void move_window(screen_space_rect r) override;
-		virtual uint32_t get_window_dpi() const override;
-		virtual bool create_window(window_data& wd) override;
-		virtual void display_fatal_error_message(wchar_t const*) override;
-		virtual long create_swap_chain(IDXGIFactory2* fac, ID3D11Device* dev, DXGI_SWAP_CHAIN_DESC1 const* desc, IDXGISwapChain1** out) override;
-		virtual bool is_maximized() const override;
-		virtual void maximize() override;
-		virtual void minimize() override;
-		virtual void restore() override;
-		virtual void close() override;
-		virtual void set_text_rendering_parameters(ID2D1DeviceContext5* dc, IDWriteFactory6* fac) override;
-		virtual void set_window_title(wchar_t const* t) override;
+		virtual bool window_has_focus() const = 0;
+		virtual os_direct_access_base* get_os_access(os_handle_type) = 0;
 	};
 
 	enum class resize_type : uint8_t {
 		resize, maximize, minimize
 	};
 
+	struct accessibility_framework_wrapper {
+		virtual ~accessibility_framework_wrapper() {}
+		virtual bool has_keyboard_preference() = 0;
+		virtual void notify_window_state_change(resize_type r) = 0;
+		virtual void notify_window_moved(int32_t x, int32_t y, int32_t width, int32_t height) = 0;
+		virtual void notify_window_closed() = 0;
+		virtual root_window_provider* get_root_window_provider() = 0;
+		virtual void release_root_provider() = 0;
+	};
 
 	struct window_data {
 	private:
@@ -1754,6 +1820,7 @@ namespace printui {
 		std::vector<ID2D1Bitmap*> palette_bitmaps;
 
 		std::unique_ptr<window_wrapper> window_interface;
+		std::unique_ptr<accessibility_framework_wrapper> accessibility_interface;
 
 		uint32_t ui_width = 0;
 		uint32_t ui_height = 0;
@@ -1807,7 +1874,7 @@ namespace printui {
 
 		animation_status_struct animation_status;
 
-		window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi);
+		window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai);
 		virtual ~window_data();
 
 		virtual void load_default_dynamic_settings() = 0;
@@ -1882,6 +1949,7 @@ namespace printui {
 		void recreate_layout();
 		void resize_item(layout_reference id, int32_t new_width, int32_t new_height);
 		void set_window_title(std::wstring const& title);
+		wchar_t const* get_window_title() const;
 		void init_layout_graphics();
 
 		void release_all() {
@@ -1924,6 +1992,7 @@ namespace printui {
 		layout_reference get_minimimal_visible(layout_reference leaf) const;
 		bool is_child_of(layout_reference parent, layout_reference child) const;
 		layout_reference get_containing_page(layout_reference r) const;
+		layout_reference get_containing_proper_page(layout_reference r) const;
 		layout_reference get_containing_page_or_container(layout_reference r) const;
 		layout_reference get_enclosing_node(layout_reference r);
 		bool is_rendered(layout_reference r) const;
@@ -1975,7 +2044,7 @@ namespace printui {
 		void safely_release_interface(layout_interface* v);
 	};
 
-	input_mode get_system_default_input_mode();
+	
 	ui_rectangle const* interface_under_point(std::vector<ui_rectangle> const& rects, int32_t x, int32_t y);
 	ui_reference reference_under_point(std::vector<ui_rectangle> const& rects, int32_t x, int32_t y);
 	layout_reference layout_reference_under_point(std::vector<ui_rectangle> const& rects, int32_t x, int32_t y);

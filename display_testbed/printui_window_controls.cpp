@@ -66,9 +66,9 @@ namespace printui {
 	}
 	void vertical_2x2_max_icon::on_click(window_data& win, uint32_t, uint32_t) {
 		if(win.window_interface->is_maximized())
-			win.window_interface->restore();
+			win.window_interface->restore(win);
 		else
-			win.window_interface->maximize();
+			win.window_interface->maximize(win);
 	}
 	void vertical_2x2_max_icon::on_right_click(window_data& win, uint32_t, uint32_t) {
 		if(win.window_interface->is_maximized())
@@ -93,7 +93,7 @@ namespace printui {
 		ico.edge_padding = 0.5f;
 	}
 	void vertical_2x2_min_icon::on_click(window_data& win, uint32_t, uint32_t) {
-		win.window_interface->minimize();
+		win.window_interface->minimize(win);
 	}
 	void vertical_2x2_min_icon::on_right_click(window_data& win, uint32_t, uint32_t) {
 		win.info_popup.open(win, info_window::parameters{ l_id }.right().text(text_id::minimize_info).width(8));
@@ -159,9 +159,6 @@ namespace printui {
 		ui_rectangle revalue = vertical_2x2_icon_base::prototype_ui_rectangle(win, parent_foreground_index, parent_background_index);
 		standard_fg = parent_foreground_index;
 		standard_bg = parent_background_index;
-		if(win.pending_right_click) {
-			std::swap(revalue.background_index, revalue.foreground_index);
-		}
 		return revalue;
 	}
 
@@ -173,7 +170,7 @@ namespace printui {
 		ico.edge_padding = 0.5f;
 	}
 	void vertical_2x2_close_icon::on_click(window_data& win, uint32_t, uint32_t) {
-		win.window_interface->close();
+		win.window_interface->close(win);
 	}
 	void vertical_2x2_close_icon::on_right_click(window_data& win, uint32_t, uint32_t) {
 		win.info_popup.open(win, info_window::parameters{ l_id }.right().text(text_id::close_info).width(8));
@@ -287,7 +284,8 @@ namespace printui {
 
 		auto text_height = text.get_lines_height(win);
 		auto desired_top_px = connected_to_line * win.layout_size + win.layout_size / 2 - text_height / 2;
-		auto actual_top = std::clamp(desired_top_px, win.layout_size, rect.height - text_height - win.layout_size);
+		auto actual_top = std::min(desired_top_px, rect.height - text_height - win.layout_size);
+		actual_top = std::max(actual_top, win.layout_size);
 
 		auto top_left = screen_point_from_layout(win.orientation, win.layout_size, actual_top, rect);
 		auto bottom_right = screen_point_from_layout(win.orientation, rect.width - 2 * win.layout_size, actual_top + text_height, rect);
@@ -334,6 +332,7 @@ namespace printui {
 
 		win.create_node(this, win.layout_width, win.layout_height, true, true);
 		auto& self_node = win.get_node(l_id);
+		self_node.parent = params.attached_to;
 
 		// move into position
 		auto& attached_to_node = win.get_node(params.attached_to);
@@ -351,7 +350,7 @@ namespace printui {
 		if(params.reverse_fg_bg)
 			std::swap(foreground, background);
 
-		auto inside = win.get_enclosing_node(params.attached_to);
+		auto inside = win.get_containing_proper_page(params.attached_to);
 		if(inside != layout_reference_none) {
 			auto enclosing_size = win.get_current_location(inside);
 			auto derotated_enclosing_rect = reverse_screen_space_orientation(win, enclosing_size);
@@ -370,10 +369,13 @@ namespace printui {
 		if(params.appear_on_left && params.width_value <= space_on_left + params.left_margin) {
 			self_node.x = uint16_t(space_on_left - params.width_value + params.left_margin);
 			appearance_direction = animation_direction::right;
+			text.text_alignment = content_alignment::trailing;
 		} else {
 			self_node.x = uint16_t((derotated_attached_rect.x + derotated_attached_rect.width - win.window_border) / win.layout_size - params.right_margin);
 			appearance_direction = animation_direction::left;
+			text.text_alignment = content_alignment::leading;
 		}
+		text.invalidate();
 
 		auto screen_location = screen_rectangle_from_layout(win, self_node.x, self_node.y, self_node.width, self_node.height);
 		if(int32_t(win.last_cursor_x_position) < screen_location.x) {

@@ -112,91 +112,125 @@ namespace printui {
 		}
 	}
 
-	
+	void merge_into_result(window_data& win, content_orientation o, column_content& result, column_content const& to_merge) {
+		for(auto n : to_merge.contents) {
+			result.contents.push_back(n);
+			o_select(o, win.get_node(n).y, win.get_node(n).x) += uint16_t(result.along_column_size);
+		}
+		result.across_column_max = std::max(result.across_column_max, to_merge.across_column_max);
+		result.along_column_size += to_merge.along_column_size;
+	}
+	void discard_column(window_data& win, column_content const& col) {
+		for(auto i : col.contents) {
+			win.release_node(i);
+		}
+	}
 
-	column_content make_column(std::vector<layout_interface*> const& source, window_data& win, int32_t& index_into_source, content_orientation o, int32_t max_space, int32_t across_column_min, int32_t across_column_max, int32_t& running_list_position, bool single_col) {
+	column_content make_column(std::vector<layout_interface*> const& source, window_data& win, int32_t& index_into_source, content_orientation o, int32_t max_space, int32_t across_column_min, int32_t across_column_max, int32_t& running_list_position, column_break_condition const& conditions) {
 
 		column_content retvalue;
 
 		for(; index_into_source < int32_t(source.size()); ++index_into_source) {
 			auto node_basic_spec = source[index_into_source]->get_specification(win);
 
-			if(!single_col && retvalue.along_column_size != 0 && (node_basic_spec.paragraph_breaking == pargraph_break_behavior::break_before || node_basic_spec.paragraph_breaking == pargraph_break_behavior::break_both)) {
+			if(conditions.obey_break_requests && (retvalue.along_column_size != 0 || conditions.column_must_not_be_empty == false) && (node_basic_spec.paragraph_breaking == paragraph_break_behavior::break_before || node_basic_spec.paragraph_breaking == paragraph_break_behavior::break_both)) {
 				return retvalue;
 			}
 
-			layout_reference child_ref;
-			auto node_type = source[index_into_source]->get_node_type();
-
-			if(node_type != layout_node_type::list_stub) {
-				int32_t temp_unity = 1;
-				child_ref = win.create_node(source[index_into_source],
-					o_select(o, across_column_min, temp_unity),
-					o_select(o, temp_unity, across_column_min), false, true);
-				auto& cn = win.get_node(child_ref);
-				if(across_column_max > 0 && o_select(o, cn.width, cn.height) > across_column_max) {
-					int32_t temp = o_select(o, cn.height, cn.width);
-					win.immediate_resize(cn, o_select(o, across_column_max, temp), o_select(o, temp, across_column_max));
+			if(node_basic_spec.paragraph_breaking == paragraph_break_behavior::dont_break_after && conditions.only_glued == false) {
+				auto temp_index_into_source = index_into_source;
+				auto temp_running_list_position = running_list_position;
+				auto sub_result = make_column(source, win, temp_index_into_source, o,
+					max_space - retvalue.along_column_size, across_column_min, across_column_max,
+					temp_running_list_position, column_break_condition{false, true, false, false});
+				if((retvalue.along_column_size != 0 || conditions.column_must_not_be_empty == false) && conditions.limit_to_max_size && sub_result.along_column_size + retvalue.along_column_size > max_space) {
+					//too big
+					discard_column(win, sub_result);
+					return retvalue;
+				} else {
+					merge_into_result(win, o, retvalue, sub_result);
+					index_into_source = temp_index_into_source - 1;
+					running_list_position = temp_running_list_position;
 				}
 			} else {
-				child_ref = win.allocate_node();
-			}
 
-			layout_node& cnode = win.get_node(child_ref);
-			cnode.y = 0;
-			cnode.x = 0;
+				layout_reference child_ref;
+				auto node_type = source[index_into_source]->get_node_type();
 
-			if(!single_col && retvalue.along_column_size != 0
-				&& ((o_select(o, cnode.height, cnode.width) + retvalue.along_column_size) > max_space)) {
+				if(node_type != layout_node_type::list_stub) {
+					int32_t temp_unity = 1;
+					child_ref = win.create_node(source[index_into_source],
+						o_select(o, across_column_min, temp_unity),
+						o_select(o, temp_unity, across_column_min), false, true);
+					auto& cn = win.get_node(child_ref);
+					if(across_column_max > 0 && o_select(o, cn.width, cn.height) > across_column_max) {
+						int32_t temp = o_select(o, cn.height, cn.width);
+						win.immediate_resize(cn, o_select(o, across_column_max, temp), o_select(o, temp, across_column_max));
+					}
+				} else {
+					child_ref = win.allocate_node();
+				}
+
+				layout_node& cnode = win.get_node(child_ref);
+				cnode.y = 0;
+				cnode.x = 0;
+
+				if((retvalue.along_column_size != 0 || conditions.column_must_not_be_empty == false) && conditions.limit_to_max_size && ((o_select(o, cnode.height, cnode.width) + retvalue.along_column_size) > max_space)) {
+
+					if(node_type == layout_node_type::list_stub) {
+						win.release_node(child_ref);
+					}
+					return retvalue;
+				}
+
+				retvalue.across_column_max = std::max(retvalue.across_column_max, int32_t(o_select(o, cnode.width, cnode.height)));
+
+				retvalue.contents.push_back(child_ref);
 
 				if(node_type == layout_node_type::list_stub) {
-					win.release_node(child_ref);
-				}
-				return retvalue;
-			}
+					auto list_layout = source[index_into_source]->get_auto_layout_specification(win);
+					auto const total_space_remaining = max_space - retvalue.along_column_size;
+					auto const children_remainder = int32_t(list_layout.list_size) - running_list_position;
+					auto const child_space = o_select(o, node_basic_spec.minimum_page_size, node_basic_spec.minimum_line_size);
 
-			retvalue.accross_column_max = std::max(retvalue.accross_column_max, int32_t(o_select(o, cnode.width, cnode.height)));
+					cnode.contents = std::make_unique<container_information>();
+					cnode.container_info()->list_offset = running_list_position;
+					cnode.l_interface = source[index_into_source];
+					cnode.layout_deferred = true;
 
-			retvalue.contents.push_back(child_ref);
+					if((conditions.limit_to_max_size == false && conditions.only_glued == false) || total_space_remaining / child_space >= children_remainder) {
+						o_select(o, cnode.y, cnode.x) = uint16_t(retvalue.along_column_size);
+						o_select(o, cnode.width, cnode.height) = o_select(o, node_basic_spec.minimum_line_size, node_basic_spec.minimum_page_size);
+						o_select(o, cnode.height, cnode.width) = uint16_t(children_remainder * child_space);
 
-			if(node_type == layout_node_type::list_stub) {
-				auto list_layout = source[index_into_source]->get_auto_layout_specification(win);
-				auto const total_space_remaining = max_space - retvalue.along_column_size;
-				auto const children_remainder = int32_t(list_layout.list_size) - running_list_position;
-				auto const child_space = o_select(o, node_basic_spec.minimum_page_size, node_basic_spec.minimum_line_size);
+						retvalue.along_column_size += children_remainder * child_space;
+						running_list_position = 0;
+					} else {
+						auto chldren_in_batch = total_space_remaining / child_space;
+						if((retvalue.along_column_size == 0 && conditions.column_must_not_be_empty)) {
+							chldren_in_batch = std::max(chldren_in_batch, 1);
+						}
+						o_select(o, cnode.y, cnode.x) = uint16_t(retvalue.along_column_size);
+						o_select(o, cnode.width, cnode.height) = o_select(o, node_basic_spec.minimum_line_size, node_basic_spec.minimum_page_size);
+						o_select(o, cnode.height, cnode.width) = uint16_t(chldren_in_batch * child_space);
 
-				cnode.contents = std::make_unique<container_information>();
-				cnode.container_info()->list_offset = running_list_position;
-				cnode.l_interface = source[index_into_source];
-				cnode.layout_deferred = true;
-
-				if(single_col || total_space_remaining / child_space >= children_remainder) {
+						running_list_position += chldren_in_batch;
+						retvalue.along_column_size += total_space_remaining;
+						--index_into_source; // repeat
+					}
+				} else if(o_select(o, cnode.height, cnode.width) != 0) {
 					o_select(o, cnode.y, cnode.x) = uint16_t(retvalue.along_column_size);
-					o_select(o, cnode.width, cnode.height) = o_select(o, node_basic_spec.minimum_line_size, node_basic_spec.minimum_page_size);
-					o_select(o, cnode.height, cnode.width) = uint16_t(children_remainder * child_space);
-
-					retvalue.along_column_size += children_remainder * child_space;
-					running_list_position = 0;
-				} else {
-					auto chldren_in_batch = total_space_remaining / child_space;
-
-					o_select(o, cnode.y, cnode.x) = uint16_t(retvalue.along_column_size);
-					o_select(o, cnode.width, cnode.height) = o_select(o, node_basic_spec.minimum_line_size, node_basic_spec.minimum_page_size);
-					o_select(o, cnode.height, cnode.width) = uint16_t(chldren_in_batch * child_space);
-
-					running_list_position += chldren_in_batch;
-					retvalue.along_column_size += total_space_remaining;
-					--index_into_source; // repeat
+					retvalue.along_column_size += o_select(o, cnode.height, cnode.width);
 				}
-			} else if( o_select(o, cnode.height, cnode.width) != 0) {
-				o_select(o, cnode.y, cnode.x) = uint16_t(retvalue.along_column_size);
-				retvalue.along_column_size += o_select(o, cnode.height, cnode.width);
-			}
 
-			if(!single_col && (node_basic_spec.paragraph_breaking == pargraph_break_behavior::break_after || node_basic_spec.paragraph_breaking == pargraph_break_behavior::break_both)) {
+				if(conditions.obey_break_requests && (node_basic_spec.paragraph_breaking == paragraph_break_behavior::break_after || node_basic_spec.paragraph_breaking == paragraph_break_behavior::break_both)) {
 
-				++index_into_source;
-				return retvalue;
+					++index_into_source;
+					return retvalue;
+				} else if(conditions.only_glued && node_basic_spec.paragraph_breaking != paragraph_break_behavior::dont_break_after) {
+					++index_into_source;
+					return retvalue;
+				}
 			}
 		}
 
@@ -461,15 +495,15 @@ namespace printui {
 		int32_t index_into_children = 0;
 		int32_t running_list_position = 0;
 
-		auto cres = make_column(children, win, index_into_children, o, available_vert_space, available_horz_space, 0, running_list_position, true);
+		auto cres = make_column(children, win, index_into_children, o, available_vert_space, available_horz_space, 0, running_list_position, column_break_condition{ false, false, false, true });
 
 		retvalue = &win.get_node(l_interface->l_id);
 
 		if(cres.contents.size() != 0) {
 			ci->children.reserve(cres.contents.size());
 
-			retvalue->height = std::max(retvalue->height, uint16_t(o_select(o, cres.along_column_size, cres.accross_column_max)));
-			retvalue->width = std::max(retvalue->width, uint16_t(o_select(o, cres.accross_column_max, cres.along_column_size)));
+			retvalue->height = std::max(retvalue->height, uint16_t(o_select(o, cres.along_column_size, cres.across_column_max)));
+			retvalue->width = std::max(retvalue->width, uint16_t(o_select(o, cres.across_column_max, cres.along_column_size)));
 				
 			uint16_t group_offset = 0;
 			if(content_spec.group_alignment == content_alignment::centered) {
@@ -489,26 +523,26 @@ namespace printui {
 					case content_alignment::leading: //no change
 						break;
 					case content_alignment::trailing:
-						o_select(o, child.x, child.y) = uint16_t(cres.accross_column_max - o_select(o, child.width, child.height));
+						o_select(o, child.x, child.y) = uint16_t(cres.across_column_max - o_select(o, child.width, child.height));
 						break;
 					case content_alignment::centered:
-						o_select(o, child.x, child.y) = uint16_t((cres.accross_column_max - o_select(o, child.width, child.height)) / 2);
+						o_select(o, child.x, child.y) = uint16_t((cres.across_column_max - o_select(o, child.width, child.height)) / 2);
 						break;
 					case content_alignment::justified:
 						o_select(o, child.x, child.y) = 0ui16;
 						win.immediate_resize(child,
-							o == content_orientation::page ? cres.accross_column_max : child.width,
-							o == content_orientation::page ? child.height : cres.accross_column_max);
+							o == content_orientation::page ? cres.across_column_max : child.width,
+							o == content_orientation::page ? child.height : cres.across_column_max);
 						break;
 				}
 			}
 
 			// fit size to content
 			if(spec.line_flags == size_flags::match_content) {
-				retvalue->width = uint16_t(o_select(o, cres.accross_column_max, cres.along_column_size));
+				retvalue->width = uint16_t(o_select(o, cres.across_column_max, cres.along_column_size));
 			}
 			if(spec.page_flags == size_flags::match_content) {
-				retvalue->height = uint16_t(o_select(o, cres.along_column_size, cres.accross_column_max));
+				retvalue->height = uint16_t(o_select(o, cres.along_column_size, cres.across_column_max));
 			}
 		}
 		
@@ -579,7 +613,8 @@ namespace printui {
 					available_vert_space - (fdata.with_orientation_lmn + fdata.with_orientation_tmn),
 					page_spec.min_column_line_size,
 					page_spec.max_column_line_size,
-					running_list_position, in_one_column);
+					running_list_position,
+					in_one_column ? column_break_condition{ false, false, false, true } : column_break_condition{ true, false, true, true });
 
 				retvalue = &win.get_node(l_interface->l_id);
 
@@ -592,7 +627,7 @@ namespace printui {
 					column_container.parent = l_interface->l_id;
 					auto column_container_info = column_container.container_info();
 					o_select(o, column_container.height, column_container.width) = uint16_t(cres.along_column_size);
-					o_select(o, column_container.width, column_container.height) = uint16_t(cres.accross_column_max);
+					o_select(o, column_container.width, column_container.height) = uint16_t(cres.across_column_max);
 
 					retvalue = &win.get_node(l_interface->l_id);
 
@@ -1389,6 +1424,11 @@ namespace printui {
 		}
 	}
 
+	wchar_t const* window_data::get_window_title() const {
+		return window_title.c_str();
+
+	}
+
 	bool window_data::is_rendered(layout_reference r) const {
 		return get_node(r).visible_rect < prepared_layout.size() && !get_node(r).ignore;
 	}
@@ -1427,6 +1467,20 @@ namespace printui {
 		while(r != layout_reference_none) {
 			auto& p = get_node(r);
 			if(p.page_info()) {
+				return r;
+			}
+			r = p.parent;
+		}
+		return layout_reference_none;
+	}
+
+	layout_reference window_data::get_containing_proper_page(layout_reference r) const {
+		auto& n = get_node(r);
+		r = n.parent;
+
+		while(r != layout_reference_none) {
+			auto& p = get_node(r);
+			if(auto pi = p.page_info(); pi && pi->header != layout_reference_none) {
 				return r;
 			}
 			r = p.parent;

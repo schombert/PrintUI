@@ -19,6 +19,10 @@
 #include <wincodec.h>
 #include <shlwapi.h>
 #include <array>
+#include <ole2.h>
+#include <UIAutomation.h>
+#include "printui_windows_definitions.hpp"
+#include "printui_accessibility_definitions.hpp"
 
 namespace printui {
 
@@ -127,7 +131,11 @@ namespace printui {
 		);
 
 		if(m_hwnd) {
-			if(win.dynamic_settings.imode == printui::input_mode::mouse_and_keyboard || win.dynamic_settings.imode == printui::input_mode::mouse_only || win.dynamic_settings.imode == printui::input_mode::follow_input || win.dynamic_settings.imode == printui::input_mode::controller_with_pointer) {
+			if(win.dynamic_settings.imode == printui::input_mode::mouse_and_keyboard
+				|| win.dynamic_settings.imode == printui::input_mode::mouse_only
+				|| (win.dynamic_settings.imode == printui::input_mode::follow_input && win.prompts == prompt_mode::hidden)
+				|| win.dynamic_settings.imode == printui::input_mode::controller_with_pointer) {
+
 				SetCursor(LoadCursor(NULL, IDC_ARROW));
 				cursor_visible = true;
 			} else {
@@ -164,7 +172,7 @@ namespace printui {
 
 	screen_space_rect os_win32_wrapper::get_window_location() const {
 		RECT rcClient;
-		GetClientRect((HWND)(m_hwnd), &rcClient);
+		GetWindowRect((HWND)(m_hwnd), &rcClient);
 		return screen_space_rect{ rcClient.left, rcClient.top, rcClient.right - rcClient.left, rcClient.bottom - rcClient.top };
 	}
 
@@ -176,21 +184,30 @@ namespace printui {
 		return fac->CreateSwapChainForHwnd(dev, (HWND)(m_hwnd), desc, nullptr, nullptr, out);
 
 	}
-
+	bool os_win32_wrapper::window_has_focus() const {
+		return GetForegroundWindow() == (HWND)(m_hwnd);
+	}
 	bool os_win32_wrapper::is_maximized() const {
 		return IsZoomed((HWND)(m_hwnd));
 	}
-	void os_win32_wrapper::maximize() {
+	bool os_win32_wrapper::is_minimized() const {
+		return IsIconic((HWND)(m_hwnd));
+	}
+	void os_win32_wrapper::maximize(window_data& win) {
 		ShowWindow((HWND)(m_hwnd), SW_MAXIMIZE);
+		win.accessibility_interface->notify_window_state_change(resize_type::maximize);
 	}
-	void os_win32_wrapper::minimize() {
+	void os_win32_wrapper::minimize(window_data& win) {
 		ShowWindow((HWND)(m_hwnd), SW_MINIMIZE);
+		win.accessibility_interface->notify_window_state_change(resize_type::minimize);
 	}
-	void os_win32_wrapper::restore() {
+	void os_win32_wrapper::restore(window_data& win) {
 		ShowWindow((HWND)(m_hwnd), SW_SHOWNORMAL);
+		win.accessibility_interface->notify_window_state_change(resize_type::resize);
 	}
-	void os_win32_wrapper::close() {
+	void os_win32_wrapper::close(window_data& win) {
 		PostMessage((HWND)(m_hwnd), WM_CLOSE, 0, 0);
+		win.accessibility_interface->notify_window_closed();
 	}
 	
 	void os_win32_wrapper::set_window_title(wchar_t const* t) {
@@ -207,7 +224,7 @@ namespace printui {
 		}
 	}
 
-	window_data::window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi) : window_bar(*this, mn, mx, settings, setting_items), window_interface(std::move(wi)) {
+	window_data::window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai) : window_bar(*this, mn, mx, settings, setting_items), window_interface(std::move(wi)), accessibility_interface(std::move(ai)) {
 		horizontal_interactable_bg.file_name = L"left_select_i.svg";
 		horizontal_interactable_bg.edge_padding = 0.0f;
 		vertical_interactable_bg.file_name = L"top_select_i.svg";
@@ -880,8 +897,18 @@ namespace printui {
 					}
 					case WM_DESTROY:
 						app->release_all();
+						app->accessibility_interface->release_root_provider();
 						PostQuitMessage(0);
 						return 1;
+					case WM_GETOBJECT:
+					{
+						// If lParam matches UiaRootObjectId, return IRawElementProviderSimple.
+						if(static_cast<long>(lParam) == static_cast<long>(UiaRootObjectId)) {
+							return UiaReturnRawElementProvider(hwnd, wParam, lParam,
+								app->accessibility_interface->get_root_window_provider());
+						}
+						return 0;
+					}
 					default:
 						break;
 				}
@@ -896,10 +923,12 @@ namespace printui {
 		create_persistent_resources();
 
 		if(dynamic_settings.imode == input_mode::system_default) {
-			dynamic_settings.imode = printui::get_system_default_input_mode();
+			dynamic_settings.imode = input_mode::follow_input;
 		}
 
-		if(dynamic_settings.imode == input_mode::keyboard_only || dynamic_settings.imode == input_mode::mouse_and_keyboard)
+		bool kb_preference = accessibility_interface->has_keyboard_preference();
+
+		if(dynamic_settings.imode == input_mode::keyboard_only || dynamic_settings.imode == input_mode::mouse_and_keyboard || kb_preference)
 			prompts = prompt_mode::keyboard;
 		else if(dynamic_settings.imode == input_mode::controller_only || dynamic_settings.imode == input_mode::controller_with_pointer)
 			prompts = prompt_mode::controller;
@@ -1154,10 +1183,6 @@ namespace printui {
 	}
 
 
-	input_mode get_system_default_input_mode() {
-		return input_mode::follow_input;
-	}
-
 	void window_data::switch_input_mode(input_mode new_mode) {
 		if(new_mode == input_mode::keyboard_only || new_mode == input_mode::mouse_and_keyboard)
 			prompts = prompt_mode::keyboard;
@@ -1282,5 +1307,18 @@ namespace printui {
 		window_bar.expanded_show_settings = false;
 		get_node(window_bar.settings_pages.l_id).ignore = true;
 		redraw_ui();
+	}
+
+	os_win32_wrapper::~os_win32_wrapper() {
+
+	}
+
+	os_direct_access_base* os_win32_wrapper::get_os_access(os_handle_type t) {
+		if(t == os_handle_type::windows_hwnd) {
+			stored_direct_access.m_hwnd = m_hwnd;
+			return &stored_direct_access;
+		} else {
+			return nullptr;
+		}
 	}
 }

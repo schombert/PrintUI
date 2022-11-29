@@ -349,7 +349,7 @@ namespace printui {
 		text_content = v.text_content;
 	}
 
-	ui_rectangle labeled_control::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
+	ui_rectangle label_control::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
 
 		ui_rectangle retvalue;
 
@@ -359,33 +359,25 @@ namespace printui {
 
 		return retvalue;
 	}
-	simple_layout_specification labeled_control::get_specification(window_data const& win) {
+	simple_layout_specification label_control::get_specification(window_data const& win) {
+		simple_layout_specification spec;
+
 		label_text.prepare_text(win);
 
-		simple_layout_specification spec = sub_control->get_specification(win);
-
-		spec.minimum_page_size += uint16_t(label_text.resolved_text_size.y);
-		spec.minimum_line_size = std::max(spec.minimum_line_size, uint16_t(label_text.resolved_text_size.x + (interior_left_margin + interior_right_margin)));
+		spec.minimum_page_size = uint16_t(label_text.resolved_text_size.y);
+		spec.minimum_line_size = uint16_t(label_text.resolved_text_size.x + (interior_left_margin + interior_right_margin));
 		spec.page_flags = size_flags::none;
 		spec.line_flags = size_flags::none;
+		spec.paragraph_breaking = paragraph_break_behavior::dont_break_after;
 
 		return spec;
 	}
-	void labeled_control::render_foreground(ui_rectangle const& rect, window_data& win) {
-		auto sub_control_size = win.get_node(sub_control->l_id).height;
-
-		label_text.relayout_text(win,
-			horizontal(win.orientation) ?
-			screen_space_point{ rect.width - (interior_left_margin + interior_right_margin) * win.layout_size, rect.height - sub_control_size * win.layout_size } :
-			screen_space_point{ rect.width - sub_control_size * win.layout_size, rect.height - (interior_left_margin + interior_right_margin) * win.layout_size });
-
-		// get sub layout positions
-
-		auto text_bounding_rect = screen_rectangle_from_layout_in_ui(win, interior_left_margin, 0, win.get_node(l_id).width - (interior_left_margin + interior_right_margin), win.get_node(l_id).height - sub_control_size, rect);
+	void label_control::render_foreground(ui_rectangle const& rect, window_data& win) {
+		auto text_bounding_rect = screen_rectangle_from_layout_in_ui(win, interior_left_margin, 0, win.get_node(l_id).width - (interior_left_margin + interior_right_margin), label_text.resolved_text_size.y, rect);
 
 		label_text.draw_text(win, text_bounding_rect.x, text_bounding_rect.y);
 	}
-	void labeled_control::render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) {
+	void label_control::render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) {
 
 		D2D1_RECT_F bg_rect{
 			float(rect.x_position), float(rect.y_position),
@@ -401,21 +393,9 @@ namespace printui {
 
 		win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.foreground_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, content_rect, content_rect);
 	}
-	void labeled_control::recreate_contents(window_data& win, layout_node& n) {
-
-		auto child_control = win.create_node(sub_control, n.width, n.height - label_text.resolved_text_size.y, false);
-
-		auto& child_node = win.get_node(child_control);
-		child_node.parent = l_id;
-		auto& self = win.get_node(l_id);
-
-		self.container_info()->children.push_back(child_control);
-		child_node.y = label_text.resolved_text_size.y;
-		child_node.x = 0;
-
-		self.width = std::max(self.width, child_node.width);
-		if(child_node.width < self.width) {
-			win.immediate_resize(child_node, self.width, child_node.height);
+	void label_control::on_right_click(window_data& win, uint32_t, uint32_t) {
+		if(alt_text != uint16_t(-1)) {
+			win.info_popup.open(win, info_window::parameters{ l_id }.right(label_text.text_alignment == content_alignment::trailing).text(alt_text).width(8).internal_margins(interior_left_margin, interior_right_margin));
 		}
 	}
 
@@ -492,6 +472,11 @@ namespace printui {
 		button_text.draw_text(win, text_bounding_rect.x, text_bounding_rect.y);
 	}
 
+	void button_control_base::on_right_click(window_data& win, uint32_t, uint32_t) {
+		if(alt_text != uint16_t(-1)) {
+			win.info_popup.open(win, info_window::parameters{ l_id }.right(button_text.text_alignment == content_alignment::trailing).text(alt_text).width(8).internal_margins(interior_left_margin, interior_right_margin));
+		}
+	}
 	void page_header_button::render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) {
 		D2D1_RECT_F content_rect{
 			float(rect.x_position), float(rect.y_position),
@@ -944,7 +929,7 @@ namespace printui {
 			auto child_ref = win.create_node(&open_button,
 				node_width, node_height, false, true);
 			auto& child_node = win.get_node(child_ref);
-
+			open_button.alt_text = alt_text_id;
 			child_node.parent = l_id;
 			child_node.x = 0;
 			child_node.y = 0;
@@ -972,6 +957,7 @@ namespace printui {
 				win.prepare_ui_animation();
 
 			list_is_open = true;
+			win.info_popup.currently_visible = false;
 
 			win.recreate_contents(this, &(win.get_node(l_id)));
 			win.redraw_ui();
@@ -1006,6 +992,7 @@ namespace printui {
 			}
 
 			list_is_open = false;
+			win.info_popup.currently_visible = false;
 
 			win.recreate_contents(this, &(win.get_node(l_id)));
 			win.redraw_ui();
@@ -1187,6 +1174,7 @@ namespace printui {
 			nn.height = old_height;
 		} else {
 			open_button.icon = standard_icons::control_list;
+			open_button.alt_text = alt_text;
 
 			auto pi = n.page_info();
 			pi->header = layout_reference_none;
@@ -1268,6 +1256,7 @@ namespace printui {
 				win.prepare_ui_animation();
 
 			list_is_open = true;
+			win.info_popup.currently_visible = false;
 
 			win.recreate_contents(this, &(win.get_node(l_id)));
 			win.redraw_ui();
@@ -1304,6 +1293,7 @@ namespace printui {
 			}
 
 			list_is_open = false;
+			win.info_popup.currently_visible = false;
 
 			win.recreate_contents(this, &(win.get_node(l_id)));
 			win.redraw_ui();
