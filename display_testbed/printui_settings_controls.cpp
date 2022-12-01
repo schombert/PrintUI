@@ -7,10 +7,10 @@
 #define WIN32_LEAN_AND_MEAN
 
 namespace printui {
-	void settings_item_button::on_click(window_data& win, uint32_t, uint32_t) {
+	void settings_item_button::button_action(window_data& win) {
 		auto pi = win.get_node(win.window_bar.settings_pages.l_id).page_info();
 		if(pi) {
-			win.window_bar.settings_pages.go_to_page(id, *pi);
+			win.window_bar.settings_pages.go_to_page(win, id, *pi);
 		}
 	}
 
@@ -19,29 +19,29 @@ namespace printui {
 	};
 
 
-	settings_page_container::settings_page_container(window_data const& win, std::vector<settings_menu_item> const& app_settings) : page_header(close_settings_pages_fn) {
+	settings_page_container::settings_page_container(window_data& win, std::vector<settings_menu_item> const& app_settings) : page_header(text_id::close_settings_name, close_settings_pages_fn) {
 
 		settings_items.reserve(app_settings.size() + 1);
 
 		uint32_t count = 0;
 		for(auto& i : app_settings) {
-			settings_items.emplace_back(count, i.settings_contents);
-			settings_items.back().button_text.set_text(uint16_t(i.text));
-			settings_items.back().alt_text = i.alt_text;
-			settings_items.back().interior_right_margin = 1;
-			settings_items.back().interior_left_margin = 2;
-			settings_items.back().button_text.text_alignment = content_alignment::trailing;
+			settings_items.emplace_back(std::make_unique<settings_item_button>(count, i.settings_contents));
+			settings_items.back()->set_text(win, uint16_t(i.text));
+			settings_items.back()->set_alt_text(win, i.alt_text);
+			settings_items.back()->interior_right_margin = 1;
+			settings_items.back()->interior_left_margin = 2;
+			settings_items.back()->set_text_alignment(content_alignment::trailing);
 			++count;
 		}
 
-		settings_items.emplace_back(count, (layout_interface*)(&win.window_bar.print_ui_settings));
-		settings_items.back().button_text.set_text(text_id::ui_settings_name);
-		settings_items.back().alt_text = text_id::ui_settings_info;
-		settings_items.back().interior_right_margin = 1;
-		settings_items.back().interior_left_margin = 2;
-		settings_items.back().button_text.text_alignment = content_alignment::trailing;
+		settings_items.emplace_back(std::make_unique<settings_item_button>(count, (layout_interface*)(&win.window_bar.print_ui_settings)));
+		settings_items.back()->set_text(win, text_id::ui_settings_name);
+		settings_items.back()->set_alt_text(win, text_id::ui_settings_info);
+		settings_items.back()->interior_right_margin = 1;
+		settings_items.back()->interior_left_margin = 2;
+		settings_items.back()->set_text_alignment(content_alignment::trailing);
 
-		settings_items.front().selected = true;
+		settings_items.front()->set_selected(win, true);
 
 		page_header.text.set_text(text_id::settings_header);
 	}
@@ -54,7 +54,7 @@ namespace printui {
 		retvalue.left_border = 1;
 		return retvalue;
 	}
-	simple_layout_specification settings_page_container::get_specification(window_data const&) {
+	simple_layout_specification settings_page_container::get_specification(window_data&) {
 		simple_layout_specification spec;
 
 		spec.minimum_page_size = 5ui16;
@@ -85,7 +85,7 @@ namespace printui {
 		std::vector<layout_interface*> setting_i_list;
 		setting_i_list.reserve(settings_items.size());
 		for(auto& si : settings_items) {
-			setting_i_list.push_back(&si);
+			setting_i_list.push_back(si.get());
 		}
 		int32_t source_index = 0;
 		int32_t running_list_position = -1;
@@ -129,7 +129,7 @@ namespace printui {
 		int32_t max_child_width = 0;
 		for(auto& si : settings_items) {
 
-			auto node_id = win.create_node(si.settings_contents, resolved_width - cres.across_column_max, resolved_height - 1, true);
+			auto node_id = win.create_node(si->settings_contents, resolved_width - cres.across_column_max, resolved_height - 1, true);
 
 			pi->columns.push_back(node_id);
 			auto& child_page = win.get_node(node_id);
@@ -167,13 +167,13 @@ namespace printui {
 		}
 	}
 
-	void settings_page_container::go_to_page(uint32_t i, page_information& pi) {
+	void settings_page_container::go_to_page(window_data& win, uint32_t i, page_information& pi) {
 		if(pi.subpage_offset != i) {
 			for(auto& c : settings_items) {
-				if(c.id == i)
-					c.selected = true;
+				if(c->id == i)
+					c->set_selected(win, true);
 				else
-					c.selected = false;
+					c->set_selected(win, false);
 			}
 			auto old_sub_off = pi.subpage_offset == 0 ? 0 : pi.subpage_divisions[pi.subpage_offset - 1];
 			auto new_sub_off = i == 0 ? 0 : pi.subpage_divisions[i - 1];
@@ -198,7 +198,7 @@ namespace printui {
 	common_printui_settings::common_printui_settings() {
 		language_label.label_text.text_alignment = content_alignment::leading;
 		language_label.label_text.set_text(text_id::language_label);
-		lang_menu.open_button.button_text.text_alignment = content_alignment::trailing;
+		lang_menu.open_button.set_text_alignment(content_alignment::trailing);
 		lang_menu.page_size = 1;
 		lang_menu.line_size = 10;
 
@@ -228,7 +228,7 @@ namespace printui {
 		retvalue.foreground_index = parent_foreground_index;
 		return retvalue;
 	}
-	simple_layout_specification common_printui_settings::get_specification(window_data const&) {
+	simple_layout_specification common_printui_settings::get_specification(window_data&) {
 		simple_layout_specification spec;
 
 		spec.minimum_page_size = 5ui16;
@@ -303,12 +303,12 @@ namespace printui {
 				return list_option_description{ 0, uint16_t(-1), uint16_t(-1) };
 		}
 	}
-	void settings_input_mode_list::on_create(window_data const&) {
-		get_option(size_t(input_mode::controller_with_pointer))->disabled = true;
-		get_option(size_t(input_mode::controller_only))->disabled = true;
+	void settings_input_mode_list::on_create(window_data& win) {
+		get_option(size_t(input_mode::controller_with_pointer))->set_disabled(win, true);
+		get_option(size_t(input_mode::controller_only))->set_disabled(win, true);
 	}
 
-	void language_button::on_click(window_data& win, uint32_t, uint32_t) {
+	void language_button::button_action(window_data& win) {
 		win.text_data.change_locale(lang, region, win);
 		win.window_bar.print_ui_settings.lang_menu.close_menu(win, true);
 	}
@@ -322,12 +322,11 @@ namespace printui {
 				auto ptr = std::make_unique<language_button>();
 				ptr->lang = l.language;
 				ptr->region = l.region;
-				ptr->button_text.set_text(l.display_name);
+				ptr->set_text(win, l.display_name);
 				ptr->interior_left_margin = 2;
 				ptr->interior_right_margin = 1;
-				ptr->button_text.text_alignment = content_alignment::leading;
-				ptr->selected = win.text_data.is_current_locale(l.language, l.region);
-
+				ptr->set_text_alignment(content_alignment::leading);
+				ptr->set_selected(win, win.text_data.is_current_locale(l.language, l.region));
 				lbuttons.push_back(std::move(ptr));
 			}
 		}
@@ -340,7 +339,7 @@ namespace printui {
 	void language_menu::on_open(window_data& win) {
 		for(auto& ptr : win.window_bar.print_ui_settings.lang_menu.lbuttons) {
 			language_button* b = static_cast<language_button*>(ptr.get());
-			b->selected = win.text_data.is_current_locale(b->lang, b->region);
+			b->set_selected(win, win.text_data.is_current_locale(b->lang, b->region));
 		}
 	}
 	void language_menu::on_close(window_data&) {

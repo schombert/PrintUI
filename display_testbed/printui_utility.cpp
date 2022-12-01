@@ -239,6 +239,37 @@ namespace printui {
 		icons[control_prev_prev].xsize = 1;
 		icons[control_prev_prev].ysize = 1;
 		icons[control_prev_prev].edge_padding = 0.0f;
+
+
+		icons[window_settings].file_name = L"settings_i.svg";
+		icons[window_settings].xsize = 2;
+		icons[window_settings].ysize = 2;
+		icons[window_settings].edge_padding = 0.5f;
+
+		icons[window_max].file_name = L"max_i.svg";
+		icons[window_max].xsize = 2;
+		icons[window_max].ysize = 2;
+		icons[window_max].edge_padding = 0.5f;
+
+		icons[window_restore].file_name = L"restore_i.svg";
+		icons[window_restore].xsize = 2;
+		icons[window_restore].ysize = 2;
+		icons[window_restore].edge_padding = 0.5f;
+
+		icons[window_min].file_name = L"min_i.svg";
+		icons[window_min].xsize = 2;
+		icons[window_min].ysize = 2;
+		icons[window_min].edge_padding = 0.5f;
+
+		icons[window_info].file_name = L"alt_i.svg";
+		icons[window_info].xsize = 2;
+		icons[window_info].ysize = 2;
+		icons[window_info].edge_padding = 0.5f;
+
+		icons[window_close].file_name = L"close_i.svg";
+		icons[window_close].xsize = 2;
+		icons[window_close].ysize = 2;
+		icons[window_close].edge_padding = 0.5f;
 	}
 
 	int32_t reading_direction_from_orientation(layout_orientation o) {

@@ -464,7 +464,7 @@ namespace printui {
 			int pn = get_containing_page_number(l_interface->l_id, *pi, old_focus_column);
 			if(pn == -1)
 				pn = std::min(int32_t(pi->subpage_offset), int32_t(pi->subpage_divisions.size()));
-			l_interface->go_to_page(uint32_t(pn), *pi);
+			l_interface->go_to_page(*this, uint32_t(pn), *pi);
 			if(pi->footer != layout_reference_none) {
 				if(auto vrect = get_node(pi->footer).visible_rect; vrect < get_ui_rects().size()) {
 					get_ui_rects()[vrect].display_flags |= ui_rectangle::flag_needs_update;
@@ -740,7 +740,7 @@ namespace printui {
 		int pn = win.get_containing_page_number(l_interface->l_id, *pi, old_focus_column);
 		if(pn == -1)
 			pn = std::min(int32_t(pi->subpage_offset), int32_t(pi->subpage_divisions.size()));
-		l_interface->go_to_page(uint32_t(pn), *pi);
+		l_interface->go_to_page(win, uint32_t(pn), *pi);
 		if(pi->footer != layout_reference_none) {
 			if(auto vrect = win.get_node(pi->footer).visible_rect; vrect < win.get_ui_rects().size()) {
 				win.get_ui_rects()[vrect].display_flags |= ui_rectangle::flag_needs_update;
@@ -1198,7 +1198,7 @@ namespace printui {
 
 		update_window_focus();
 
-		window_bar.print_ui_settings.orientation_list.quiet_select_option_by_value(size_t(o));
+		window_bar.print_ui_settings.orientation_list.quiet_select_option_by_value(*this, size_t(o));
 
 		if(minimum_ui_width > ui_width || minimum_ui_height > ui_height) {
 			expand_to_fit_content();
@@ -1521,4 +1521,386 @@ namespace printui {
 		return layout_reference_none;
 	}
 
+
+	bool window_data::is_visible(layout_reference r) const {
+		if(r == layout_reference_none)
+			return false;
+		auto vr = get_node(r).visible_rect;
+		return vr < get_ui_rects().size();
+	}
+
+	struct acc_visible_children_it {
+		std::vector<layout_reference> const& n;
+		uint32_t content_pos = 0;
+
+		acc_visible_children_it(std::vector<layout_reference> const& m, uint32_t p) : n(m), content_pos(p) {
+		}
+		layout_reference operator*() const {
+			return n[content_pos];
+		}
+		bool operator==(acc_visible_children_it const& o) const {
+			return content_pos == o.content_pos;
+		}
+		bool operator!=(acc_visible_children_it const& o) const {
+			return content_pos != o.content_pos;
+		}
+		acc_visible_children_it& operator++() {
+			++content_pos;
+			return *this;
+		}
+		acc_visible_children_it& operator--() {
+			--content_pos;
+			return *this;
+		}
+	};
+
+	struct acc_visible_children_it_generator {
+		layout_node const& n;
+		std::vector<layout_reference> const* contents = nullptr;
+		acc_visible_children_it_generator(layout_node const& m) : n(m) {
+			if(auto p = n.page_info(); p) {
+				contents = &p->columns;
+			} else if(auto c = n.container_info(); c) {
+				contents = &c->children;
+			} else {
+				std::abort(); // error
+			}
+		}
+		acc_visible_children_it begin() {
+			uint32_t content_start = 0;
+			if(auto p = n.page_info(); p) {
+				if(p->subpage_offset > 0) {
+					content_start = p->subpage_divisions[p->subpage_offset - 1];
+				}
+			}
+			return acc_visible_children_it(*contents, content_start);
+		}
+		acc_visible_children_it end() {
+			if(auto p = n.page_info(); p) {
+				uint32_t content_end = uint32_t(p->columns.size());
+				if(p->subpage_offset < p->subpage_divisions.size()) {
+					content_end = p->subpage_divisions[p->subpage_offset];
+				}
+				return acc_visible_children_it(*contents, content_end);
+			} else {
+				return acc_visible_children_it(*contents, uint32_t(contents->size()));
+			}
+		}
+	};
+	acc_visible_children_it_generator acc_visible_children(layout_node const& n) {
+		return acc_visible_children_it_generator(n);
+	}
+
+	enum class acc_special_page_iteration {
+		header, body, finished, footer
+	};
+
+	struct acc_sub_items_iterator {
+		window_data& lm;
+		page_information* pi = nullptr;
+		acc_visible_children_it child_it;
+		acc_visible_children_it child_it_end;
+		acc_special_page_iteration page_it_status = acc_special_page_iteration::header;
+
+		std::vector<std::pair<acc_sub_items_iterator, acc_sub_items_iterator>> sub_iterators;
+
+		void advance_iterator_status() {
+			if(page_it_status == acc_special_page_iteration::header) {
+				if(child_it.content_pos != child_it_end.content_pos)
+					page_it_status = acc_special_page_iteration::body;
+				else
+					page_it_status = acc_special_page_iteration::footer;
+			} else if(page_it_status == acc_special_page_iteration::body) {
+				++child_it;
+				if(child_it == child_it_end)
+					page_it_status = pi ? acc_special_page_iteration::footer : acc_special_page_iteration::finished;
+			} else {
+				page_it_status = acc_special_page_iteration::finished;
+			}
+		}
+
+		bool try_node(layout_reference r) {
+			auto& cn = lm.get_node(r);
+			if(cn.ignore) {
+				return false;
+			} else if(auto i = cn.l_interface; i) {
+				if(auto a = i->get_accessibility_interface(lm); a)
+					return true;
+			}
+			
+			if(cn.page_info()) { // case: subpage
+				auto vis_range = acc_visible_children(cn);
+				acc_sub_items_iterator sub(lm, cn.page_info(), vis_range.begin(), vis_range.end());
+				if(sub.child_it != sub.child_it_end) {
+					sub_iterators.push_back(std::pair<acc_sub_items_iterator, acc_sub_items_iterator>(sub, acc_sub_items_iterator(lm, sub.child_it_end)));
+						return true;
+				}
+			} else if(cn.container_info()) { // case: subpage
+				auto vis_range = acc_visible_children(cn);
+				acc_sub_items_iterator sub(lm, nullptr, vis_range.begin(), vis_range.end());
+				if(sub.child_it != sub.child_it_end) {
+					sub_iterators.push_back(std::pair<acc_sub_items_iterator, acc_sub_items_iterator>(sub, acc_sub_items_iterator(lm, sub.child_it_end)));
+					return true;
+				}
+			}
+
+			return false;
+		}
+
+		acc_sub_items_iterator(window_data& l, page_information* p, acc_visible_children_it i, acc_visible_children_it e) : lm(l), pi(p), child_it(i), child_it_end(e) {
+			// advance to first
+
+			if(!pi) {
+				page_it_status = acc_special_page_iteration::body;
+			}
+
+			if(page_it_status == acc_special_page_iteration::header) {
+				if(pi->header != layout_reference_none && try_node(pi->header)) {
+					return;
+				}
+				advance_iterator_status();
+			}
+			while(child_it.content_pos != child_it_end.content_pos) {
+				if(lm.is_rendered(*child_it)) {
+					if(try_node(*child_it))
+						return;
+				}
+				advance_iterator_status();
+			}
+			if(page_it_status == acc_special_page_iteration::footer) {
+				if(pi->footer != layout_reference_none && try_node(pi->footer)) {
+					return;
+				}
+				advance_iterator_status();
+			}
+		}
+		acc_sub_items_iterator(window_data& l, acc_visible_children_it e) : lm(l), child_it(e), child_it_end(e), page_it_status(acc_special_page_iteration::finished) {
+		}
+		bool operator==(acc_sub_items_iterator const& o) const {
+			return child_it == o.child_it && page_it_status == o.page_it_status;
+		}
+		bool operator!=(acc_sub_items_iterator const& o) const {
+			return !(*this == o);
+		}
+		accessibility_object* operator*() const {
+			if(sub_iterators.empty()) {
+				if(page_it_status == acc_special_page_iteration::header) {
+					auto& cn = lm.get_node(pi->header);
+					return cn.l_interface->get_accessibility_interface(lm);
+				} else if(page_it_status == acc_special_page_iteration::footer) {
+					auto& cn = lm.get_node(pi->footer);
+					return cn.l_interface->get_accessibility_interface(lm);
+				}
+
+				auto& cn = lm.get_node(*child_it);
+				return cn.l_interface->get_accessibility_interface(lm);
+			} else {
+				return *(sub_iterators.back().first);
+			}
+		}
+		acc_sub_items_iterator& operator++() {
+			while(!sub_iterators.empty()) {
+				++(sub_iterators.back().first);
+				if(sub_iterators.back().first != sub_iterators.back().second)
+					break;
+				sub_iterators.pop_back();
+			}
+			if(sub_iterators.empty()) {
+				advance_iterator_status();
+
+				while(child_it.content_pos != child_it_end.content_pos) {
+					if(lm.is_rendered(*child_it)) {
+						if(try_node(*child_it))
+							return *this;
+					}
+					advance_iterator_status();
+				}
+				if(page_it_status == acc_special_page_iteration::footer) {
+					if(pi->footer != layout_reference_none && try_node(pi->footer)) {
+						return *this;
+					}
+					advance_iterator_status();
+				}
+			}
+			return *this;
+		}
+		acc_sub_items_iterator& operator+=(int32_t n) {
+			while(n > 0) {
+				++(*this);
+				--n;
+			}
+			return *this;
+		}
+	};
+
+	struct acc_sub_items_iterator_generator {
+		window_data& lm;
+		page_information* pi;
+		acc_visible_children_it b;
+		acc_visible_children_it e;
+
+		acc_sub_items_iterator_generator(window_data& l, layout_node const& n) : lm(l), pi(n.page_info()), b(acc_visible_children(n).begin()), e(acc_visible_children(n).end()) {
+		}
+		acc_sub_items_iterator begin() {
+			return acc_sub_items_iterator(lm, pi, b, e);
+		}
+		acc_sub_items_iterator end() {
+			return acc_sub_items_iterator(lm, e);
+		}
+	};
+
+	acc_sub_items_iterator_generator accessible_children(window_data& lm, layout_node const& n) {
+		return acc_sub_items_iterator_generator(lm, n);
+	}
+
+	accessibility_object* window_data::get_parent_accessibility_object(layout_reference r) {
+		if(r == layout_reference_none)
+			return nullptr;
+		r = get_node(r).parent;
+
+		while(r != layout_reference_none) {
+			auto& p = get_node(r);
+			if(p.l_interface) {
+				if(auto a = p.l_interface->get_accessibility_interface(*this); a)
+					return a;
+			}
+			r = p.parent;
+		}
+
+		return nullptr;
+	}
+
+	layout_reference get_parent_accessibility_node(window_data& win, layout_reference r) {
+		if(r == layout_reference_none)
+			return layout_reference_none;
+
+		r = win.get_node(r).parent;
+
+		while(r != layout_reference_none) {
+			auto& p = win.get_node(r);
+			if(p.l_interface) {
+				if(auto a = p.l_interface->get_accessibility_interface(win); a)
+					return r;
+			}
+			r = p.parent;
+		}
+
+		return layout_reference_none;
+	}
+	accessibility_object* get_ao_from_id(window_data& win, layout_reference r) {
+		return r != layout_reference_none ? (win.get_node(r).l_interface ? win.get_node(r).l_interface->get_accessibility_interface(win) : nullptr) : nullptr;
+	}
+	accessibility_object* window_data::get_previous_sibling_accessibility_object(layout_reference r) {
+		auto parent_id = get_parent_accessibility_node(*this, r);
+		auto self_acc_object = get_ao_from_id(*this, r);
+
+		if(!self_acc_object)
+			return nullptr;
+
+		if(parent_id == layout_reference_none) { // parent = top window
+
+			accessibility_object* previous = get_ao_from_id(*this, title_bar.l_id);
+			accessibility_object* next = get_ao_from_id(*this, window_bar.l_id);
+			if(next == self_acc_object)
+				return previous;
+			previous = next;
+
+			next = get_ao_from_id(*this, top_node_id);
+			if(next == self_acc_object)
+				return previous;
+			previous = next;
+
+			next = get_ao_from_id(*this, left_node_id);
+			if(next == self_acc_object)
+				return previous;
+			previous = next;
+
+			next = get_ao_from_id(*this, right_node_id);
+			if(next == self_acc_object)
+				return previous;
+			previous = next;
+
+			next = get_ao_from_id(*this, bottom_node_id);
+			if(next == self_acc_object)
+				return previous;
+			previous = next;
+			
+			return nullptr;
+		} else {
+			accessibility_object* previous = nullptr;
+			for(auto i : accessible_children(*this, get_node(parent_id))) {
+				if(i == self_acc_object)
+					return previous;
+				previous = i;
+			}
+			return nullptr;
+		}
+	}
+	accessibility_object* window_data::get_next_sibling_accessibility_object(layout_reference r) {
+		auto parent_id = get_parent_accessibility_node(*this, r);
+		auto self_acc_object = get_ao_from_id(*this, r);
+
+		if(!self_acc_object)
+			return nullptr;
+
+		if(parent_id == layout_reference_none) { // parent = top window
+
+			accessibility_object* previous = get_ao_from_id(*this, title_bar.l_id);
+			accessibility_object* next = get_ao_from_id(*this, window_bar.l_id);
+			if(previous == self_acc_object)
+				return next;
+			previous = next;
+
+			next = get_ao_from_id(*this, top_node_id);
+			if(previous == self_acc_object)
+				return next;
+			previous = next;
+
+			next = get_ao_from_id(*this, left_node_id);
+			if(previous == self_acc_object)
+				return next;
+			previous = next;
+
+			next = get_ao_from_id(*this, right_node_id);
+			if(previous == self_acc_object)
+				return next;
+			previous = next;
+
+			next = get_ao_from_id(*this, bottom_node_id);
+			if(previous == self_acc_object)
+				return next;
+			previous = next;
+
+			return nullptr;
+		} else {
+			accessibility_object* previous = nullptr;
+			for(auto i : accessible_children(*this, get_node(parent_id))) {
+				if(previous == self_acc_object)
+					return i;
+				previous = i;
+			}
+			return nullptr;
+		}
+	}
+	accessibility_object* window_data::get_first_child_accessibility_object(layout_reference r) {
+		auto self_acc_object = get_ao_from_id(*this, r);
+
+		if(!self_acc_object)
+			return nullptr;
+
+		auto first = *(accessible_children(*this, get_node(r)).begin());
+		return first;
+	}
+	accessibility_object* window_data::get_last_child_accessibility_object(layout_reference r) {
+		auto self_acc_object = get_ao_from_id(*this, r);
+
+		if(!self_acc_object)
+			return nullptr;
+
+		accessibility_object* previous = nullptr;
+		for(auto i : accessible_children(*this, get_node(r))) {
+			previous = i;
+		}
+		return previous;
+	}
 }

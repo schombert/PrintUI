@@ -1162,7 +1162,7 @@ namespace printui::text {
 			load_locale_settings(locale_path, win.dynamic_settings, win.text_data.font_name_to_index);
 
 			auto locale_name = get_locale_name(locale_path);
-			win.window_bar.print_ui_settings.lang_menu.open_button.button_text.set_text(locale_name.length() > 0 ? locale_name : full_compound);
+			win.window_bar.print_ui_settings.lang_menu.open_button.set_text(win, locale_name.length() > 0 ? locale_name : full_compound);
 
 			win.intitialize_fonts();
 		}

@@ -76,6 +76,20 @@ void main_window::load_default_dynamic_settings() {
 	text_data.register_name("input_mode_mk_hybrid_info", text_id::input_mode_mk_hybrid_info);
 	text_data.register_name("language_info", text_id::language_info);
 	text_data.register_name("ui_settings_info", text_id::ui_settings_info);
+
+	text_data.register_name("minimize_name", text_id::minimize_name);
+	text_data.register_name("maximize_name", text_id::maximize_name);
+	text_data.register_name("restore_name", text_id::restore_name);
+	text_data.register_name("close_name", text_id::close_name);
+	text_data.register_name("settings_name", text_id::settings_name);
+	text_data.register_name("info_name", text_id::info_name);
+	text_data.register_name("info_name_on", text_id::info_name_on);
+	text_data.register_name("window_bar_name", text_id::window_bar_name);
+	text_data.register_name("window_title_name", text_id::window_title_name);
+	text_data.register_name("settings_tabs_name", text_id::settings_tabs_name);
+	text_data.register_name("selection_list_localized_name", text_id::selection_list_localized_name);
+	text_data.register_name("close_settings_name", text_id::close_settings_name);
+	text_data.register_name("close_menu_name", text_id::close_menu_name);
 }
 
 int WINAPI wWinMain(

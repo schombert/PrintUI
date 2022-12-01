@@ -538,27 +538,18 @@ namespace printui {
 		}
 	}
 
-	void icon::present_image(float x, float y, ID2D1DeviceContext5* context, ID2D1SolidColorBrush* dummy_brush) {
+	void icon::present_image(float x, float y, ID2D1DeviceContext5* context, ID2D1Brush* dummy_brush) {
 		if(rendered_layer) {
 			context->SetTransform(D2D1::Matrix3x2F::Translation(x, y));
 			context->FillOpacityMask(
 				rendered_layer,
 				dummy_brush,
 				D2D1_OPACITY_MASK_CONTENT_GRAPHICS);
+			context->SetTransform(D2D1::Matrix3x2F::Identity());
 		}
 	}
 
 	void window_data::init_layout_graphics() {
-		window_bar.close_i.ico.redraw_image(*this);
-		window_bar.info_i.ico.redraw_image(*this);
-		if(window_bar.max_i.has_value()) {
-			window_bar.max_i->ico.redraw_image(*this);
-			window_bar.max_i->restore_ico.redraw_image(*this);
-		}
-		if(window_bar.min_i.has_value())
-			window_bar.min_i->ico.redraw_image(*this);
-		if(window_bar.setting_i.has_value())
-			window_bar.setting_i->ico.redraw_image(*this);
 	}
 
 	void standard_icons::redraw_icons(window_data& win) {

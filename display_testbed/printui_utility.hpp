@@ -79,10 +79,65 @@ namespace text_id {
 	constexpr uint16_t language_info = 30;
 	constexpr uint16_t ui_settings_info = 31;
 
-	constexpr uint16_t first_free_id = 32;
+	constexpr uint16_t minimize_name = 32;
+	constexpr uint16_t maximize_name = 33;
+	constexpr uint16_t restore_name = 34;
+	constexpr uint16_t close_name = 35;
+	constexpr uint16_t settings_name = 36;
+	constexpr uint16_t info_name = 37;
+	constexpr uint16_t info_name_on = 38;
+	constexpr uint16_t window_bar_name = 39;
+	constexpr uint16_t window_title_name = 40;
+	constexpr uint16_t settings_tabs_name = 41;
+	constexpr uint16_t selection_list_localized_name = 42;
+	constexpr uint16_t close_settings_name = 43;
+	constexpr uint16_t close_menu_name = 44;
+
+	constexpr uint16_t first_free_id = 45;
 }
 
 namespace printui {
+	struct accessibility_object;
+	void release_accessibility_object(accessibility_object* o);
+
+	class accessibility_object_ptr {
+		accessibility_object* ptr = nullptr;
+	public:
+		accessibility_object_ptr() noexcept {
+		}
+		accessibility_object_ptr(accessibility_object* ptr) noexcept : ptr(ptr) {
+		}
+		accessibility_object_ptr(accessibility_object_ptr&& o) noexcept {
+			ptr = o.ptr;
+			o.ptr = nullptr;
+		}
+		~accessibility_object_ptr() {
+			if(ptr)
+				release_accessibility_object(ptr);
+			ptr = nullptr;
+		}
+		accessibility_object_ptr& operator=(accessibility_object_ptr const& o) = delete;
+		accessibility_object_ptr& operator=(accessibility_object_ptr&& o) noexcept {
+			if(ptr)
+				release_accessibility_object(ptr);
+			ptr = o.ptr;
+			o.ptr = nullptr;
+			return *this;
+		}
+		accessibility_object_ptr& operator=(accessibility_object* o) noexcept {
+			if(ptr)
+				release_accessibility_object(ptr);
+			ptr = o;
+			return *this;
+		}
+		operator bool() const noexcept {
+			return ptr != nullptr;
+		}
+		operator accessibility_object* () const noexcept {
+			return ptr;
+		}
+	};
+
 	enum class font_type {
 		roman, sans, script, italic
 	};
@@ -262,62 +317,6 @@ namespace printui {
 		}
 	}
 
-	template<typename I>
-	class iunk_ptr {
-		I* ptr = nullptr;
-	public:
-		iunk_ptr() noexcept { }
-		iunk_ptr(I* ptr) noexcept : ptr(ptr) { }
-		iunk_ptr(iunk_ptr<I> const& o) noexcept {
-			ptr = o.ptr;
-			if(ptr)
-				ptr->AddRef();
-		}
-		iunk_ptr(iunk_ptr<I>&& o) noexcept {
-			ptr = o.ptr;
-			o.ptr = nullptr;
-		}
-		~iunk_ptr() {
-			if(ptr)
-				ptr->Release();
-			ptr = nullptr;
-		}
-		iunk_ptr<I>& operator=(iunk_ptr<I> const& o) noexcept {
-			if(ptr)
-				ptr->Release();
-			ptr = o.ptr;
-			if(ptr)
-				ptr->AddRef();
-			return *this;
-		}
-		iunk_ptr<I>& operator=(iunk_ptr<I>&& o) noexcept {
-			if(ptr)
-				ptr->Release();
-			ptr = o.ptr;
-			o.ptr = nullptr;
-			return *this;
-		}
-		I* operator->() const noexcept {
-			return ptr;
-		}
-		operator bool() const noexcept {
-			return ptr != nullptr;
-		}
-		operator I* () const noexcept {
-			return ptr;
-		}
-		template<typename T>
-		[[nodiscard]] iunk_ptr<T> query_interface() const noexcept {
-			T* temp = nullptr;
-			ptr->QueryInterface(__uuidof(T), reinterpret_cast<void**>(&temp));
-			return temp;
-		}
-	};
-	template<typename I, typename ... P>
-	[[nodiscard]] iunk_ptr<I> make_iunk(P&&...p) {
-		return iunk_ptr<I>(new I(std::forward<P>(p)...));
-	}
-
 	struct ui_rectangle;
 
 	screen_space_rect screen_rectangle_from_layout(window_data const& win,
@@ -330,6 +329,7 @@ namespace printui {
 		ui_rectangle const& rect);
 	screen_space_rect reverse_screen_space_orientation(window_data const& win, screen_space_rect source);
 	screen_space_rect intersection(screen_space_rect a, screen_space_rect b);
+
 	struct icon {
 		std::wstring file_name;
 		ID2D1Bitmap1* rendered_layer = nullptr;
@@ -341,7 +341,7 @@ namespace printui {
 
 		~icon();
 		void redraw_image(window_data const& win);
-		void present_image(float x, float y, ID2D1DeviceContext5* context, ID2D1SolidColorBrush* dummy_brush);
+		void present_image(float x, float y, ID2D1DeviceContext5* context, ID2D1Brush* dummy_brush);
 	};
 
 	struct standard_icons {
@@ -356,7 +356,14 @@ namespace printui {
 		constexpr static uint8_t control_prev = 8;
 		constexpr static uint8_t control_prev_prev = 9;
 
-		constexpr static uint32_t final_icon = 10;
+		constexpr static uint8_t window_settings = 10;
+		constexpr static uint8_t window_max = 11;
+		constexpr static uint8_t window_min = 12;
+		constexpr static uint8_t window_restore = 13;
+		constexpr static uint8_t window_info = 14;
+		constexpr static uint8_t window_close = 15;
+
+		constexpr static uint32_t final_icon = 16;
 
 		std::array<icon, final_icon> icons;
 
@@ -588,7 +595,7 @@ namespace printui {
 
 		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) = 0;
 		virtual layout_node_type get_node_type() = 0;
-		virtual simple_layout_specification get_specification(window_data const&) = 0;
+		virtual simple_layout_specification get_specification(window_data&) = 0;
 
 		virtual layout_rect get_content_rectangle(window_data&) {
 			return layout_rect{ 0i16, 0i16, 0i16, 0i16 };
@@ -611,10 +618,10 @@ namespace printui {
 		}
 		virtual void on_lose_focus(window_data&) {
 		}
-		virtual void go_to_page(uint32_t pg, page_information& pi) {
+		virtual void go_to_page(window_data&, uint32_t pg, page_information& pi) {
 			pi.subpage_offset = uint16_t(pg);
 		}
-		virtual IUnknown* get_accessibility_interface(window_data&) {
+		virtual accessibility_object* get_accessibility_interface(window_data&) {
 			return nullptr;
 		}
 	};
@@ -665,7 +672,7 @@ namespace printui {
 		virtual void on_right_click(window_data& p, uint32_t) { // for direct use with an interactable
 			on_right_click(p, 0, 0);
 		}
-		virtual int32_t interactable_count() {
+		virtual int32_t interactable_count(window_data const&) {
 			return 0;
 		}
 		virtual void set_interactable(int32_t, interactable_state) {
@@ -701,6 +708,7 @@ namespace printui {
 		void draw_text(window_data const& win, int32_t x, int32_t y) const;
 		void invalidate();
 		int32_t get_lines_height(window_data const& win) const;
+		std::wstring get_raw_text(window_data const& win) const;
 	};
 
 	struct title_bar_element : public render_interface {
@@ -711,7 +719,7 @@ namespace printui {
 
 		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
 		virtual layout_node_type get_node_type() override;
-		virtual simple_layout_specification get_specification(window_data const&) override;
+		virtual simple_layout_specification get_specification(window_data&) override;
 		virtual void recreate_contents(window_data&, layout_node&) override;
 
 		virtual void render_foreground(ui_rectangle const& rect, window_data& win) override;
@@ -720,86 +728,24 @@ namespace printui {
 	};
 
 
-	struct vertical_2x2_icon_base : public render_interface {
-		icon ico;
-		interactable_state saved_state;
-
-		vertical_2x2_icon_base() {}
-		virtual ~vertical_2x2_icon_base() {}
-
-		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
-		virtual layout_node_type get_node_type() override;
-		virtual simple_layout_specification get_specification(window_data const&) override;
-		virtual void render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) override;
-
-		virtual void set_interactable(int32_t, interactable_state v) override {
-			saved_state = v;
-		}
-		virtual int32_t interactable_count() override {
-			return 1;
-		}
-		virtual void render_foreground(ui_rectangle const& rect, window_data& win) override;
-		virtual void on_click(window_data&, uint32_t, uint32_t) override {
-		}
-		virtual void on_right_click(window_data&, uint32_t, uint32_t) override {
-		}
-	};
-
-	struct vertical_2x2_max_icon : public vertical_2x2_icon_base {
-		icon restore_ico;
-		
-		vertical_2x2_max_icon();
-		virtual void on_click(window_data&, uint32_t, uint32_t) override;
-		virtual void on_right_click(window_data&, uint32_t, uint32_t) override;
-		virtual void render_foreground(ui_rectangle const& rect, window_data& win) override;
-	};
-
-	struct vertical_2x2_min_icon : public vertical_2x2_icon_base {
-		vertical_2x2_min_icon();
-		virtual void on_click(window_data&, uint32_t, uint32_t) override;
-		virtual void on_right_click(window_data&, uint32_t, uint32_t) override;
-	};
-
-	struct vertical_2x2_close_icon : public vertical_2x2_icon_base {
-		vertical_2x2_close_icon();
-		virtual void on_click(window_data&, uint32_t, uint32_t) override;
-		virtual void on_right_click(window_data&, uint32_t, uint32_t) override;
-	};
-
-	struct vertical_2x2_settings_icon : public vertical_2x2_icon_base {
-		vertical_2x2_settings_icon();
-		virtual void on_click(window_data&, uint32_t, uint32_t) override;
-		virtual void on_right_click(window_data&, uint32_t, uint32_t) override;
-	};
-
-	struct vertical_2x2_info_icon : public vertical_2x2_icon_base {
-		uint8_t standard_fg = 0ui8;
-		uint8_t standard_bg = 0ui8;
-
-		vertical_2x2_info_icon();
-		virtual void on_click(window_data&, uint32_t, uint32_t) override;
-		virtual void on_right_click(window_data&, uint32_t, uint32_t) override;
-		virtual int32_t interactable_count() override {
-			return 0;
-		}
-		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
-		virtual void render_composite(ui_rectangle const& r, window_data& win, bool under_mouse) override;
-
-		void mark_for_update(window_data& win);
+	enum class button_category : uint8_t {
+		action_button, selection_button, toggle_button
 	};
 
 	struct button_control_base : public render_interface {
+	private:
+		accessibility_object_ptr acc_obj;
+		bool disabled = false;
+		bool selected = false;
 		stored_text button_text;
-
 		uint16_t alt_text = uint16_t(-1);
 
+	public:
 		interactable_state saved_state;
 		uint8_t interior_left_margin = 2;
 		uint8_t interior_right_margin = 2;
 		uint8_t icon = standard_icons::control_button;
-
-		bool disabled = false;
-		bool selected = false;
+		button_category category = button_category::action_button;
 
 		button_control_base() {
 		}
@@ -807,7 +753,7 @@ namespace printui {
 
 		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
 		virtual layout_node_type get_node_type() override;
-		virtual simple_layout_specification get_specification(window_data const&) override;
+		virtual simple_layout_specification get_specification(window_data&) override;
 		virtual void render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) override;
 		virtual void render_foreground(ui_rectangle const& rect, window_data& win) override;
 		virtual void recreate_contents(window_data&, layout_node&) override;
@@ -815,15 +761,119 @@ namespace printui {
 		virtual void set_interactable(int32_t, interactable_state v) override {
 			saved_state = v;
 		}
-		virtual int32_t interactable_count() override {
+		virtual int32_t interactable_count(window_data const&) override {
 			if(!disabled)
 				return 1;
 			else
 				return 0;
 		}
-		virtual void on_click(window_data&, uint32_t, uint32_t) override {
-		}
+		virtual void on_click(window_data&, uint32_t, uint32_t) final override;
 		virtual void on_right_click(window_data&, uint32_t, uint32_t) override;
+		virtual void button_action(window_data&) = 0;
+		virtual accessibility_object* get_accessibility_interface(window_data&) override;
+		void set_disabled(window_data& win, bool v);
+		void set_selected(window_data& win, bool v);
+		void set_alt_text(window_data& win, uint16_t alt);
+		uint16_t get_alt_text() const;
+		void set_text(window_data& win, uint16_t val, text::text_parameter* b = nullptr, text::text_parameter* e = nullptr);
+		void set_text(window_data& win, std::wstring const& val);
+		void set_text(window_data& win);
+		void set_text(window_data& win, stored_text const& t);
+		void set_text_alignment(content_alignment align);
+		std::wstring get_raw_text(window_data const& win) const;
+		stored_text const& get_stored_text() const {
+			return button_text;
+		}
+		bool is_disabled() const {
+			return disabled;
+		}
+		bool is_selected() const {
+			return selected;
+		}
+	};
+
+	struct icon_button_base : public render_interface {
+	private:
+		accessibility_object_ptr acc_obj;
+		uint16_t name_text = uint16_t(-1);
+		uint16_t alt_text = uint16_t(-1);
+
+	public:
+		interactable_state saved_state;
+		uint8_t ico = standard_icons::control_button;
+		bool display_vertically = false;
+		button_category category = button_category::action_button;
+
+		icon_button_base() { }
+		icon_button_base(uint16_t name_text, uint16_t alt_text) : name_text(name_text), alt_text(alt_text) { }
+		virtual ~icon_button_base() { }
+
+		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
+		virtual layout_node_type get_node_type() override;
+		virtual simple_layout_specification get_specification(window_data&) override;
+		virtual void render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) override;
+		virtual void render_foreground(ui_rectangle const& rect, window_data& win) override;
+
+		virtual void set_interactable(int32_t, interactable_state v) override {
+			saved_state = v;
+		}
+		virtual int32_t interactable_count(window_data const& win) override {
+			if(!is_disabled(win))
+				return 1;
+			else
+				return 0;
+		}
+		virtual void on_click(window_data&, uint32_t, uint32_t) final override;
+		virtual void on_right_click(window_data&, uint32_t, uint32_t) override;
+		virtual void button_action(window_data&) = 0;
+		virtual accessibility_object* get_accessibility_interface(window_data&) override;
+		void set_alt_text(window_data& win, uint16_t alt);
+		uint16_t get_alt_text() const;
+		void set_name_text(window_data& win, uint16_t alt);
+		uint16_t get_name_text() const;
+		virtual bool is_disabled(window_data const&) const {
+			return false;
+		}
+		virtual bool is_toggled() const {
+			return false;
+		}
+		virtual uint16_t get_toggled_text() const {
+			return uint16_t(-1);
+		}
+	};
+
+	struct vertical_2x2_max_icon : public icon_button_base {
+		vertical_2x2_max_icon();
+		virtual void button_action(window_data&) override;
+		void update_window_state(window_data&);
+		virtual void render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) override;
+	};
+
+	struct vertical_2x2_min_icon : public icon_button_base {
+		vertical_2x2_min_icon();
+		virtual void button_action(window_data&) override;
+	};
+
+	struct vertical_2x2_close_icon : public icon_button_base {
+		vertical_2x2_close_icon();
+		virtual void button_action(window_data&) override;
+	};
+
+	struct vertical_2x2_settings_icon : public icon_button_base {
+		vertical_2x2_settings_icon();
+		virtual void button_action(window_data&) override;
+	};
+
+	struct vertical_2x2_info_icon : public icon_button_base {
+		window_data& win;
+		vertical_2x2_info_icon(window_data& win);
+		virtual void button_action(window_data&) override;
+		virtual int32_t interactable_count(window_data const&) override {
+			return 0;
+		}
+		virtual void render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) override;
+		virtual bool is_toggled() const override;
+		void mark_for_update(window_data& win);
 	};
 
 	struct label_control : public render_interface {
@@ -842,7 +892,7 @@ namespace printui {
 			return layout_node_type::visible;
 		};
 		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
-		virtual simple_layout_specification get_specification(window_data const&) override;
+		virtual simple_layout_specification get_specification(window_data&) override;
 		virtual void render_foreground(ui_rectangle const& rect, window_data& win) override;
 		virtual void render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) override;
 		virtual void on_right_click(window_data&, uint32_t, uint32_t) override;
@@ -856,14 +906,14 @@ namespace printui {
 		}
 		virtual ~list_option() {
 		}
-		virtual void on_click(window_data&, uint32_t, uint32_t);
+		virtual void button_action(window_data&);
 	};
 	struct list_open : public button_control_base {
 		list_open() {
 		}
 		virtual ~list_open() {
 		}
-		virtual void on_click(window_data&, uint32_t, uint32_t);
+		virtual void button_action(window_data&);
 	};
 
 	struct list_option_description {
@@ -876,7 +926,7 @@ namespace printui {
 		static animation_defintion list_appearance;
 		static animation_defintion list_disappearance;
 
-		std::vector<list_option> options;
+		std::vector<std::unique_ptr<list_option>> options;
 		list_open open_button;
 
 		int32_t currently_selected = 0;
@@ -893,51 +943,34 @@ namespace printui {
 			return layout_node_type::container;
 		};
 		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
-		virtual simple_layout_specification get_specification(window_data const&) override;
+		virtual simple_layout_specification get_specification(window_data&) override;
 		virtual void recreate_contents(window_data&, layout_node&) override;
 		virtual void on_lose_focus(window_data&) override;
 		virtual layout_rect get_content_rectangle(window_data&) override;
 
 		void open_list(window_data&, bool move_focus);
 		void close_list(window_data&, bool move_focus);
-		void populate_list(window_data const&);
-		void quiet_select_option_by_value(size_t);
+		void populate_list(window_data&);
+		void quiet_select_option_by_value(window_data& win, size_t);
 		void select_option_by_value(window_data&, size_t);
 		button_control_base* get_option(size_t);
 
 		virtual void on_select(window_data&, size_t) = 0;
 		virtual list_option_description describe_option(window_data const&, uint32_t) = 0;
-		virtual void on_create(window_data const&) { }
+		virtual void on_create(window_data&) { }
 	};
 
 
-	struct page_header_button : public render_interface {
+	struct page_header_button : public icon_button_base {
 		std::function<void(window_data&, layout_reference)> close_action;
 		interactable_state saved_state;
 
-		page_header_button(std::function<void(window_data&, layout_reference)>&& a) : close_action(std::move(a)) {
+		page_header_button(uint16_t name, std::function<void(window_data&, layout_reference)>&& a) : icon_button_base(name, uint16_t(-1)), close_action(std::move(a)) {
+			ico = standard_icons::header_close;
 		}
 		virtual ~page_header_button() {
 		}
-
-		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
-		virtual layout_node_type get_node_type() override {
-			return layout_node_type::control;
-		}
-		virtual simple_layout_specification get_specification(window_data const&) override;
-		virtual void render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) override;
-		virtual void render_foreground(ui_rectangle const&, window_data&) override {
-		};
-
-		virtual void set_interactable(int32_t, interactable_state v) override {
-			saved_state = v;
-		}
-		virtual int32_t interactable_count() override {
-			return 1;
-		}
-		virtual void on_click(window_data&, uint32_t, uint32_t) override;
-		virtual void on_right_click(window_data&, uint32_t, uint32_t) override {
-		}
+		virtual void button_action(window_data&) override;
 	};
 
 	struct page_footer_button : public render_interface {
@@ -955,7 +988,7 @@ namespace printui {
 
 		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
 		virtual layout_node_type get_node_type() override;
-		virtual simple_layout_specification get_specification(window_data const&) override;
+		virtual simple_layout_specification get_specification(window_data&) override;
 		virtual void render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) override;
 		virtual void render_foreground(ui_rectangle const&, window_data&) override;
 		virtual void recreate_contents(window_data&, layout_node&) override;
@@ -963,7 +996,7 @@ namespace printui {
 		virtual void set_interactable(int32_t, interactable_state v) override {
 			saved_state = v;
 		}
-		virtual int32_t interactable_count() override {
+		virtual int32_t interactable_count(window_data const&) override {
 			return 1;
 		}
 		virtual void on_click(window_data&, uint32_t, uint32_t) override;
@@ -972,73 +1005,41 @@ namespace printui {
 		void update_page(window_data& win);
 	};
 
-	struct small_icon_button : public render_interface {
-		uint8_t icon_id = 0;
-		interactable_state saved_state;
-
-		small_icon_button() {
-		}
-		virtual ~small_icon_button() {
-		}
-
-		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
-		virtual layout_node_type get_node_type() override {
-			return layout_node_type::control;
-		}
-		virtual simple_layout_specification get_specification(window_data const&) override;
-		virtual void render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) override;
-		virtual void render_foreground(ui_rectangle const&, window_data&) override {
-		};
-		virtual void set_interactable(int32_t, interactable_state v) override {
-			saved_state = v;
-		}
-		virtual int32_t interactable_count() override {
-			return 1;
-		}
-		virtual void on_click(window_data&, uint32_t, uint32_t) override {
-		}
-		virtual void on_right_click(window_data&, uint32_t, uint32_t) override {
-		}
-		virtual bool is_disabled(window_data const&) {
-			return false;
-		}
-	};
-
-	struct page_back_button : public small_icon_button {
+	struct page_back_button : public icon_button_base {
 		page_back_button() {
-			icon_id = standard_icons::control_prev;
+			ico = standard_icons::control_prev;
 		}
 		virtual ~page_back_button() {
 		}
-		virtual void on_click(window_data&, uint32_t, uint32_t) override;
-		virtual bool is_disabled(window_data const& win) override;
+		virtual void button_action(window_data&) override;
+		virtual bool is_disabled(window_data const& win) const override;
 	};
-	struct page_forward_button : public small_icon_button {
+	struct page_forward_button : public icon_button_base {
 		page_forward_button() {
-			icon_id = standard_icons::control_next;
+			ico = standard_icons::control_next;
 		}
 		virtual ~page_forward_button() {
 		}
-		virtual void on_click(window_data&, uint32_t, uint32_t) override;
-		virtual bool is_disabled(window_data const& win) override;
+		virtual void button_action(window_data&) override;
+		virtual bool is_disabled(window_data const& win) const override;
 	};
-	struct page_jump_forward_button : public small_icon_button {
+	struct page_jump_forward_button : public icon_button_base {
 		page_jump_forward_button() {
-			icon_id = standard_icons::control_next_next;
+			ico = standard_icons::control_next_next;
 		}
 		virtual ~page_jump_forward_button() {
 		}
-		virtual void on_click(window_data&, uint32_t, uint32_t) override;
-		virtual bool is_disabled(window_data const& win) override;
+		virtual void button_action(window_data&) override;
+		virtual bool is_disabled(window_data const& win) const override;
 	};
-	struct page_jump_back_button : public small_icon_button {
+	struct page_jump_back_button : public icon_button_base {
 		page_jump_back_button() {
-			icon_id = standard_icons::control_prev_prev;
+			ico = standard_icons::control_prev_prev;
 		}
 		virtual ~page_jump_back_button() {
 		}
-		virtual void on_click(window_data&, uint32_t, uint32_t) override;
-		virtual bool is_disabled(window_data const& win) override;
+		virtual void button_action(window_data&) override;
+		virtual bool is_disabled(window_data const& win) const override;
 	};
 
 	struct page_footer : public layout_interface {
@@ -1065,7 +1066,7 @@ namespace printui {
 		};
 
 		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
-		virtual simple_layout_specification get_specification(window_data const&) override;
+		virtual simple_layout_specification get_specification(window_data&) override;
 		virtual void recreate_contents(window_data&, layout_node&) override;
 		virtual layout_rect get_content_rectangle(window_data&) override;
 		virtual void on_focus(window_data&) override;
@@ -1075,13 +1076,13 @@ namespace printui {
 		void close_footer(window_data&, bool move_focus);
 	};
 
-	struct close_info_window : public small_icon_button {
+	struct close_info_window : public icon_button_base {
 		close_info_window() {
-			icon_id = standard_icons::header_close;
+			ico = standard_icons::header_close;
 		}
 		virtual ~close_info_window() {
 		}
-		virtual void on_click(window_data&, uint32_t, uint32_t) override;
+		virtual void button_action(window_data&) override;
 	};
 
 	struct info_window : public render_interface {
@@ -1149,12 +1150,12 @@ namespace printui {
 		virtual layout_node_type get_node_type() override {
 			return layout_node_type::container;
 		}
-		virtual int32_t interactable_count() override {
+		virtual int32_t interactable_count(window_data const&) override {
 			return 0;
 		}
 
 		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
-		virtual simple_layout_specification get_specification(window_data const&) override;
+		virtual simple_layout_specification get_specification(window_data&) override;
 		virtual void render_foreground(ui_rectangle const& rect, window_data& win) override;
 		virtual void render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) override;
 		virtual void recreate_contents(window_data&, layout_node&) override;
@@ -1170,7 +1171,7 @@ namespace printui {
 		stored_text text;
 		interactable_state saved_state;
 
-		single_line_centered_header(std::function<void(window_data&, layout_reference)>&& a) : close_button(std::move(a)) {
+		single_line_centered_header(uint16_t close_text, std::function<void(window_data&, layout_reference)>&& a) : close_button(close_text, std::move(a)) {
 			text.text_alignment = content_alignment::centered;
 		}
 		virtual ~single_line_centered_header();
@@ -1182,10 +1183,7 @@ namespace printui {
 		virtual void set_interactable(int32_t, interactable_state v) override {
 			saved_state = v;
 		}
-		virtual int32_t interactable_count() override {
-			return 0;
-		}
-		virtual simple_layout_specification get_specification(window_data const&) override;
+		virtual simple_layout_specification get_specification(window_data&) override;
 		virtual void render_foreground(ui_rectangle const& rect, window_data& win) override;
 		virtual void render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) override;
 		virtual void recreate_contents(window_data&, layout_node&) override;
@@ -1206,14 +1204,11 @@ namespace printui {
 		virtual void set_interactable(int32_t, interactable_state v) override {
 			saved_state = v;
 		}
-		virtual int32_t interactable_count() override {
-			return 0;
-		}
 
 		virtual void render_foreground(ui_rectangle const&, window_data&) override {
 		}
 		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
-		virtual simple_layout_specification get_specification(window_data const&) override;
+		virtual simple_layout_specification get_specification(window_data&) override;
 		virtual void render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) override;
 	};
 
@@ -1224,7 +1219,7 @@ namespace printui {
 		}
 		virtual ~menu_open() {
 		}
-		virtual void on_click(window_data&, uint32_t, uint32_t);
+		virtual void button_action(window_data&);
 	};
 
 	struct menu_control : public layout_interface {
@@ -1255,7 +1250,7 @@ namespace printui {
 		};
 		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
 		virtual page_layout_specification get_page_layout_specification(window_data const&) override;
-		virtual simple_layout_specification get_specification(window_data const&) override;
+		virtual simple_layout_specification get_specification(window_data&) override;
 
 		virtual void recreate_contents(window_data&, layout_node&) override;
 		virtual void on_lose_focus(window_data&) override;
@@ -1287,7 +1282,7 @@ namespace printui {
 		}
 
 		virtual ~settings_item_button() { }
-		virtual void on_click(window_data&, uint32_t, uint32_t) override;
+		virtual void button_action(window_data&) override;
 	};
 
 	struct language_button : public button_control_base {
@@ -1295,11 +1290,11 @@ namespace printui {
 		std::wstring region;
 
 		language_button() {
-			button_text.text_alignment = content_alignment::trailing;
+			set_text_alignment(content_alignment::trailing);
 		}
 		virtual ~language_button() {
 		}
-		virtual void on_click(window_data&, uint32_t, uint32_t) override;
+		virtual void button_action(window_data&) override;
 	};
 
 	struct language_menu : public menu_control {
@@ -1323,7 +1318,7 @@ namespace printui {
 		}
 		virtual void on_select(window_data&, size_t) override;
 		virtual list_option_description describe_option(window_data const&, uint32_t) override;
-		virtual void on_create(window_data const&) override;
+		virtual void on_create(window_data&) override;
 	};
 
 	struct common_printui_settings : public layout_interface {
@@ -1347,30 +1342,30 @@ namespace printui {
 		};
 
 		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
-		virtual simple_layout_specification get_specification(window_data const&) override;
+		virtual simple_layout_specification get_specification(window_data&) override;
 		virtual page_layout_specification get_page_layout_specification(window_data const&) override;
 		virtual void recreate_contents(window_data&, layout_node&) override;
 	};
 
 	struct settings_page_container : public layout_interface {
-		std::vector<settings_item_button> settings_items;
+		std::vector<std::unique_ptr<settings_item_button>> settings_items;
 
 		single_line_centered_header page_header;
 		int32_t settings_item_selected = 0;
 
-		settings_page_container(window_data const& win, std::vector<settings_menu_item> const& setting_items);
+		settings_page_container(window_data& win, std::vector<settings_menu_item> const& setting_items);
 		virtual ~settings_page_container() { }
 
 		virtual layout_node_type get_node_type() override {
 			return layout_node_type::page;
 		};
 		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
-		virtual simple_layout_specification get_specification(window_data const&) override;
+		virtual simple_layout_specification get_specification(window_data&) override;
 		virtual page_layout_specification get_page_layout_specification(window_data const&) override;
 
 		virtual void recreate_contents(window_data&, layout_node&) override;
 
-		virtual void go_to_page(uint32_t i, page_information& pi) override;
+		virtual void go_to_page(window_data&, uint32_t i, page_information& pi) override;
 	};
 
 	struct window_bar_element : public layout_interface {
@@ -1384,7 +1379,7 @@ namespace printui {
 		common_printui_settings print_ui_settings;
 		bool expanded_show_settings = false;
 
-		window_bar_element(window_data const& win, bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items);
+		window_bar_element(window_data& win, bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items);
 
 		virtual ~window_bar_element() {}
 
@@ -1392,7 +1387,7 @@ namespace printui {
 		virtual layout_rect get_content_rectangle(window_data& win) override;
 		virtual auto_layout_specification get_auto_layout_specification(window_data const&) override;
 		virtual layout_node_type get_node_type() override;
-		virtual simple_layout_specification get_specification(window_data const&) override;
+		virtual simple_layout_specification get_specification(window_data&) override;
 		virtual void recreate_contents(window_data&, layout_node&) override;
 	};
 
@@ -1734,6 +1729,16 @@ namespace printui {
 		virtual void notify_window_closed() = 0;
 		virtual root_window_provider* get_root_window_provider() = 0;
 		virtual void release_root_provider() = 0;
+		virtual accessibility_object* make_action_button_accessibility_interface(window_data& w, button_control_base& b) = 0;
+		virtual accessibility_object* make_selection_button_accessibility_interface(window_data& w, button_control_base& b) = 0;
+		virtual accessibility_object* make_icon_button_accessibility_interface(window_data& w, icon_button_base& b) = 0;
+		virtual accessibility_object* make_icon_toggle_button_accessibility_interface(window_data& w, icon_button_base& b) = 0;
+		virtual void on_invoke(accessibility_object* b) = 0;
+		virtual void on_enable_disable(accessibility_object* b, bool disabled) = 0;
+		virtual void on_select_unselect(accessibility_object* b, bool selection_state) = 0;
+		virtual void on_change_name(accessibility_object* b, std::wstring const& new_name) = 0;
+		virtual void on_change_help_text(accessibility_object* b, std::wstring const& new_text) = 0;
+		
 	};
 
 	struct window_data {
@@ -1852,6 +1857,7 @@ namespace printui {
 
 		prompt_mode prompts = prompt_mode::keyboard;
 		bool display_interactable_type = true;
+		bool blind_mode = false; // if true, puts items in non visible pages into the ui accessibility tree
 		
 
 		wchar_t prompt_labels[12] = { L'Q', L'W', L'E', L'R', L'A', L'S', L'D', L'F', L'Z', L'X', L'C', L'V' };
@@ -2013,6 +2019,7 @@ namespace printui {
 		}
 		void redraw_ui();
 
+		bool is_visible(layout_reference r) const;
 
 		void switch_input_mode(input_mode new_mode);
 		void set_prompt_visibility(prompt_mode p);
@@ -2042,6 +2049,12 @@ namespace printui {
 
 		void safely_clear_vector(std::vector<std::unique_ptr<layout_interface>>& v);
 		void safely_release_interface(layout_interface* v);
+
+		accessibility_object* get_parent_accessibility_object(layout_reference r);
+		accessibility_object* get_previous_sibling_accessibility_object(layout_reference r);
+		accessibility_object* get_next_sibling_accessibility_object(layout_reference r);
+		accessibility_object* get_first_child_accessibility_object(layout_reference r);
+		accessibility_object* get_last_child_accessibility_object(layout_reference r);
 	};
 
 	

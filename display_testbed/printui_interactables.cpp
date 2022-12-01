@@ -124,7 +124,7 @@ namespace printui {
 			return total;
 		} else if(n.visible_rect < get_ui_rects().size()) {
 			if(auto i = get_ui_rects()[n.visible_rect].parent_object.get_render_interface(); i) {
-				auto icount = i->interactable_count();
+				auto icount = i->interactable_count(*this);
 				if(icount > threshold_count)
 					return std::optional<int32_t>();
 				else
@@ -143,7 +143,7 @@ namespace printui {
 			return false;
 		} else {
 			if(auto i = lm.get_ui_rects()[n.visible_rect].parent_object.get_render_interface(); i) {
-				if(i->interactable_count() > 0)
+				if(i->interactable_count(lm) > 0)
 					return true;
 				else
 					return false;
@@ -205,7 +205,9 @@ namespace printui {
 
 		bool try_node(layout_reference r) {
 			auto& cn = lm.get_node(r);
-			if(cn.page_info()) {
+			if(cn.ignore) {
+				return false;
+			} else if(cn.page_info()) {
 				std::optional<int32_t> count = lm.interactables_at_node_over_threshold(cn, interactable_threshold_count);
 				if(!count.has_value()) {
 					return true; // case: subpage
@@ -228,7 +230,7 @@ namespace printui {
 				}
 			} else { // not a page
 				if(auto ptr = lm.get_ui_rects()[cn.visible_rect].parent_object.get_render_interface(); ptr) {
-					if(ptr->interactable_count() > 0) {
+					if(ptr->interactable_count(lm) > 0) {
 						return true;
 					}
 				}
@@ -276,7 +278,7 @@ namespace printui {
 				if(page_it_status == special_page_iteration::header) {
 					auto& cn = lm.get_node(pi->header);
 					if(auto i = lm.get_ui_rects()[cn.visible_rect].parent_object.get_render_interface(); i) {
-						auto icount = i->interactable_count();
+						auto icount = i->interactable_count(lm);
 						if(icount == 0) {
 							std::abort(); // error
 						} else if(icount == 1) {
@@ -290,7 +292,7 @@ namespace printui {
 				} else if(page_it_status == special_page_iteration::footer) {
 					auto& cn = lm.get_node(pi->footer);
 					if(auto i = lm.get_ui_rects()[cn.visible_rect].parent_object.get_render_interface(); i) {
-						auto icount = i->interactable_count();
+						auto icount = i->interactable_count(lm);
 						if(icount == 0) {
 							std::abort(); // error
 						} else if(icount == 1) {
@@ -308,7 +310,7 @@ namespace printui {
 					return sub_item_node{ node_description::sub_page, *child_it };
 				} else {
 					if(auto i = lm.get_ui_rects()[cn.visible_rect].parent_object.get_render_interface(); i) {
-						auto icount = i->interactable_count();
+						auto icount = i->interactable_count(lm);
 						if(icount == 0) {
 							std::abort(); // error
 						} else if(icount == 1) {
@@ -387,7 +389,7 @@ namespace printui {
 			}
 		} else if(n.visible_rect < lm.get_ui_rects().size()) {
 			if(auto i = lm.get_ui_rects()[n.visible_rect].parent_object.get_render_interface(); i) {
-				return i->interactable_count();
+				return i->interactable_count(lm);
 			}
 		}
 		return total;
@@ -724,7 +726,7 @@ namespace printui {
 	render_interface* window_data::get_interactable_render_holder(layout_reference r) const {
 		auto& n = get_node(r);
 		if(n.visible_rect < get_ui_rects().size()) {
-			if(auto i = get_ui_rects()[n.visible_rect].parent_object.get_render_interface(); i && i->interactable_count() != 0) {
+			if(auto i = get_ui_rects()[n.visible_rect].parent_object.get_render_interface(); i && i->interactable_count(*this) != 0) {
 				return i;
 			}
 		} else {
@@ -1060,7 +1062,7 @@ namespace printui {
 	int32_t populate_key_actions_from_multi_element(window_data const& lm, layout_node const& n, key_action* dest) {
 		if(n.visible_rect < lm.get_ui_rects().size()) {
 			if(auto i = lm.get_ui_rects()[n.visible_rect].parent_object.get_render_interface(); i) {
-				auto icount = i->interactable_count();
+				auto icount = i->interactable_count(lm);
 				int32_t j = 0;
 				for(j = 0; j < icount; ++j) {
 					dest[j] = interactable{ i, j };
@@ -1074,7 +1076,7 @@ namespace printui {
 	int32_t populate_interactables_from_multi_element(window_data const& lm, layout_node const& n) {
 		if(n.visible_rect < lm.get_ui_rects().size()) {
 			if(auto i = lm.get_ui_rects()[n.visible_rect].parent_object.get_render_interface(); i) {
-				auto icount = i->interactable_count();
+				auto icount = i->interactable_count(lm);
 				int32_t j = 0;
 				for(j = 0; j < icount; ++j) {
 					i->set_interactable(j, interactable_state(interactable_state::key, uint8_t(j)));
@@ -1088,7 +1090,7 @@ namespace printui {
 	void unpopulate_interactables_from_multi_element(window_data const& lm, layout_node const& n) {
 		if(n.visible_rect < lm.get_ui_rects().size()) {
 			if(auto i = lm.get_ui_rects()[n.visible_rect].parent_object.get_render_interface(); i) {
-				auto icount = i->interactable_count();
+				auto icount = i->interactable_count(lm);
 				int32_t j = 0;
 				for(j = 0; j < icount; ++j) {
 					i->set_interactable(j, interactable_state());
@@ -1197,7 +1199,7 @@ namespace printui {
 		if(focus_stack.size() != 0 && focus_stack.back().l_interface->l_id != layout_reference_none) {
 			auto& n = get_node(focus_stack.back().l_interface->l_id);
 			if(n.visible_rect < get_ui_rects().size()) {
-				if(auto i = get_ui_rects()[n.visible_rect].parent_object.get_render_interface(); i && i->interactable_count() > 0) {
+				if(auto i = get_ui_rects()[n.visible_rect].parent_object.get_render_interface(); i && i->interactable_count(*this) > 0) {
 					unpopulate_interactables_from_multi_element(*this, n);
 					return;
 				}
@@ -1236,7 +1238,7 @@ namespace printui {
 		if(focus_stack.size() != 0 && focus_stack.back().l_interface->l_id != layout_reference_none) {
 			auto& n = get_node(focus_stack.back().l_interface->l_id);
 			if(n.visible_rect < get_ui_rects().size()) {
-				if(auto i = get_ui_rects()[n.visible_rect].parent_object.get_render_interface(); i && i->interactable_count() > 0) {
+				if(auto i = get_ui_rects()[n.visible_rect].parent_object.get_render_interface(); i && i->interactable_count(*this) > 0) {
 					populate_interactables_from_multi_element(*this, n);
 					return;
 				}
@@ -1299,7 +1301,7 @@ namespace printui {
 		if(focus_stack.size() != 0 && focus_stack.back().l_interface->l_id != layout_reference_none) {
 			auto& n = get_node(focus_stack.back().l_interface->l_id);
 			if(n.visible_rect < get_ui_rects().size()) {
-				if(auto i = get_ui_rects()[n.visible_rect].parent_object.get_render_interface(); i && i->interactable_count() != 0) {
+				if(auto i = get_ui_rects()[n.visible_rect].parent_object.get_render_interface(); i && i->interactable_count(*this) != 0) {
 					focus_actions.valid_key_action_count =
 						populate_key_actions_from_multi_element(*this, n, focus_actions.button_actions.data());
 					for(int32_t k = focus_actions.valid_key_action_count; k < 12; ++k) {
