@@ -1391,7 +1391,7 @@ namespace printui::text {
 		while(body.length() > 0) {
 			auto t = consume_token(body);
 
-			if(t.content.length() == 1 && t.content[0] == '}' && static_format_storage.empty()) {
+			if(t.content.length() == 1 && t.content[0] == '}' && formatting_stack.empty()) {
 				if(current_matcher_index + 1 == static_matcher_storage.size()) {
 					static_matcher_storage.back().base_text.code_points_count = uint16_t(codepoint_storage.length() - static_matcher_storage.back().base_text.code_points_start);
 					static_matcher_storage.back().base_text.formatting_end = uint16_t(static_format_storage.size());

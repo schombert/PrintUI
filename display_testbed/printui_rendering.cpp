@@ -139,10 +139,10 @@ namespace printui {
 		int32_t line_position, int32_t page_position, int32_t line_width, int32_t page_height) {
 
 		screen_space_rect retval = screen_space_rect{ 0,0,0,0 };
-		int32_t bottom_line = win.layout_size * ((win.ui_height - win.window_border * 2) / win.layout_size) + win.window_border;
-		int32_t edge_line = (win.orientation == layout_orientation::horizontal_right_to_left || win.orientation == layout_orientation::vertical_right_to_left)
-			? win.ui_width - (win.layout_size * ((win.ui_width - win.window_border * 2) / win.layout_size) + win.window_border)
-			: win.layout_size * ((win.ui_width - win.window_border * 2) / win.layout_size) + win.window_border;
+		//int32_t bottom_line = win.layout_size * ((win.ui_height - win.window_border * 2) / win.layout_size) + win.window_border;
+		//int32_t edge_line = (win.orientation == layout_orientation::horizontal_right_to_left || win.orientation == layout_orientation::vertical_right_to_left)
+		//	? win.ui_width - (win.layout_size * ((win.ui_width - win.window_border * 2) / win.layout_size) + win.window_border)
+		//	: win.layout_size * ((win.ui_width - win.window_border * 2) / win.layout_size) + win.window_border;
 
 		switch(win.orientation) {
 			case layout_orientation::horizontal_left_to_right:
@@ -151,9 +151,9 @@ namespace printui {
 				retval.width = line_width * win.layout_size;
 				retval.height = page_height * win.layout_size;
 
-				if(retval.x + retval.width == edge_line) {
-					retval.width = (win.ui_width - (retval.x + win.window_border));
-				}
+				//if(retval.x + retval.width == edge_line) {
+				//	retval.width = (win.ui_width - (retval.x + win.window_border));
+				//}
 				break;
 			case layout_orientation::horizontal_right_to_left:
 				retval.width = line_width * win.layout_size;
@@ -161,10 +161,10 @@ namespace printui {
 				retval.y = win.window_border + page_position * win.layout_size;
 				retval.x = win.ui_width - (win.window_border + line_position * win.layout_size + retval.width);
 
-				if(retval.x == edge_line) {
-					retval.x = win.window_border;
-					retval.width += (edge_line - win.window_border);
-				}
+				//if(retval.x == edge_line) {
+				//	retval.x = win.window_border;
+				//	retval.width += (edge_line - win.window_border);
+				//}
 				break;
 			case layout_orientation::vertical_left_to_right:
 				retval.height = line_width * win.layout_size;
@@ -172,9 +172,9 @@ namespace printui {
 				retval.y = win.window_border + line_position * win.layout_size;
 				retval.x = win.window_border + page_position * win.layout_size;
 
-				if(retval.x + retval.width == edge_line) {
-					retval.width = (win.ui_width - (retval.x + win.window_border));
-				}
+				//if(retval.x + retval.width == edge_line) {
+				//	retval.width = (win.ui_width - (retval.x + win.window_border));
+				//}
 				break;
 			case layout_orientation::vertical_right_to_left:
 				retval.height = line_width * win.layout_size;
@@ -182,15 +182,15 @@ namespace printui {
 				retval.y = win.window_border + line_position * win.layout_size;
 				retval.x = win.ui_width - (win.window_border + page_position * win.layout_size + retval.width);
 
-				if(retval.x == edge_line) {
-					retval.x = win.window_border;
-					retval.width += (edge_line - win.window_border);
-				}
+				//if(retval.x == edge_line) {
+				//	retval.x = win.window_border;
+				//	retval.width += (edge_line - win.window_border);
+				//}
 				break;
 		}
-		if(retval.y + retval.height == bottom_line) {
-			retval.height = (win.ui_height - (retval.y + win.window_border));
-		}
+		//if(retval.y + retval.height == bottom_line) {
+		//	retval.height = (win.ui_height - (retval.y + win.window_border));
+		//}
 		return retval;
 	}
 
@@ -257,7 +257,49 @@ namespace printui {
 
 		}
 
-		void background_rectangle(D2D_RECT_F const& content_rect, window_data const& win, uint8_t display_flags, uint8_t brush, bool under_mouse) {
+		D2D_RECT_F extend_rect_to_edges(D2D_RECT_F content_rect, window_data const& win) {
+			int32_t bottom_line = win.layout_size * ((win.ui_height - win.window_border * 2) / win.layout_size) + win.window_border;
+			if(content_rect.bottom == bottom_line) {
+				content_rect.bottom = float(win.ui_height - win.window_border);
+			}
+
+			if(win.orientation == layout_orientation::horizontal_right_to_left || win.orientation == layout_orientation::vertical_right_to_left) {
+
+				int32_t edge_line = win.ui_width - (win.layout_size * ((win.ui_width - win.window_border * 2) / win.layout_size) + win.window_border);
+				if(content_rect.left == edge_line)
+					content_rect.left = float(win.window_border);
+			} else {
+				int32_t edge_line = win.layout_size * ((win.ui_width - win.window_border * 2) / win.layout_size) + win.window_border;
+				if(content_rect.right == edge_line)
+					content_rect.right = float(win.ui_width - win.window_border);
+			}
+			return content_rect;
+		}
+		screen_space_rect extend_rect_to_edges(screen_space_rect content_rect, window_data const& win) {
+			int32_t bottom_line = win.layout_size * ((win.ui_height - win.window_border * 2) / win.layout_size) + win.window_border;
+			if(content_rect.y + content_rect.height == bottom_line) {
+				content_rect.height = (win.ui_height - win.window_border) - content_rect.y;
+			}
+
+			if(win.orientation == layout_orientation::horizontal_right_to_left || win.orientation == layout_orientation::vertical_right_to_left) {
+
+				int32_t edge_line = win.ui_width - (win.layout_size * ((win.ui_width - win.window_border * 2) / win.layout_size) + win.window_border);
+				if(content_rect.x == edge_line) {
+					content_rect.width = content_rect.width + content_rect.x - win.window_border;
+					content_rect.x = win.window_border;
+				}
+			} else {
+				int32_t edge_line = win.layout_size * ((win.ui_width - win.window_border * 2) / win.layout_size) + win.window_border;
+				if(content_rect.x + content_rect.width == edge_line) {
+					content_rect.width = (win.ui_width - win.window_border) - content_rect.x;
+				}
+			}
+			return content_rect;
+		}
+
+		void background_rectangle(D2D_RECT_F content_rect, window_data const& win, uint8_t display_flags, uint8_t brush, bool under_mouse) {
+
+			content_rect = extend_rect_to_edges(content_rect, win);
 
 			if((display_flags & ui_rectangle::flag_skip_bg) == 0) {
 				win.d2d_device_context->FillRectangle(content_rect, win.palette[brush]);
@@ -317,40 +359,41 @@ namespace printui {
 				}
 
 				if((r.display_flags & ui_rectangle::flag_frame) != 0) {
+					auto ex_rect = extend_rect_to_edges(screen_space_rect{r.x_position, r.y_position, r.width, r.height}, win);
 					if(r.left_border > 0) {
 						win.d2d_device_context->FillRectangle(
 							D2D1_RECT_F{
-								float(r.x_position),
-								float(r.y_position),
-								float(r.x_position + r.left_border),
-								float(r.y_position + r.height) },
+								float(ex_rect.x),
+								float(ex_rect.y),
+								float(ex_rect.x + r.left_border),
+								float(ex_rect.y + ex_rect.height) },
 								win.palette[r.foreground_index]);
 					}
 					if(r.right_border > 0) {
 						win.d2d_device_context->FillRectangle(
 							D2D1_RECT_F{
-								float(r.x_position + r.width - r.right_border),
-								float(r.y_position),
-								float(r.x_position + r.width),
-								float(r.y_position + r.height) },
+								float(ex_rect.x + ex_rect.width - r.right_border),
+								float(ex_rect.y),
+								float(ex_rect.x + ex_rect.width),
+								float(ex_rect.y + ex_rect.height) },
 								win.palette[r.foreground_index]);
 					}
 					if(r.top_border > 0) {
 						win.d2d_device_context->FillRectangle(
 							D2D1_RECT_F{
-								float(r.x_position),
-								float(r.y_position),
-								float(r.x_position + r.width),
-								float(r.y_position + r.top_border) },
+								float(ex_rect.x),
+								float(ex_rect.y),
+								float(ex_rect.x + ex_rect.width),
+								float(ex_rect.y + r.top_border) },
 								win.palette[r.foreground_index]);
 					}
 					if(r.bottom_border > 0) {
 						win.d2d_device_context->FillRectangle(
 							D2D1_RECT_F{
-								float(r.x_position),
-								float(r.y_position + r.height - r.bottom_border),
-								float(r.x_position + r.width),
-								float(r.y_position + r.height) },
+								float(ex_rect.x),
+								float(ex_rect.y + ex_rect.height - r.bottom_border),
+								float(ex_rect.x + ex_rect.width),
+								float(ex_rect.y + ex_rect.height) },
 								win.palette[r.foreground_index]);
 					}
 				}
@@ -1293,5 +1336,65 @@ namespace printui {
 				// TODO
 			}
 		}
+	}
+
+	void window_data::stop_ui_animations() {
+		animation_status.is_running = false;
+	}
+	void window_data::prepare_ui_animation() {
+		stop_ui_animations();
+
+		refresh_foregound();
+
+		d2d_device_context->SetTarget(animation_background);
+		d2d_device_context->BeginDraw();
+
+		d2d_device_context->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
+		d2d_device_context->SetTransform(D2D1::Matrix3x2F::Identity());
+		d2d_device_context->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
+
+		render::to_display(get_layout(), *this);
+
+		d2d_device_context->EndDraw();
+	}
+
+	void window_data::start_ui_animation(animation_description description) {
+		animation_status.description = description;
+		animation_status.description.animated_region = render::extend_rect_to_edges(animation_status.description.animated_region, *this);
+
+		switch(orientation) {
+			case layout_orientation::horizontal_left_to_right:
+				break;
+			case layout_orientation::horizontal_right_to_left:
+				if(description.direction == animation_direction::left)
+					animation_status.description.direction = animation_direction::right;
+				else if(description.direction == animation_direction::right)
+					animation_status.description.direction = animation_direction::left;
+				break;
+			case layout_orientation::vertical_left_to_right:
+				if(description.direction == animation_direction::left)
+					animation_status.description.direction = animation_direction::top;
+				else if(description.direction == animation_direction::right)
+					animation_status.description.direction = animation_direction::bottom;
+				else if(description.direction == animation_direction::top)
+					animation_status.description.direction = animation_direction::left;
+				else if(description.direction == animation_direction::bottom)
+					animation_status.description.direction = animation_direction::right;
+				break;
+			case layout_orientation::vertical_right_to_left:
+				if(description.direction == animation_direction::left)
+					animation_status.description.direction = animation_direction::top;
+				else if(description.direction == animation_direction::right)
+					animation_status.description.direction = animation_direction::bottom;
+				else if(description.direction == animation_direction::top)
+					animation_status.description.direction = animation_direction::right;
+				else if(description.direction == animation_direction::bottom)
+					animation_status.description.direction = animation_direction::left;
+				break;
+		}
+
+		animation_status.is_running = true;
+		animation_status.start_time = std::chrono::steady_clock::now();
+		window_interface->invalidate_window();
 	}
 }

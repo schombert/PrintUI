@@ -77,8 +77,7 @@ namespace printui {
 		auto button = win.create_node(&close_button, 2, 1, false);
 		auto& button_node = win.get_node(button);
 		button_node.x = uint16_t(self.width - 2);
-		button_node.parent = l_id;
-		self.container_info()->children.push_back(button);
+		win.immediate_add_child(l_id, button);
 	}
 	
 	ui_rectangle single_line_empty_header::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
@@ -337,7 +336,7 @@ namespace printui {
 	}
 	void label_control::render_foreground(ui_rectangle const& rect, window_data& win) {
 		auto text_bounding_rect = screen_rectangle_from_layout_in_ui(win, interior_left_margin, 0, win.get_node(l_id).width - (interior_left_margin + interior_right_margin), label_text.resolved_text_size.y, rect);
-
+		label_text.relayout_text(win, horizontal(win.orientation) ? screen_space_point{ rect.width - (interior_left_margin + interior_right_margin) * win.layout_size, rect.height } : screen_space_point{ rect.width, rect.height - (interior_left_margin + interior_right_margin) * win.layout_size });
 		label_text.draw_text(win, text_bounding_rect.x, text_bounding_rect.y);
 	}
 	void label_control::render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) {
@@ -359,6 +358,35 @@ namespace printui {
 	void label_control::on_right_click(window_data& win, uint32_t, uint32_t) {
 		if(alt_text != uint16_t(-1)) {
 			win.info_popup.open(win, info_window::parameters{ l_id }.right(label_text.text_alignment == content_alignment::trailing).text(alt_text).width(8).internal_margins(interior_left_margin, interior_right_margin));
+		}
+	}
+	accessibility_object* label_control::get_accessibility_interface(window_data& win) {
+		if(!acc_obj) {
+			acc_obj = win.accessibility_interface->make_plain_text_accessibility_interface(win, this, &label_text, true);
+		}
+		return acc_obj;
+	}
+
+	void label_control::set_text(window_data& win) {
+		label_text.set_text();
+		if(acc_obj && win.is_visible(l_id)) {
+			win.accessibility_interface->on_change_name(acc_obj, L"");
+		}
+	}
+	void label_control::set_text(window_data& win, uint16_t val) {
+		label_text.set_text(val);
+		if(acc_obj && win.is_visible(l_id)) {
+			if(val != uint16_t(-1)) {
+				win.accessibility_interface->on_change_name(acc_obj, label_text.get_raw_text(win));
+			} else {
+				win.accessibility_interface->on_change_name(acc_obj, L"");
+			}
+		}
+	}
+	void label_control::set_text(window_data& win, std::wstring const& val) {
+		label_text.set_text(val);
+		if(acc_obj && win.is_visible(l_id)) {
+			win.accessibility_interface->on_change_name(acc_obj, val);
 		}
 	}
 
@@ -479,9 +507,14 @@ namespace printui {
 		}
 	}
 	void button_control_base::set_selected(window_data& win, bool v) {
-		selected = v;
-		if(acc_obj && win.is_visible(l_id)) {
-			win.accessibility_interface->on_select_unselect(acc_obj, v);
+		if(selected != v) {
+			selected = v;
+			if(acc_obj && win.is_visible(l_id)) {
+				win.accessibility_interface->on_select_unselect(acc_obj, v);
+				auto container = win.get_parent_accessibility_object(l_id);
+				if(container)
+					win.accessibility_interface->on_selection_change(container);
+			}
 		}
 	}
 	void button_control_base::set_alt_text(window_data& win, uint16_t alt) {
@@ -618,7 +651,7 @@ namespace printui {
 	void icon_button_base::on_click(window_data& win, uint32_t, uint32_t) {
 		if(!is_disabled(win)) {
 			button_action(win);
-			if(acc_obj) {
+			if(acc_obj && category == button_category::action_button) {
 				win.accessibility_interface->on_invoke(acc_obj);
 			}
 		}
@@ -665,7 +698,12 @@ namespace printui {
 	uint16_t icon_button_base::get_name_text() const {
 		return name_text;
 	}
-
+	std::wstring icon_button_base::get_name(window_data const& win) {
+		if(name_text != uint16_t(-1))
+			return win.text_data.instantiate_text(name_text).text_content.text;
+		else
+			return std::wstring(L"");
+	}
 	//
 	// END ICON BUTTON
 	//
@@ -789,6 +827,25 @@ namespace printui {
 		win.redraw_ui();
 	}
 
+
+	std::wstring page_jump_back_button::get_name(window_data const& win) {
+		text::text_parameter tp[1] = { text::int_param(jump_size(win)) };
+		return win.text_data.instantiate_text(text_id::page_prev_prev_name, tp, tp + 1).text_content.text;
+	}
+
+	int32_t page_jump_back_button::jump_size(window_data const& win) const {
+		if(l_id == layout_reference_none)
+			return 0;
+
+		auto page_container = win.get_containing_page(l_id);
+		page_information* parent_pginfo = (page_container != layout_reference_none) ? win.get_node(page_container).page_info() : nullptr;
+
+		if(!parent_pginfo)
+			return 0;
+
+		return std::min(parent_pginfo->subpage_offset, uint16_t(std::ceil(std::sqrt(float(parent_pginfo->subpage_divisions.size() + 1)))));
+	}
+
 	bool page_jump_back_button::is_disabled(window_data const& win) const {
 		if(l_id == layout_reference_none)
 			return true;
@@ -802,19 +859,16 @@ namespace printui {
 	void page_jump_back_button::button_action(window_data& win) {
 		if(l_id == layout_reference_none)
 			return;
+		if(is_disabled(win))
+			return;
 
 		auto page_container = win.get_containing_page(l_id);
 		page_information* parent_pginfo = (page_container != layout_reference_none) ? win.get_node(page_container).page_info() : nullptr;
-		auto disabled = parent_pginfo ? parent_pginfo->subpage_offset == 0 : true;
-
-		if(disabled)
-			return;
 
 		if(page_footer::page_turn_down.type != animation_type::none)
 			win.prepare_ui_animation();
 
-		auto amount = std::ceil(std::sqrt(float(parent_pginfo->subpage_divisions.size() + 1)));
-		auto int_amount = std::min(parent_pginfo->subpage_offset, uint16_t(amount));
+		auto int_amount = uint16_t(jump_size(win));
 		parent_pginfo->subpage_offset -= int_amount;
 
 		if(page_footer::page_turn_down.type != animation_type::none) {
@@ -871,6 +925,11 @@ namespace printui {
 		win.redraw_ui();
 	}
 
+	std::wstring page_jump_forward_button::get_name(window_data const& win) {
+		text::text_parameter tp[1] = { text::int_param(jump_size(win)) };
+		return win.text_data.instantiate_text(text_id::page_next_next_name, tp, tp+1).text_content.text;
+	}
+
 	bool page_jump_forward_button::is_disabled(window_data const& win) const {
 		if(l_id == layout_reference_none)
 			return true;
@@ -881,22 +940,32 @@ namespace printui {
 		return parent_pginfo ? parent_pginfo->subpage_offset >= parent_pginfo->subpage_divisions.size() : true;
 	}
 
-	void page_jump_forward_button::button_action(window_data& win) {
+	int32_t page_jump_forward_button::jump_size(window_data const& win) const {
 		if(l_id == layout_reference_none)
-			return;
+			return 0;
 
 		auto page_container = win.get_containing_page(l_id);
 		page_information* parent_pginfo = (page_container != layout_reference_none) ? win.get_node(page_container).page_info() : nullptr;
-		auto disabled = parent_pginfo ? parent_pginfo->subpage_offset >= parent_pginfo->subpage_divisions.size() : true;
 
-		if(disabled)
+		if(!parent_pginfo)
+			return 0;
+
+		return int32_t(std::ceil(std::sqrt(float(parent_pginfo->subpage_divisions.size() + 1))));
+	}
+
+	void page_jump_forward_button::button_action(window_data& win) {
+		if(l_id == layout_reference_none)
+			return;
+		if(is_disabled(win))
 			return;
 
 		if(page_footer::page_turn_up.type != animation_type::none)
 			win.prepare_ui_animation();
 
-		auto amount = std::ceil(std::sqrt(float(parent_pginfo->subpage_divisions.size() + 1)));
-		auto int_amount = uint16_t(amount);
+		auto int_amount = uint16_t(jump_size(win));
+		auto page_container = win.get_containing_page(l_id);
+		page_information* parent_pginfo = (page_container != layout_reference_none) ? win.get_node(page_container).page_info() : nullptr;
+
 		parent_pginfo->subpage_offset += int_amount;
 		parent_pginfo->subpage_offset = std::min(parent_pginfo->subpage_offset, uint16_t(parent_pginfo->subpage_divisions.size()));
 
@@ -930,6 +999,85 @@ namespace printui {
 
 		close_action(win, page_node_id);
 		win.update_window_focus();
+	}
+
+	ui_rectangle open_list_control::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
+
+		ui_rectangle retvalue;
+
+		retvalue.background_index = parent_background_index;
+		retvalue.foreground_index = parent_foreground_index;
+		retvalue.parent_object = l_id;
+
+		return retvalue;
+	}
+	simple_layout_specification open_list_control::get_specification(window_data& win) {
+		simple_layout_specification spec;
+
+		uint16_t max_line_required = 2;
+		uint16_t page_required = 0;
+		for(auto b : options) {
+			auto sub_spec = b->get_specification(win);
+			max_line_required = std::max(max_line_required, sub_spec.minimum_line_size);
+			page_required += sub_spec.minimum_page_size;
+		}
+
+		spec.minimum_page_size = page_required;
+		spec.minimum_line_size = max_line_required;
+		spec.page_flags = size_flags::match_content;
+		spec.line_flags = size_flags::none;
+
+		return spec;
+	}
+	void open_list_control::recreate_contents(window_data& win, layout_node& n) {
+		int32_t running_height = 0;
+		auto const node_height = n.height;
+		auto const node_width = n.width;
+
+		for(auto opt : options) {
+			auto child_ref = win.create_node(opt, node_width, node_height, false, true);
+			auto& child_node = win.get_node(child_ref);
+
+			child_node.x = 0;
+			child_node.y = int16_t(running_height);
+
+			running_height += node_height;
+			win.immediate_resize(child_node, node_width, child_node.height);
+
+			win.immediate_add_child(l_id, child_ref);
+		}
+
+		auto& self = win.get_node(l_id);
+		self.height = std::max(self.height, uint16_t(running_height));
+	}
+	accessibility_object* open_list_control::get_accessibility_interface(window_data& win) {
+		if(!acc_obj) {
+			acc_obj = win.accessibility_interface->make_open_list_control_accessibility_interface(win, *this);
+		}
+		return acc_obj;
+	}
+	void open_list_control::center_contents(window_data& win) {
+		if(l_id == layout_reference_none)
+			return;
+
+		int32_t min_extent = std::numeric_limits<int32_t>::max();
+		int32_t max_extent = 0;
+
+		for(auto opt : options) {
+			if(opt->l_id != layout_reference_none) {
+				min_extent = std::min(int32_t(win.get_node(opt->l_id).y), min_extent);
+				max_extent = std::max(int32_t(win.get_node(opt->l_id).y + win.get_node(opt->l_id).height), max_extent);
+			}
+		}
+
+		auto self_height = win.get_node(l_id).height;
+		auto desired_start = std::max((self_height - (max_extent - min_extent)) / 2, 0);
+
+		if(desired_start != min_extent) {
+			for(auto opt : options) {
+				win.get_node(opt->l_id).y = uint16_t(win.get_node(opt->l_id).y + desired_start - min_extent);
+			}
+		}
 	}
 
 	void list_open::button_action(window_data& win) {
@@ -997,7 +1145,6 @@ namespace printui {
 	}
 	void list_control::recreate_contents(window_data& win, layout_node& n) {
 		populate_list(win);
-		auto contents = n.container_info();
 		auto const node_height = n.height;
 		auto const node_width = n.width;
 
@@ -1008,14 +1155,13 @@ namespace printui {
 					node_width, node_height, false, true);
 				auto& child_node = win.get_node(child_ref);
 
-				child_node.parent = l_id;
 				child_node.x = 0;
 				child_node.y = int16_t(running_height);
 
 				running_height += node_height;
 				win.immediate_resize(child_node, node_width, node_height);
 
-				contents->children.push_back(child_ref);
+				win.immediate_add_child(l_id,child_ref);
 			}
 
 		} else {
@@ -1023,13 +1169,12 @@ namespace printui {
 				node_width, node_height, false, true);
 			auto& child_node = win.get_node(child_ref);
 			open_button.set_alt_text(win, alt_text_id);
-			child_node.parent = l_id;
 			child_node.x = 0;
 			child_node.y = 0;
 
 			win.immediate_resize(child_node, node_width, node_height);
 			
-			contents->children.push_back(child_ref);
+			win.immediate_add_child(l_id, child_ref);
 		}
 	}
 	void list_control::on_lose_focus(window_data& win) {
@@ -1246,7 +1391,7 @@ namespace printui {
 				auto pi = nn.page_info();
 				int32_t cheight = 2;
 				if(pi) {
-					for(auto c : pi->columns) {
+					for(auto c : pi->view_columns()) {
 						cheight = std::max(cheight, win.get_node(c).height + 2);
 					}
 				}
@@ -1278,11 +1423,10 @@ namespace printui {
 			auto n_height = n.height;
 			auto open_button_id = win.create_node(&open_button, n_width, n_height, false);
 			auto& open_button_node = win.get_node(open_button_id);
-			open_button_node.parent = l_id;
 			open_button_node.x = 0;
 			open_button_node.y = 0;
 			win.immediate_resize(open_button_node, n_width, n_height);
-			pi->columns.push_back(open_button_id);
+			win.immediate_add_child(l_id, open_button_id);
 		}
 	}
 	void menu_control::on_lose_focus(window_data& win) {
@@ -1302,7 +1446,7 @@ namespace printui {
 		} else {
 			auto pi = win.get_node(l_id).page_info();
 			if(pi) {
-				for(auto n : pi->columns) {
+				for(auto n : pi->view_columns()) {
 					cheight = std::max(cheight, win.get_node(n).height + 2);
 				}
 			}
@@ -1443,7 +1587,6 @@ namespace printui {
 		return spec;
 	}
 	void page_footer::recreate_contents(window_data& win, layout_node& n) {
-		auto contents = n.container_info();
 		auto const node_height = n.height;
 		auto const node_width = n.width;
 
@@ -1452,34 +1595,30 @@ namespace printui {
 				{
 					auto child_ref = win.create_node(&jump_back, 2, 1, false, true);
 					auto& child_node = win.get_node(child_ref);
-					child_node.parent = l_id;
 					child_node.x = 0;
 					child_node.y = 0;
-					contents->children.push_back(child_ref);
+					win.immediate_add_child(l_id,child_ref);
 				}
 				{
 					auto child_ref = win.create_node(&back, 2, 1, false, true);
 					auto& child_node = win.get_node(child_ref);
-					child_node.parent = l_id;
 					child_node.x = 0;
 					child_node.y = 1;
-					contents->children.push_back(child_ref);
+					win.immediate_add_child(l_id, child_ref);
 				}
 				{
 					auto child_ref = win.create_node(&forward, 2, 1, false, true);
 					auto& child_node = win.get_node(child_ref);
-					child_node.parent = l_id;
 					child_node.x = 2;
 					child_node.y = 1;
-					contents->children.push_back(child_ref);
+					win.immediate_add_child(l_id, child_ref);
 				}
 				{
 					auto child_ref = win.create_node(&jump_forward, 2, 1, false, true);
 					auto& child_node = win.get_node(child_ref);
-					child_node.parent = l_id;
 					child_node.x = 2;
 					child_node.y = 0;
-					contents->children.push_back(child_ref);
+					win.immediate_add_child(l_id, child_ref);
 				}
 			} else {
 				auto base_offset = ((node_width - 8)) / 2;
@@ -1487,34 +1626,30 @@ namespace printui {
 				{
 					auto child_ref = win.create_node(&jump_back, 2, 1, false, true);
 					auto& child_node = win.get_node(child_ref);
-					child_node.parent = l_id;
 					child_node.x = uint16_t(base_offset + 0 - even_offset);
 					child_node.y = 0;
-					contents->children.push_back(child_ref);
+					win.immediate_add_child(l_id, child_ref);
 				}
 				{
 					auto child_ref = win.create_node(&back, 2, 1, false, true);
 					auto& child_node = win.get_node(child_ref);
-					child_node.parent = l_id;
 					child_node.x = uint16_t(base_offset + 2 - even_offset);
 					child_node.y = 0;
-					contents->children.push_back(child_ref);
+					win.immediate_add_child(l_id, child_ref);
 				}
 				{
 					auto child_ref = win.create_node(&forward, 2, 1, false, true);
 					auto& child_node = win.get_node(child_ref);
-					child_node.parent = l_id;
 					child_node.x = uint16_t(base_offset + 4);
 					child_node.y = 0;
-					contents->children.push_back(child_ref);
+					win.immediate_add_child(l_id, child_ref);
 				}
 				{
 					auto child_ref = win.create_node(&jump_forward, 2, 1, false, true);
 					auto& child_node = win.get_node(child_ref);
-					child_node.parent = l_id;
 					child_node.x = uint16_t(base_offset + 6);
 					child_node.y = 0;
-					contents->children.push_back(child_ref);
+					win.immediate_add_child(l_id, child_ref);
 				}
 			}
 
@@ -1523,13 +1658,12 @@ namespace printui {
 					node_width, node_height, false, true);
 
 				auto& child_node = win.get_node(child_ref);
-				child_node.parent = l_id;
 				child_node.x = 0;
 				child_node.y = node_width <= 8 ? 2ui16 : 1ui16;
 
 				win.immediate_resize(child_node, node_width, node_height);
 
-				contents->children.push_back(child_ref);
+				win.immediate_add_child(l_id, child_ref);
 			}
 
 		} else {
@@ -1537,13 +1671,12 @@ namespace printui {
 				node_width, node_height, false, true);
 
 			auto& child_node = win.get_node(child_ref);
-			child_node.parent = l_id;
 			child_node.x = 0;
 			child_node.y = 0;
 
 			win.immediate_resize(child_node, node_width, node_height);
 
-			contents->children.push_back(child_ref);
+			win.immediate_add_child(l_id, child_ref);
 		}
 	}
 	layout_rect page_footer::get_content_rectangle(window_data& win) {

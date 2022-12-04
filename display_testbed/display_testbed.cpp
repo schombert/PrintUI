@@ -90,6 +90,10 @@ void main_window::load_default_dynamic_settings() {
 	text_data.register_name("selection_list_localized_name", text_id::selection_list_localized_name);
 	text_data.register_name("close_settings_name", text_id::close_settings_name);
 	text_data.register_name("close_menu_name", text_id::close_menu_name);
+	text_data.register_name("page_prev_name", text_id::page_prev_name);
+	text_data.register_name("page_next_name", text_id::page_next_name);
+	text_data.register_name("page_prev_prev_name", text_id::page_prev_prev_name);
+	text_data.register_name("page_next_next_name", text_id::page_next_next_name);
 }
 
 int WINAPI wWinMain(
@@ -103,7 +107,7 @@ int WINAPI wWinMain(
 	if(SUCCEEDED(CoInitializeEx(NULL, COINIT_APARTMENTTHREADED))) {
 		{
 			main_window app;
-
+			
 			app.create_window();
 			app.message_loop();
 		}

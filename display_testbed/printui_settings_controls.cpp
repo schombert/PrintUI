@@ -20,8 +20,10 @@ namespace printui {
 
 
 	settings_page_container::settings_page_container(window_data& win, std::vector<settings_menu_item> const& app_settings) : page_header(text_id::close_settings_name, close_settings_pages_fn) {
+		subpage_selection_list.name_id = text_id::settings_tabs_name;
 
 		settings_items.reserve(app_settings.size() + 1);
+		subpage_selection_list.options.reserve(app_settings.size() + 1);
 
 		uint32_t count = 0;
 		for(auto& i : app_settings) {
@@ -32,6 +34,8 @@ namespace printui {
 			settings_items.back()->interior_left_margin = 2;
 			settings_items.back()->set_text_alignment(content_alignment::trailing);
 			++count;
+
+			subpage_selection_list.options.push_back(settings_items.back().get());
 		}
 
 		settings_items.emplace_back(std::make_unique<settings_item_button>(count, (layout_interface*)(&win.window_bar.print_ui_settings)));
@@ -40,6 +44,8 @@ namespace printui {
 		settings_items.back()->interior_right_margin = 1;
 		settings_items.back()->interior_left_margin = 2;
 		settings_items.back()->set_text_alignment(content_alignment::trailing);
+
+		subpage_selection_list.options.push_back(settings_items.back().get());
 
 		settings_items.front()->set_selected(win, true);
 
@@ -54,11 +60,11 @@ namespace printui {
 		retvalue.left_border = 1;
 		return retvalue;
 	}
-	simple_layout_specification settings_page_container::get_specification(window_data&) {
+	simple_layout_specification settings_page_container::get_specification(window_data& win) {
 		simple_layout_specification spec;
 
-		spec.minimum_page_size = 5ui16;
-		spec.minimum_line_size = 6ui16;
+		spec.minimum_page_size = uint16_t(5 + settings_items.size());
+		spec.minimum_line_size = uint16_t(6 + subpage_selection_list.get_specification(win).minimum_line_size);
 		spec.page_flags = size_flags::fill_to_max;
 		spec.line_flags = size_flags::match_content;
 
@@ -77,63 +83,40 @@ namespace printui {
 		return retvalue;
 	}
 
+	accessibility_object* settings_page_container::get_accessibility_interface(window_data& win) {
+		if(!acc_obj) {
+			acc_obj = win.accessibility_interface->make_container_accessibility_interface(win, this, text_id::settings_header);
+		}
+		return acc_obj;
+	}
+
 	void settings_page_container::recreate_contents(window_data& win, layout_node& n) {
-		//create menu container
-
 		auto pi = n.page_info();
+		int32_t resolved_height = n.height;
+		int32_t resolved_width = n.width;
 
-		std::vector<layout_interface*> setting_i_list;
-		setting_i_list.reserve(settings_items.size());
-		for(auto& si : settings_items) {
-			setting_i_list.push_back(si.get());
-		}
-		int32_t source_index = 0;
-		int32_t running_list_position = -1;
-		auto cres = make_column(setting_i_list, win, source_index, content_orientation::page, n.height, 4, 0, running_list_position, column_break_condition{ false, false, false, true });
+		auto open_list_spec = subpage_selection_list.get_specification(win);
 
-		//&n becomes potentially invalid HERE
+		auto column_container_id = win.create_node(&subpage_selection_list, open_list_spec.minimum_line_size, open_list_spec.minimum_page_size, false);
+		win.get_node(column_container_id).parent = l_id;
 
-		auto column_container_id = win.allocate_node();
-		{
-			auto& column_container = win.get_node(column_container_id);
-
-			column_container.contents = std::make_unique<container_information>();
-			column_container.container_info()->list_offset = -1;
-			column_container.layout_deferred = false;
-			column_container.parent = l_id;
-			column_container.height = uint16_t(cres.along_column_size);
-			column_container.width = uint16_t(cres.across_column_max);
-
-			column_container.container_info()->children = std::move(cres.contents);
-			
-		}
-
-		int32_t resolved_height = 0;
-		int32_t resolved_width = 0;
-		{
-			auto& self = win.get_node(l_id);
-			self.height = std::max(self.height, uint16_t(2 + cres.along_column_size));
-			resolved_height = self.height;
-			self.width = std::max(self.width, uint16_t(cres.across_column_max));
-			resolved_width = self.width;
-		}
-		auto column_container_info = win.get_node(column_container_id).container_info();
-		for(auto child_result : column_container_info->children) {
-			auto& child = win.get_node(child_result);
-			child.parent = column_container_id;
-			child.x = uint16_t(cres.across_column_max - child.width);
-		}
+		int32_t column_height = win.get_node(column_container_id).height;
+		int32_t column_width = win.get_node(column_container_id).width;
+		resolved_height = std::max(column_height + 1, resolved_height);
+		resolved_width = std::max(column_width, resolved_width);
 
 		//create each settings page
+
 		int32_t max_child_height = 0;
 		int32_t max_child_width = 0;
 		for(auto& si : settings_items) {
 
-			auto node_id = win.create_node(si->settings_contents, resolved_width - cres.across_column_max, resolved_height - 1, true);
+			auto node_id = win.create_node(si->settings_contents, resolved_width - column_width, resolved_height - 1, true);
 
-			pi->columns.push_back(node_id);
+			win.immediate_add_child(l_id, node_id);
+
 			auto& child_page = win.get_node(node_id);
-			child_page.x = uint16_t(cres.across_column_max);
+			child_page.x = uint16_t(column_width);
 			child_page.y = 1ui16;
 
 			max_child_width = std::max(max_child_width, int32_t(child_page.width));
@@ -142,24 +125,24 @@ namespace printui {
 
 		{
 			auto& self = win.get_node(l_id);
-			self.height = uint16_t(std::max(max_child_height + 1, cres.along_column_size + 2));
+			self.height = uint16_t(std::max(max_child_height + 1, column_height + 2));
 			resolved_height = self.height;
-			self.width = std::max(self.width, uint16_t(max_child_width + cres.across_column_max));
+			self.width = std::max(self.width, uint16_t(max_child_width + column_width));
 			resolved_width = self.width;
 		}
 
-		for(auto node_id : pi->columns) {
+		for(auto node_id : pi->view_columns()) {
 			auto& child_page = win.get_node(node_id);
-			win.immediate_resize(child_page, resolved_width - cres.across_column_max, resolved_height - 1);
+			win.immediate_resize(child_page, resolved_width - column_width, resolved_height - 1);
 		}
 
 		{
 			auto& column_container = win.get_node(column_container_id);
 			column_container.x = 0ui16;
-			column_container.y = uint16_t(2 + ((resolved_height - 1) - column_container.height) / 2);
+			column_container.y = uint16_t(1 + ((resolved_height - 1) - column_container.height) / 2);
 		}
 
-		pi->columns.insert(pi->columns.begin() + pi->subpage_offset, column_container_id);
+		pi->modify_columns().insert(pi->view_columns().begin() + pi->subpage_offset, column_container_id);
 		{
 			auto& self = win.get_node(l_id);
 			pi->header = win.create_node(&page_header, self.width, 1, false);
@@ -178,14 +161,14 @@ namespace printui {
 			auto old_sub_off = pi.subpage_offset == 0 ? 0 : pi.subpage_divisions[pi.subpage_offset - 1];
 			auto new_sub_off = i == 0 ? 0 : pi.subpage_divisions[i - 1];
 			if(pi.subpage_offset < i) {
-				std::rotate(pi.columns.data() + old_sub_off, pi.columns.data() + old_sub_off + 1,
-					pi.columns.data() + new_sub_off);
+				std::rotate(pi.modify_columns().data() + old_sub_off, pi.modify_columns().data() + old_sub_off + 1,
+					pi.modify_columns().data() + new_sub_off);
 				for(auto j = pi.subpage_offset; j < i; ++j) {
 					pi.subpage_divisions[j] -= 1;
 				}
 			} else {
-				std::rotate(pi.columns.data() + new_sub_off, pi.columns.data() + old_sub_off,
-					pi.columns.data() + old_sub_off + 1);
+				std::rotate(pi.modify_columns().data() + new_sub_off, pi.modify_columns().data() + old_sub_off,
+					pi.modify_columns().data() + old_sub_off + 1);
 				for(auto j = i; j < pi.subpage_offset; ++j) {
 					pi.subpage_divisions[j] += 1;
 				}
@@ -193,21 +176,20 @@ namespace printui {
 
 			pi.subpage_offset = uint16_t(i);
 		}
+
+		if(acc_obj) {
+			win.accessibility_interface->on_contents_changed(acc_obj);
+		}
 	}
 
-	common_printui_settings::common_printui_settings() {
-		language_label.label_text.text_alignment = content_alignment::leading;
-		language_label.label_text.set_text(text_id::language_label);
+	common_printui_settings::common_printui_settings() : language_label(text_id::language_label, content_alignment::leading), orientation_label(text_id::orientation_label, content_alignment::leading), input_mode_label(text_id::input_mode_label, content_alignment::leading) {
+
 		lang_menu.open_button.set_text_alignment(content_alignment::trailing);
 		lang_menu.page_size = 1;
 		lang_menu.line_size = 10;
 
-		orientation_label.label_text.set_text(text_id::orientation_label);
-		orientation_label.label_text.text_alignment = content_alignment::leading;
 		orientation_list.text_alignment = content_alignment::trailing;
 
-		input_mode_label.label_text.set_text(text_id::input_mode_label);
-		input_mode_label.label_text.text_alignment = content_alignment::leading;
 		input_mode_list.text_alignment = content_alignment::trailing;
 
 		language_label.alt_text = text_id::language_info;
@@ -220,6 +202,19 @@ namespace printui {
 		input_mode_list.alt_text_id = text_id::input_mode_info;
 	}
 
+	accessibility_object* common_printui_settings::get_accessibility_interface(window_data& win) {
+		if(!acc_obj) {
+			acc_obj = win.accessibility_interface->make_container_accessibility_interface(win, this, text_id::ui_settings_name);
+		}
+		return acc_obj;
+	}
+
+	void common_printui_settings::go_to_page(window_data& win, uint32_t i, page_information& pi) {
+		layout_interface::go_to_page(win, i, pi);
+		if(acc_obj) {
+			win.accessibility_interface->on_contents_changed(acc_obj);
+		}
+	}
 	ui_rectangle common_printui_settings::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
 
 		ui_rectangle retvalue;

@@ -29,7 +29,7 @@ namespace printui {
 
 		for(int32_t i = -1; i < int32_t(containing_page_info.subpage_divisions.size()); ++i) {
 			uint32_t start = 0;
-			uint32_t end = uint32_t(containing_page_info.columns.size());
+			uint32_t end = uint32_t(containing_page_info.view_columns().size());
 			if(i >= 0)
 				start = containing_page_info.subpage_divisions[i];
 			if(i + 1 < int32_t(containing_page_info.subpage_divisions.size()))
@@ -39,7 +39,7 @@ namespace printui {
 				int32_t max_col_height = 0;
 				int32_t total_col_width = 0;
 				for(uint32_t j = start; j < end; ++j) {
-					auto& child_ref = layout_nodes.get_node(containing_page_info.columns[j]);
+					auto& child_ref = layout_nodes.get_node(containing_page_info.view_columns()[j]);
 					
 					max_col_height = std::max(max_col_height, int32_t(o_select(o, child_ref.height, child_ref.width)));
 					total_col_width += o_select(o, child_ref.width, child_ref.height);
@@ -64,7 +64,7 @@ namespace printui {
 				
 				int32_t htrack = leading_line_margin + extra_lead;
 				for(uint32_t j = start; j < end; ++j) {
-					auto& child_ref = layout_nodes.get_node(containing_page_info.columns[j]);
+					auto& child_ref = layout_nodes.get_node(containing_page_info.view_columns()[j]);
 					o_select(o, child_ref.x, child_ref.y) = uint16_t(htrack);
 
 					if(align == content_alignment::leading) {
@@ -85,7 +85,7 @@ namespace printui {
 					}
 
 					auto col_content = child_ref.container_info();
-					for(auto child_result : col_content->children) {
+					for(auto child_result : col_content->view_children()) {
 						auto& child = layout_nodes.get_node(child_result);
 
 						switch(values.content_in_column) {
@@ -241,16 +241,16 @@ namespace printui {
 		auto o = values.o;
 
 		auto node_page_info = n.page_info();
-		for(auto col_id : node_page_info->columns) {
+		for(auto col_id : node_page_info->view_columns()) {
 			auto& col = layout_nodes.get_node(col_id);
 			if(col.container_info()) {
 				int32_t max_col_width = 0;
-				for(auto cc : col.container_info()->children) {
+				for(auto cc : col.container_info()->view_children()) {
 					auto& cc_ref = layout_nodes.get_node(cc);
 					max_col_width = std::max(max_col_width, int32_t(o_select(o, cc_ref.width, cc_ref.height)));
 				}
 				col.width = uint16_t(max_col_width);
-				for(auto cc : col.container_info()->children) {
+				for(auto cc : col.container_info()->view_children()) {
 					auto& cc_ref = layout_nodes.get_node(cc);
 					o_select(o, cc_ref.width, cc_ref.height) = uint16_t(max_col_width);
 				}
@@ -260,8 +260,8 @@ namespace printui {
 		int32_t max_page_width = 0;
 		int32_t used_space = 0;
 		int32_t count = 0;
-		for(int32_t i = 0; i < int32_t(node_page_info->columns.size()); ++i) {
-			auto& ch_ref = layout_nodes.get_node(node_page_info->columns[i]);
+		for(int32_t i = 0; i < int32_t(node_page_info->view_columns().size()); ++i) {
+			auto& ch_ref = layout_nodes.get_node(node_page_info->view_columns()[i]);
 			if(used_space + min_margin + o_select(o, ch_ref.width, ch_ref.height) > max_space || (max_cols != 0 && count >= max_cols)) {
 				node_page_info->subpage_divisions.push_back(uint16_t(i));
 				max_page_width = std::max(used_space, max_page_width);
@@ -368,7 +368,7 @@ namespace printui {
 			node->contents = std::make_unique<container_information>();
 			node->container_info()->list_offset = -1;
 		} else {
-			node->container_info()->children.clear();
+			node->container_info()->clear_children();
 		}
 		l_interface->recreate_contents(*this, *node);
 	}
@@ -382,7 +382,7 @@ namespace printui {
 			node->container_info()->list_offset = 0;
 		}
 		auto ci = node->container_info();
-		ci->children.clear();
+		ci->clear_children();
 
 		int32_t space_used = 0;
 
@@ -407,8 +407,7 @@ namespace printui {
 				}
 
 				immediate_resize(cnode, o_select(o, node->width, cnode.width), o_select(o, cnode.height, node->height));
-				
-				ci->children.push_back(child_ref);
+				immediate_add_child(l_interface->l_id, child_ref);
 				o_select(o, cnode.y, cnode.x) = uint16_t(space_used);
 				space_used += o_select(o, cnode.height, cnode.width);
 			}
@@ -421,14 +420,14 @@ namespace printui {
 			uint32_t col_offset = 0;
 			for(uint32_t i = 0; i < pi.subpage_divisions.size(); ++i) {
 				for(; col_offset < pi.subpage_divisions[i]; ++col_offset) {
-					if(is_child_of(pi.columns[col_offset], c)) {
+					if(is_child_of(pi.view_columns()[col_offset], c)) {
 						return int32_t(i);
 					}
 				}
 			}
 
-			for(; col_offset < pi.columns.size(); ++col_offset) {
-				if(is_child_of(pi.columns[col_offset], c)) {
+			for(; col_offset < pi.view_columns().size(); ++col_offset) {
+				if(is_child_of(pi.view_columns()[col_offset], c)) {
 					return int32_t(pi.subpage_divisions.size());
 				}
 			}
@@ -442,9 +441,9 @@ namespace printui {
 		if(pi.subpage_offset > 1 && pi.subpage_offset <= pi.subpage_divisions.size()) {
 			subpage = pi.subpage_divisions[pi.subpage_offset - 1];
 		}
-		if(pi.columns.size() == 0) {
+		if(pi.view_columns().size() == 0) {
 			return layout_reference_none;
-		} else if(auto ri = win.get_interactable_render_holder(pi.columns[subpage]); ri) {
+		} else if(auto ri = win.get_interactable_render_holder(pi.view_columns()[subpage]); ri) {
 			return ri->l_id;
 		} else {
 			return layout_reference_none;
@@ -457,7 +456,7 @@ namespace printui {
 
 			layout_reference old_focus_column = get_current_page_visibility_marker(*this, l_interface->l_id, *pi);
 
-			pi->columns.clear();
+			pi->clear_columns();
 			pi->subpage_divisions.clear();
 			l_interface->recreate_contents(*this, *node);
 
@@ -479,7 +478,6 @@ namespace printui {
 	void default_recreate_container(window_data& win, layout_interface* l_interface, layout_node* retvalue, std::vector<layout_interface*> const& children) {
 
 		auto const content_spec = retvalue->l_interface->get_auto_layout_specification(win);
-		auto* ci = retvalue->container_info();
 
 		if(children.size() == 0)
 			return;
@@ -500,7 +498,7 @@ namespace printui {
 		retvalue = &win.get_node(l_interface->l_id);
 
 		if(cres.contents.size() != 0) {
-			ci->children.reserve(cres.contents.size());
+			//ci->children.reserve(cres.contents.size());
 
 			retvalue->height = std::max(retvalue->height, uint16_t(o_select(o, cres.along_column_size, cres.across_column_max)));
 			retvalue->width = std::max(retvalue->width, uint16_t(o_select(o, cres.across_column_max, cres.along_column_size)));
@@ -514,8 +512,7 @@ namespace printui {
 
 			for(auto child_result : cres.contents) {
 				auto& child = win.get_node(child_result);
-				child.parent = l_interface->l_id;
-				ci->children.push_back(child_result);
+				win.immediate_add_child(l_interface->l_id, child_result);
 
 				o_select(o, child.y, child.x) += group_offset;
 
@@ -625,7 +622,7 @@ namespace printui {
 					column_container.contents = std::make_unique<container_information>();
 					column_container.layout_deferred = false;
 					column_container.parent = l_interface->l_id;
-					auto column_container_info = column_container.container_info();
+
 					o_select(o, column_container.height, column_container.width) = uint16_t(cres.along_column_size);
 					o_select(o, column_container.width, column_container.height) = uint16_t(cres.across_column_max);
 
@@ -637,9 +634,7 @@ namespace printui {
 					}
 
 					for(auto child_result : cres.contents) {
-						auto& child = win.get_node(child_result);
-						child.parent = column_container_id;
-						column_container_info->children.push_back(child_result);
+						win.immediate_add_child(column_container_id, child_result);
 					}
 
 					retvalue = &win.get_node(l_interface->l_id);
@@ -647,7 +642,7 @@ namespace printui {
 					retvalue->height = std::max(retvalue->height, uint16_t(page_spec.page_leading_margin_min + page_spec.page_trailing_margin_min + column_container.height + (header_size + footer_size)));
 					retvalue->width = std::max(retvalue->width, uint16_t(page_spec.line_leading_margin_min + page_spec.line_trailing_margin_max + column_container.width));
 
-					pi->columns.push_back(column_container_id);
+					win.immediate_add_child(l_interface->l_id, column_container_id);
 				}
 			}
 
@@ -835,7 +830,7 @@ namespace printui {
 				candidate.display_flags |= ui_rectangle::flag_skip_bg;
 
 			uint32_t content_start = 0;
-			uint32_t content_end = uint32_t(pi->columns.size());
+			uint32_t content_end = uint32_t(pi->view_columns().size());
 			if(pi->subpage_offset > 0) {
 				content_start = pi->subpage_divisions[pi->subpage_offset - 1];
 			}
@@ -849,9 +844,9 @@ namespace printui {
 			prepared_layout.push_back(candidate);
 
 			for(uint32_t i = content_start; i < content_end; ++i) {
-				auto& cn = layout_nodes.get_node(pi->columns[i]);
+				auto& cn = layout_nodes.get_node(pi->view_columns()[i]);
 				
-				repopulate_ui_rects(pi->columns[i],
+				repopulate_ui_rects(pi->view_columns()[i],
 					layout_position{ int16_t(base.x + content_rect.x + cn.x), int16_t(base.y + content_rect.y + cn.y) },
 					candidate.foreground_index, candidate.background_index,
 					highlight_line, true);
@@ -899,7 +894,7 @@ namespace printui {
 			candidate.height = uint16_t(dest_rect.height);
 
 			uint32_t content_start = 0;
-			uint32_t content_end = uint32_t(cinfo->children.size());
+			uint32_t content_end = uint32_t(cinfo->view_children().size());
 			
 			layout_nodes.get_node(id).visible_rect = ui_reference(prepared_layout.size());
 			prepared_layout.push_back(candidate);
@@ -916,10 +911,10 @@ namespace printui {
 			}
 
 			for(uint32_t i = content_start; i < content_end; ++i) {
-				auto& cn = layout_nodes.get_node(cinfo->children[i]);
+				auto& cn = layout_nodes.get_node(cinfo->view_children()[i]);
 				bool needs_line_highlight = is_list && ((ldirection == content_orientation::page ? base.y + content_rect.y + cn.y : base.x + content_rect.x + cn.x) / litem_height) % 2 == 0;
 
-				repopulate_ui_rects(cinfo->children[i],
+				repopulate_ui_rects(cinfo->view_children()[i],
 					layout_position{ int16_t(base.x + content_rect.x + cn.x), int16_t(base.y + content_rect.y + cn.y) },
 					candidate.foreground_index, candidate.background_index,
 					needs_line_highlight,
@@ -1019,14 +1014,14 @@ namespace printui {
 		layout_node& node = get_node(id);
 		layout_nodes.update_generation(node);
 		if(auto pi = node.page_info(); pi) {
-			for(auto c : pi->columns)
+			for(auto c : pi->view_columns())
 				update_generation(c);
 			if(pi->header != layout_reference_none)
 				update_generation(pi->header);
 			if(pi->footer != layout_reference_none)
 				update_generation(pi->footer);
 		} else if(auto ci = node.container_info(); ci) {
-			for(auto c : ci->children)
+			for(auto c : ci->view_children())
 				update_generation(c);
 		}
 	}
@@ -1205,6 +1200,7 @@ namespace printui {
 		} else {
 			window_interface->invalidate_window();
 		}
+		accessibility_interface->on_window_layout_changed();
 	}
 
 
@@ -1313,6 +1309,11 @@ namespace printui {
 
 	//layout_node_storage::
 	void layout_node_storage::reset() {
+		const uint32_t sz = uint32_t(node_storage.size());
+		for(uint32_t i = 0; i < sz; ++i) {
+			node_storage[i].reset_node();
+		}
+
 		last_free = std::numeric_limits<layout_reference>::max();
 		node_storage.clear();
 	}
@@ -1554,16 +1555,18 @@ namespace printui {
 		}
 	};
 
+	std::vector<layout_reference> dummy_vector;
+
 	struct acc_visible_children_it_generator {
 		layout_node const& n;
 		std::vector<layout_reference> const* contents = nullptr;
 		acc_visible_children_it_generator(layout_node const& m) : n(m) {
 			if(auto p = n.page_info(); p) {
-				contents = &p->columns;
+				contents = &p->view_columns();
 			} else if(auto c = n.container_info(); c) {
-				contents = &c->children;
+				contents = &c->view_children();
 			} else {
-				std::abort(); // error
+				contents = &dummy_vector;
 			}
 		}
 		acc_visible_children_it begin() {
@@ -1577,7 +1580,7 @@ namespace printui {
 		}
 		acc_visible_children_it end() {
 			if(auto p = n.page_info(); p) {
-				uint32_t content_end = uint32_t(p->columns.size());
+				uint32_t content_end = uint32_t(p->view_columns().size());
 				if(p->subpage_offset < p->subpage_divisions.size()) {
 					content_end = p->subpage_divisions[p->subpage_offset];
 				}
@@ -1651,7 +1654,10 @@ namespace printui {
 			// advance to first
 
 			if(!pi) {
-				page_it_status = acc_special_page_iteration::body;
+				if(child_it.content_pos != child_it_end.content_pos)
+					page_it_status = acc_special_page_iteration::body;
+				else
+					page_it_status = acc_special_page_iteration::finished;
 			}
 
 			if(page_it_status == acc_special_page_iteration::header) {
@@ -1888,8 +1894,11 @@ namespace printui {
 		if(!self_acc_object)
 			return nullptr;
 
-		auto first = *(accessible_children(*this, get_node(r)).begin());
-		return first;
+		auto rng = accessible_children(*this, get_node(r));
+		if(rng.begin() == rng.end())
+			return nullptr;
+		else
+			return *(rng.begin());
 	}
 	accessibility_object* window_data::get_last_child_accessibility_object(layout_reference r) {
 		auto self_acc_object = get_ao_from_id(*this, r);
@@ -1902,5 +1911,16 @@ namespace printui {
 			previous = i;
 		}
 		return previous;
+	}
+
+	void window_data::immediate_add_child(layout_reference parent, layout_reference child) {
+		auto& p = get_node(parent);
+		auto& c = get_node(child);
+		if(auto pi = p.page_info(); pi) {
+			pi->add(child);
+		} else if(auto ci = p.container_info(); ci) {
+			ci->add(child);
+		}
+		c.parent = parent;
 	}
 }

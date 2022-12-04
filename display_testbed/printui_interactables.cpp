@@ -75,9 +75,9 @@ namespace printui {
 		std::vector<layout_reference> const* contents = nullptr;
 		visible_children_it_generator(layout_node const& m) : n(m) {
 			if(auto p = n.page_info(); p) {
-				contents = &p->columns;
+				contents = &p->view_columns();
 			} else if(auto c = n.container_info(); c) {
-				contents = &c->children;
+				contents = &c->view_children();
 			} else {
 				std::abort(); // error
 			}
@@ -93,7 +93,7 @@ namespace printui {
 		}
 		visible_children_it end() {
 			if(auto p = n.page_info(); p) {
-				uint32_t content_end = uint32_t(p->columns.size());
+				uint32_t content_end = uint32_t(p->view_columns().size());
 				if(p->subpage_offset < p->subpage_divisions.size()) {
 					content_end = p->subpage_divisions[p->subpage_offset];
 				}
@@ -242,7 +242,10 @@ namespace printui {
 			// advance to first
 
 			if(!pi) {
-				page_it_status = special_page_iteration::body;
+				if(child_it.content_pos != child_it_end.content_pos)
+					page_it_status = special_page_iteration::body;
+				else
+					page_it_status = special_page_iteration::finished;
 			}
 
 			if(page_it_status == special_page_iteration::header) {
@@ -742,12 +745,12 @@ namespace printui {
 				}
 			}
 			
-			if(p->columns.size() != 0) {
-				return get_interactable_render_holder(p->columns.front());
+			if(p->view_columns().size() != 0) {
+				return get_interactable_render_holder(p->view_columns().front());
 			}
 		} else if(auto c = n.container_info(); c) {
-			if(c->children.size() != 0) {
-				return get_interactable_render_holder(c->children.front());
+			if(c->view_children().size() != 0) {
+				return get_interactable_render_holder(c->view_children().front());
 			}
 		}
 		return nullptr;

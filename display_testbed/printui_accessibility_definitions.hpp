@@ -83,16 +83,24 @@ namespace printui {
         virtual void notify_window_moved(int32_t x, int32_t y, int32_t width, int32_t height) override;
         virtual void notify_window_closed() override;
         virtual root_window_provider* get_root_window_provider() override;
+        virtual root_window_provider* peek_root_window_provider() override;
         virtual void release_root_provider() override;
         virtual accessibility_object* make_action_button_accessibility_interface(window_data& w, button_control_base& b) override;
         virtual accessibility_object* make_selection_button_accessibility_interface(window_data& w, button_control_base& b) override;
         virtual accessibility_object* make_icon_button_accessibility_interface(window_data& w, icon_button_base& b) override;
         virtual accessibility_object* make_icon_toggle_button_accessibility_interface(window_data& w, icon_button_base& b) override;
+        virtual accessibility_object* make_open_list_control_accessibility_interface(window_data& w, open_list_control& b) override;
+        virtual accessibility_object* make_container_accessibility_interface(window_data& w, layout_interface* b, uint16_t name) override;
+        virtual accessibility_object* make_plain_text_accessibility_interface(window_data& w, layout_interface* b, stored_text* t, bool is_content) override;
         virtual void on_invoke(accessibility_object* b) override;
         virtual void on_enable_disable(accessibility_object* b, bool disabled) override;
         virtual void on_select_unselect(accessibility_object* b, bool selection_state) override;
         virtual void on_change_name(accessibility_object* b, std::wstring const& new_name) override;
         virtual void on_change_help_text(accessibility_object* b, std::wstring const& new_text) override;
+        virtual void on_toggle_change(accessibility_object* b) override;
+        virtual void on_selection_change(accessibility_object* b) override;
+        virtual void on_contents_changed(accessibility_object* b) override;
+        virtual void on_window_layout_changed() override;
     };
 
     class root_window_provider : public IRawElementProviderSimple,
@@ -101,7 +109,6 @@ namespace printui {
         public ITransformProvider,
         public IWindowProvider {
     public:
-
         root_window_provider(window_data& win, HWND hwnd);
 
         // IUnknown methods
@@ -147,24 +154,33 @@ namespace printui {
         IFACEMETHODIMP get_IsTopmost(__RPC__out BOOL* pRetVal);
 
         virtual ~root_window_provider();
+
+        HWND hwnd;
     private:
         window_data& win;
-        HWND hwnd;
-
+        
         // Ref counter for this COM object.
         ULONG m_refCount;
     };
 
-#pragma warning( push )
-#pragma warning( disable : 4584 )
 
-    class text_button_provider : public IUnknown,
+    struct disconnectable : public IUnknown {
+        window_data& win;
+
+        disconnectable(window_data& win) : win(win) { }
+        
+        virtual void disconnect() = 0;
+        virtual ~disconnectable() { }
+    };
+
+    class text_button_provider : public disconnectable,
         public IRawElementProviderSimple,
         public IRawElementProviderFragment,
         public IInvokeProvider {
     public:
 
         text_button_provider(window_data& win, button_control_base& b);
+        void disconnect();
 
         // IUnknown methods
         IFACEMETHODIMP_(ULONG) AddRef();
@@ -190,21 +206,21 @@ namespace printui {
 
         virtual ~text_button_provider();
     private:
-        window_data& win;
-        button_control_base& button;
+        button_control_base* button = nullptr;
 
         // Ref counter for this COM object.
         ULONG m_refCount;
     };
 
 
-    class text_list_button_provider : public IUnknown,
+    class text_list_button_provider : public disconnectable,
         public IRawElementProviderSimple,
         public IRawElementProviderFragment,
         public ISelectionItemProvider {
     public:
 
         text_list_button_provider(window_data& win, button_control_base& b);
+        void disconnect();
 
         // IUnknown methods
         IFACEMETHODIMP_(ULONG) AddRef();
@@ -234,12 +250,202 @@ namespace printui {
 
         virtual ~text_list_button_provider();
     private:
-        window_data& win;
-        button_control_base& button;
+        button_control_base* button = nullptr;
 
         // Ref counter for this COM object.
         ULONG m_refCount;
     };
 
-#pragma warning( pop )
+    class icon_button_provider : public disconnectable,
+        public IRawElementProviderSimple,
+        public IRawElementProviderFragment,
+        public IInvokeProvider {
+    public:
+
+        icon_button_provider(window_data& win, icon_button_base& b);
+        void disconnect();
+
+        // IUnknown methods
+        IFACEMETHODIMP_(ULONG) AddRef();
+        IFACEMETHODIMP_(ULONG) Release();
+        IFACEMETHODIMP QueryInterface(REFIID riid, void** ppInterface);
+
+        // IRawElementProviderSimple methods
+        IFACEMETHODIMP get_ProviderOptions(ProviderOptions* pRetVal);
+        IFACEMETHODIMP GetPatternProvider(PATTERNID iid, IUnknown** pRetVal);
+        IFACEMETHODIMP GetPropertyValue(PROPERTYID idProp, VARIANT* pRetVal);
+        IFACEMETHODIMP get_HostRawElementProvider(IRawElementProviderSimple** pRetVal);
+
+        // IRawElementProviderFragment methods
+        IFACEMETHODIMP Navigate(NavigateDirection direction, IRawElementProviderFragment** pRetVal);
+        IFACEMETHODIMP GetRuntimeId(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP get_BoundingRectangle(UiaRect* pRetVal);
+        IFACEMETHODIMP GetEmbeddedFragmentRoots(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP SetFocus();
+        IFACEMETHODIMP get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal);
+
+        //IInvokeProvider
+        IFACEMETHODIMP Invoke();
+
+        virtual ~icon_button_provider();
+    private:
+        icon_button_base* button = nullptr;
+
+        // Ref counter for this COM object.
+        ULONG m_refCount;
+    };
+
+    class icon_toggle_button_provider : public disconnectable,
+        public IRawElementProviderSimple,
+        public IRawElementProviderFragment,
+        public IToggleProvider {
+    public:
+
+        icon_toggle_button_provider(window_data& win, icon_button_base& b);
+        void disconnect();
+
+        // IUnknown methods
+        IFACEMETHODIMP_(ULONG) AddRef();
+        IFACEMETHODIMP_(ULONG) Release();
+        IFACEMETHODIMP QueryInterface(REFIID riid, void** ppInterface);
+
+        // IRawElementProviderSimple methods
+        IFACEMETHODIMP get_ProviderOptions(ProviderOptions* pRetVal);
+        IFACEMETHODIMP GetPatternProvider(PATTERNID iid, IUnknown** pRetVal);
+        IFACEMETHODIMP GetPropertyValue(PROPERTYID idProp, VARIANT* pRetVal);
+        IFACEMETHODIMP get_HostRawElementProvider(IRawElementProviderSimple** pRetVal);
+
+        // IRawElementProviderFragment methods
+        IFACEMETHODIMP Navigate(NavigateDirection direction, IRawElementProviderFragment** pRetVal);
+        IFACEMETHODIMP GetRuntimeId(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP get_BoundingRectangle(UiaRect* pRetVal);
+        IFACEMETHODIMP GetEmbeddedFragmentRoots(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP SetFocus();
+        IFACEMETHODIMP get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal);
+
+        //IToggleProvider
+        IFACEMETHODIMP Toggle();
+        IFACEMETHODIMP get_ToggleState(__RPC__out enum ToggleState* pRetVal);
+
+        virtual ~icon_toggle_button_provider();
+    private:
+        icon_button_base* button = nullptr;
+
+        // Ref counter for this COM object.
+        ULONG m_refCount;
+    };
+
+    class open_list_control_provider : public disconnectable,
+        public IRawElementProviderSimple,
+        public IRawElementProviderFragment,
+        public ISelectionProvider {
+    public:
+
+        open_list_control_provider(window_data& win, open_list_control& b);
+        void disconnect();
+
+        // IUnknown methods
+        IFACEMETHODIMP_(ULONG) AddRef();
+        IFACEMETHODIMP_(ULONG) Release();
+        IFACEMETHODIMP QueryInterface(REFIID riid, void** ppInterface);
+
+        // IRawElementProviderSimple methods
+        IFACEMETHODIMP get_ProviderOptions(ProviderOptions* pRetVal);
+        IFACEMETHODIMP GetPatternProvider(PATTERNID iid, IUnknown** pRetVal);
+        IFACEMETHODIMP GetPropertyValue(PROPERTYID idProp, VARIANT* pRetVal);
+        IFACEMETHODIMP get_HostRawElementProvider(IRawElementProviderSimple** pRetVal);
+
+        // IRawElementProviderFragment methods
+        IFACEMETHODIMP Navigate(NavigateDirection direction, IRawElementProviderFragment** pRetVal);
+        IFACEMETHODIMP GetRuntimeId(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP get_BoundingRectangle(UiaRect* pRetVal);
+        IFACEMETHODIMP GetEmbeddedFragmentRoots(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP SetFocus();
+        IFACEMETHODIMP get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal);
+
+        //ISelectionProvider
+        IFACEMETHODIMP GetSelection(__RPC__deref_out_opt SAFEARRAY** pRetVal);
+        IFACEMETHODIMP get_CanSelectMultiple(__RPC__out BOOL* pRetVal);
+        IFACEMETHODIMP get_IsSelectionRequired(__RPC__out BOOL* pRetVal);
+
+        virtual ~open_list_control_provider();
+    private:
+        open_list_control* control = nullptr;
+
+        // Ref counter for this COM object.
+        ULONG m_refCount;
+    };
+
+    class container_provider : public disconnectable,
+        public IRawElementProviderSimple,
+        public IRawElementProviderFragment {
+    public:
+
+        container_provider(window_data& win, layout_interface* li, uint16_t name);
+        void disconnect();
+
+        // IUnknown methods
+        IFACEMETHODIMP_(ULONG) AddRef();
+        IFACEMETHODIMP_(ULONG) Release();
+        IFACEMETHODIMP QueryInterface(REFIID riid, void** ppInterface);
+
+        // IRawElementProviderSimple methods
+        IFACEMETHODIMP get_ProviderOptions(ProviderOptions* pRetVal);
+        IFACEMETHODIMP GetPatternProvider(PATTERNID iid, IUnknown** pRetVal);
+        IFACEMETHODIMP GetPropertyValue(PROPERTYID idProp, VARIANT* pRetVal);
+        IFACEMETHODIMP get_HostRawElementProvider(IRawElementProviderSimple** pRetVal);
+
+        // IRawElementProviderFragment methods
+        IFACEMETHODIMP Navigate(NavigateDirection direction, IRawElementProviderFragment** pRetVal);
+        IFACEMETHODIMP GetRuntimeId(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP get_BoundingRectangle(UiaRect* pRetVal);
+        IFACEMETHODIMP GetEmbeddedFragmentRoots(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP SetFocus();
+        IFACEMETHODIMP get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal);
+
+        virtual ~container_provider();
+    private:
+        layout_interface* li = nullptr;
+
+        // Ref counter for this COM object.
+        ULONG m_refCount;
+        uint16_t name;
+    };
+
+    class plain_text_provider : public disconnectable,
+        public IRawElementProviderSimple,
+        public IRawElementProviderFragment {
+    public:
+
+        plain_text_provider(window_data& win, layout_interface* b, stored_text* t, bool is_content);
+        void disconnect();
+
+        // IUnknown methods
+        IFACEMETHODIMP_(ULONG) AddRef();
+        IFACEMETHODIMP_(ULONG) Release();
+        IFACEMETHODIMP QueryInterface(REFIID riid, void** ppInterface);
+
+        // IRawElementProviderSimple methods
+        IFACEMETHODIMP get_ProviderOptions(ProviderOptions* pRetVal);
+        IFACEMETHODIMP GetPatternProvider(PATTERNID iid, IUnknown** pRetVal);
+        IFACEMETHODIMP GetPropertyValue(PROPERTYID idProp, VARIANT* pRetVal);
+        IFACEMETHODIMP get_HostRawElementProvider(IRawElementProviderSimple** pRetVal);
+
+        // IRawElementProviderFragment methods
+        IFACEMETHODIMP Navigate(NavigateDirection direction, IRawElementProviderFragment** pRetVal);
+        IFACEMETHODIMP GetRuntimeId(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP get_BoundingRectangle(UiaRect* pRetVal);
+        IFACEMETHODIMP GetEmbeddedFragmentRoots(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP SetFocus();
+        IFACEMETHODIMP get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal);
+
+        virtual ~plain_text_provider();
+    private:
+        layout_interface* li = nullptr;
+        stored_text* txt = nullptr;
+
+        // Ref counter for this COM object.
+        ULONG m_refCount;
+        bool is_content = true;
+    };
 }

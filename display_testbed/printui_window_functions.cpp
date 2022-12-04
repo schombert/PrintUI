@@ -165,6 +165,9 @@ namespace printui {
 			ShowWindow((HWND)(m_hwnd), SW_SHOWNORMAL);
 			UpdateWindow((HWND)(m_hwnd));
 
+			if(UiaHasServerSideProvider(m_hwnd))
+				OutputDebugStringA("provider found\n");
+
 			return true;
 		}
 		return false;
@@ -206,8 +209,8 @@ namespace printui {
 		win.accessibility_interface->notify_window_state_change(resize_type::resize);
 	}
 	void os_win32_wrapper::close(window_data& win) {
-		PostMessage((HWND)(m_hwnd), WM_CLOSE, 0, 0);
 		win.accessibility_interface->notify_window_closed();
+		PostMessage((HWND)(m_hwnd), WM_CLOSE, 0, 0);
 	}
 	
 	void os_win32_wrapper::set_window_title(wchar_t const* t) {
@@ -373,9 +376,11 @@ namespace printui {
 				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WIDTH,
 					to_font_span(dynamic_settings.primary_font.span) } ,
 				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_ITALIC,
-					to_font_style(dynamic_settings.primary_font.is_oblique) } };
+					to_font_style(dynamic_settings.primary_font.is_oblique) },
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_OPTICAL_SIZE,
+					dynamic_settings.primary_font.font_size * 96.0f / dpi } };
 
-			font_collection->GetMatchingFonts(dynamic_settings.primary_font.name.c_str(), fax, 3, &fl);
+			font_collection->GetMatchingFonts(dynamic_settings.primary_font.name.c_str(), fax, 4, &fl);
 			fl->GetFont(0, &f);
 			safe_release(fl);
 
@@ -386,9 +391,11 @@ namespace printui {
 				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WIDTH,
 					to_font_span(dynamic_settings.small_font.span) } ,
 				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_ITALIC,
-					to_font_style(dynamic_settings.small_font.is_oblique) } };
+					to_font_style(dynamic_settings.small_font.is_oblique) },
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_OPTICAL_SIZE,
+					dynamic_settings.small_font.font_size * 96.0f / dpi } };
 
-			font_collection->GetMatchingFonts(dynamic_settings.small_font.name.c_str(), fax2, 3, &fl2);
+			font_collection->GetMatchingFonts(dynamic_settings.small_font.name.c_str(), fax2, 4, &fl2);
 			fl2->GetFont(0, &f2);
 			safe_release(fl2);
 
@@ -405,16 +412,20 @@ namespace printui {
 
 			DWRITE_FONT_AXIS_VALUE fax[] = {
 				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WEIGHT,
-					to_font_weight(dynamic_settings.small_font.is_bold)},
+					to_font_weight(dynamic_settings.primary_font.is_bold)},
 				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WIDTH,
-					to_font_span(dynamic_settings.small_font.span) } ,
+					to_font_span(dynamic_settings.primary_font.span) } ,
 				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_ITALIC,
-					to_font_style(dynamic_settings.small_font.is_oblique) } };
+					to_font_style(dynamic_settings.primary_font.is_oblique) } ,
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_OPTICAL_SIZE,
+					dynamic_settings.primary_font.font_size * 96.0f / dpi } };
 
-			dwrite_factory->CreateTextFormat(dynamic_settings.small_font.name.c_str(), font_collection, fax, 3, dynamic_settings.primary_font.font_size, L"", &common_text_format);
+			dwrite_factory->CreateTextFormat(dynamic_settings.primary_font.name.c_str(), font_collection, fax, 4, dynamic_settings.primary_font.font_size, L"", &common_text_format);
 			common_text_format->SetFontFallback(font_fallbacks);
 			common_text_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
 			common_text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, dynamic_settings.primary_font.line_spacing, dynamic_settings.primary_font.baseline);
+			common_text_format->SetAutomaticFontAxes(DWRITE_AUTOMATIC_FONT_AXES_OPTICAL_SIZE);
+			
 		}
 		{
 			safe_release(small_text_format);
@@ -425,13 +436,16 @@ namespace printui {
 				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WIDTH,
 					to_font_span(dynamic_settings.small_font.span) } ,
 				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_ITALIC,
-					to_font_style(dynamic_settings.small_font.is_oblique) } };
+					to_font_style(dynamic_settings.small_font.is_oblique) },
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_OPTICAL_SIZE,
+					dynamic_settings.small_font.font_size * 96.0f / dpi} };
 
-			dwrite_factory->CreateTextFormat(dynamic_settings.small_font.name.c_str(), font_collection, fax, 3, dynamic_settings.small_font.font_size, L"", &small_text_format);
+			dwrite_factory->CreateTextFormat(dynamic_settings.small_font.name.c_str(), font_collection, fax, 4, dynamic_settings.small_font.font_size, L"", &small_text_format);
 			small_text_format->SetFontFallback(small_font_fallbacks);
 
 			small_text_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
 			small_text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, dynamic_settings.small_font.line_spacing, dynamic_settings.small_font.baseline);
+			small_text_format->SetAutomaticFontAxes(DWRITE_AUTOMATIC_FONT_AXES_OPTICAL_SIZE);
 		}
 	}
 
@@ -902,12 +916,14 @@ namespace printui {
 						return 1;
 					case WM_GETOBJECT:
 					{
-						// If lParam matches UiaRootObjectId, return IRawElementProviderSimple.
+
+						//if(InSendMessageEx(nullptr) != 0)
+
 						if(static_cast<long>(lParam) == static_cast<long>(UiaRootObjectId)) {
 							return UiaReturnRawElementProvider(hwnd, wParam, lParam,
 								app->accessibility_interface->get_root_window_provider());
 						}
-						return 0;
+						break;
 					}
 					default:
 						break;
@@ -1216,65 +1232,6 @@ namespace printui {
 		}
 	}
 
-	void window_data::stop_ui_animations() {
-		animation_status.is_running = false;
-	}
-	void window_data::prepare_ui_animation() {
-		stop_ui_animations();
-
-		refresh_foregound();
-
-		d2d_device_context->SetTarget(animation_background);
-		d2d_device_context->BeginDraw();
-
-		d2d_device_context->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
-		d2d_device_context->SetTransform(D2D1::Matrix3x2F::Identity());
-		d2d_device_context->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
-
-		render::to_display(get_layout(), *this);
-
-		d2d_device_context->EndDraw();
-	}
-
-	void window_data::start_ui_animation(animation_description description) {
-		animation_status.description = description;
-
-		switch(orientation) {
-			case layout_orientation::horizontal_left_to_right:
-				break;
-			case layout_orientation::horizontal_right_to_left:
-				if(description.direction == animation_direction::left)
-					animation_status.description.direction = animation_direction::right;
-				else if(description.direction == animation_direction::right)
-					animation_status.description.direction = animation_direction::left;
-				break;
-			case layout_orientation::vertical_left_to_right:
-				if(description.direction == animation_direction::left)
-					animation_status.description.direction = animation_direction::top;
-				else if(description.direction == animation_direction::right)
-					animation_status.description.direction = animation_direction::bottom;
-				else if(description.direction == animation_direction::top)
-					animation_status.description.direction = animation_direction::left;
-				else if(description.direction == animation_direction::bottom)
-					animation_status.description.direction = animation_direction::right;
-				break;
-			case layout_orientation::vertical_right_to_left:
-				if(description.direction == animation_direction::left)
-					animation_status.description.direction = animation_direction::top;
-				else if(description.direction == animation_direction::right)
-					animation_status.description.direction = animation_direction::bottom;
-				else if(description.direction == animation_direction::top)
-					animation_status.description.direction = animation_direction::right;
-				else if(description.direction == animation_direction::bottom)
-					animation_status.description.direction = animation_direction::left;
-				break;
-		}
-
-		animation_status.is_running = true;
-		animation_status.start_time = std::chrono::steady_clock::now();
-		window_interface->invalidate_window();
-	}
-
 	void window_data::show_settings_panel() {
 		prepare_ui_animation();
 
@@ -1290,6 +1247,10 @@ namespace printui {
 		window_bar.expanded_show_settings = true;
 		get_node(window_bar.settings_pages.l_id).ignore = false;
 		redraw_ui();
+
+		if(window_bar.acc_obj) {
+			accessibility_interface->on_contents_changed(window_bar.acc_obj);
+		}
 	}
 
 	void window_data::hide_settings_panel() {
@@ -1307,6 +1268,10 @@ namespace printui {
 		window_bar.expanded_show_settings = false;
 		get_node(window_bar.settings_pages.l_id).ignore = true;
 		redraw_ui();
+
+		if(window_bar.acc_obj) {
+			accessibility_interface->on_contents_changed(window_bar.acc_obj);
+		}
 	}
 
 	os_win32_wrapper::~os_win32_wrapper() {

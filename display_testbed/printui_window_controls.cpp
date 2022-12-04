@@ -205,10 +205,15 @@ namespace printui {
 		auto existing_sp_width = settings_pages.l_id != layout_reference_none ? win.get_node(settings_pages.l_id).width : 6;
 		auto settings_pages_id = win.create_node(&settings_pages, existing_sp_width, bar_height, true);
 		auto& pages_node = win.get_node(settings_pages_id);
-		pages_node.parent = l_id;
-		win.get_node(l_id).container_info()->children.push_back(settings_pages_id);
+		win.immediate_add_child(l_id, settings_pages_id);
 		pages_node.x = 2;
 		pages_node.ignore = !expanded_show_settings;
+	}
+	accessibility_object* window_bar_element::get_accessibility_interface(window_data& win) {
+		if(!acc_obj) {
+			acc_obj = win.accessibility_interface->make_container_accessibility_interface(win, this, text_id::window_bar_name);
+		}
+		return acc_obj;
 	}
 
 	void close_info_window::button_action(window_data& win) {
@@ -260,11 +265,9 @@ namespace printui {
 	}
 	void info_window::recreate_contents(window_data& win, layout_node& n) {
 		auto const n_width = n.width;
-		auto* ci = n.container_info();
 		auto close_button_id = win.create_node(&close_button, 2, 1, false);
-		ci->children.push_back(close_button_id);
+		win.immediate_add_child(l_id, close_button_id);
 		win.get_node(close_button_id).x = n_width - 2ui16;
-		win.get_node(close_button_id).parent = l_id;
 	}
 	void info_window::on_lose_focus(window_data& win) {
 		if(currently_visible)
