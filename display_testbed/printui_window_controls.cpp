@@ -28,6 +28,13 @@ namespace printui {
 		text.draw_text(win, rect.x_position, rect.y_position);
 	}
 
+	accessibility_object* title_bar_element::get_accessibility_interface(window_data& win) {
+		if(!acc_obj) {
+			acc_obj = win.accessibility_interface->make_plain_text_accessibility_interface(win, this, &text, false);
+		}
+		return acc_obj;
+	}
+
 	ui_rectangle title_bar_element::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
 		ui_rectangle retvalue;
 

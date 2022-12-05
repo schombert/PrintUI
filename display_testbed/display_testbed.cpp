@@ -85,7 +85,7 @@ void main_window::load_default_dynamic_settings() {
 	text_data.register_name("info_name", text_id::info_name);
 	text_data.register_name("info_name_on", text_id::info_name_on);
 	text_data.register_name("window_bar_name", text_id::window_bar_name);
-	text_data.register_name("window_title_name", text_id::window_title_name);
+	text_data.register_name("expandable_container_localized_name", text_id::expandable_container_localized_name);
 	text_data.register_name("settings_tabs_name", text_id::settings_tabs_name);
 	text_data.register_name("selection_list_localized_name", text_id::selection_list_localized_name);
 	text_data.register_name("close_settings_name", text_id::close_settings_name);
@@ -94,6 +94,8 @@ void main_window::load_default_dynamic_settings() {
 	text_data.register_name("page_next_name", text_id::page_next_name);
 	text_data.register_name("page_prev_prev_name", text_id::page_prev_prev_name);
 	text_data.register_name("page_next_next_name", text_id::page_next_next_name);
+	text_data.register_name("page_footer_name", text_id::page_footer_name);
+	text_data.register_name("page_footer_info", text_id::page_footer_info);
 }
 
 int WINAPI wWinMain(

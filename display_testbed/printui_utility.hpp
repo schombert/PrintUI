@@ -87,7 +87,7 @@ namespace text_id {
 	constexpr uint16_t info_name = 37;
 	constexpr uint16_t info_name_on = 38;
 	constexpr uint16_t window_bar_name = 39;
-	constexpr uint16_t window_title_name = 40;
+	constexpr uint16_t expandable_container_localized_name = 40;
 	constexpr uint16_t settings_tabs_name = 41;
 	constexpr uint16_t selection_list_localized_name = 42;
 	constexpr uint16_t close_settings_name = 43;
@@ -96,8 +96,10 @@ namespace text_id {
 	constexpr uint16_t page_next_name = 46;
 	constexpr uint16_t page_prev_prev_name = 47;
 	constexpr uint16_t page_next_next_name = 48;
+	constexpr uint16_t page_footer_name = 49;
+	constexpr uint16_t page_footer_info = 50;
 
-	constexpr uint16_t first_free_id = 49;
+	constexpr uint16_t first_free_id = 51;
 }
 
 namespace printui {
@@ -743,6 +745,7 @@ namespace printui {
 
 	struct title_bar_element : public render_interface {
 		stored_text text;
+		accessibility_object_ptr acc_obj;
 
 		title_bar_element() {}
 		virtual ~title_bar_element();
@@ -751,9 +754,9 @@ namespace printui {
 		virtual layout_node_type get_node_type() override;
 		virtual simple_layout_specification get_specification(window_data&) override;
 		virtual void recreate_contents(window_data&, layout_node&) override;
-
 		virtual void render_foreground(ui_rectangle const& rect, window_data& win) override;
-		
+		virtual accessibility_object* get_accessibility_interface(window_data&) override;
+
 		void set_text_content(uint16_t text_id);
 	};
 
@@ -819,6 +822,9 @@ namespace printui {
 		}
 		bool is_selected() const {
 			return selected;
+		}
+		void invalidate_text() {
+			button_text.invalidate();
 		}
 	};
 
@@ -969,14 +975,26 @@ namespace printui {
 		uint16_t alt_text_id;
 	};
 
-	struct list_control : public layout_interface {
+	struct generic_expandable : public layout_interface {
+		virtual bool is_open() const = 0;
+		virtual void open(window_data&, bool move_focus) = 0;
+		virtual void close(window_data&, bool move_focus) = 0;
+	};
+
+	struct generic_selection_container {
+		virtual layout_interface* selected_item() const = 0;
+	};
+
+	struct list_control : public generic_expandable, public generic_selection_container {
 		static animation_defintion list_appearance;
 		static animation_defintion list_disappearance;
 
 		std::vector<std::unique_ptr<list_option>> options;
 		list_open open_button;
+		accessibility_object_ptr acc_obj;
 
 		int32_t currently_selected = 0;
+		uint16_t name = uint16_t(-1);
 		uint16_t alt_text_id = uint16_t(-1);
 		content_alignment text_alignment = content_alignment::leading;
 		bool list_is_open = false;
@@ -994,9 +1012,14 @@ namespace printui {
 		virtual void recreate_contents(window_data&, layout_node&) override;
 		virtual void on_lose_focus(window_data&) override;
 		virtual layout_rect get_content_rectangle(window_data&) override;
+		virtual accessibility_object* get_accessibility_interface(window_data&) override;
 
-		void open_list(window_data&, bool move_focus);
-		void close_list(window_data&, bool move_focus);
+		virtual bool is_open() const override {
+			return list_is_open;
+		}
+		virtual void open(window_data&, bool move_focus) override;
+		virtual void close(window_data&, bool move_focus) override;
+		virtual layout_interface* selected_item() const override;
 		void populate_list(window_data&);
 		void quiet_select_option_by_value(window_data& win, size_t);
 		void select_option_by_value(window_data&, size_t);
@@ -1007,7 +1030,7 @@ namespace printui {
 		virtual void on_create(window_data&) { }
 	};
 
-	struct open_list_control : public layout_interface {
+	struct open_list_control : public layout_interface, public generic_selection_container {
 		std::vector<button_control_base*> options;
 		accessibility_object_ptr acc_obj;
 		uint16_t name_id = uint16_t(-1);
@@ -1024,6 +1047,7 @@ namespace printui {
 		virtual simple_layout_specification get_specification(window_data&) override;
 		virtual void recreate_contents(window_data&, layout_node&) override;
 		virtual accessibility_object* get_accessibility_interface(window_data&) override;
+		virtual layout_interface* selected_item() const override;
 		void center_contents(window_data&);
 	};
 
@@ -1039,35 +1063,19 @@ namespace printui {
 		virtual void button_action(window_data&) override;
 	};
 
-	struct page_footer_button : public render_interface {
-		stored_text fraction_text;
-
-		interactable_state saved_state;
+	struct page_footer_button : public button_control_base {
 		uint32_t stored_page = 0;
 		uint32_t stored_page_total = 0;
 
 		page_footer_button() {
-			fraction_text.text_alignment = content_alignment::centered;
+			set_text_alignment(content_alignment::centered);
+			icon = standard_icons::control_pages;
 		}
 		virtual ~page_footer_button() {
 		}
 
-		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
-		virtual layout_node_type get_node_type() override;
-		virtual simple_layout_specification get_specification(window_data&) override;
-		virtual void render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) override;
-		virtual void render_foreground(ui_rectangle const&, window_data&) override;
-		virtual void recreate_contents(window_data&, layout_node&) override;
-
-		virtual void set_interactable(int32_t, interactable_state v) override {
-			saved_state = v;
-		}
-		virtual int32_t interactable_count(window_data const&) override {
-			return 1;
-		}
-		virtual void on_click(window_data&, uint32_t, uint32_t) override;
-		virtual void on_right_click(window_data&, uint32_t, uint32_t) override {
-		}
+		virtual void render_foreground(ui_rectangle const& rect, window_data& win) override;
+		virtual void button_action(window_data&);
 		void update_page(window_data& win);
 	};
 
@@ -1112,7 +1120,7 @@ namespace printui {
 		int32_t jump_size(window_data const& win) const;
 	};
 
-	struct page_footer : public layout_interface {
+	struct page_footer : public generic_expandable {
 		static animation_defintion footer_appearance;
 		static animation_defintion footer_disappearance;
 
@@ -1124,8 +1132,9 @@ namespace printui {
 		page_forward_button forward;
 		page_jump_back_button jump_back;
 		page_jump_forward_button jump_forward;
+		accessibility_object_ptr acc_obj;
 
-		bool is_open = false;
+		bool footer_is_open = false;
 
 		page_footer() { }
 		virtual ~page_footer() {
@@ -1141,9 +1150,13 @@ namespace printui {
 		virtual layout_rect get_content_rectangle(window_data&) override;
 		virtual void on_focus(window_data&) override;
 		virtual void on_lose_focus(window_data&) override;
+		virtual accessibility_object* get_accessibility_interface(window_data&) override;
 
-		void open_footer(window_data&, bool move_focus);
-		void close_footer(window_data&, bool move_focus);
+		virtual bool is_open() const override {
+			return footer_is_open;
+		}
+		virtual void open(window_data&, bool move_focus) override;
+		virtual void close(window_data&, bool move_focus) override;
 	};
 
 	struct close_info_window : public icon_button_base {
@@ -1239,6 +1252,7 @@ namespace printui {
 	struct single_line_centered_header : public render_interface {
 		page_header_button close_button;
 		stored_text text;
+		accessibility_object_ptr acc_obj;
 		interactable_state saved_state;
 
 		single_line_centered_header(uint16_t close_text, std::function<void(window_data&, layout_reference)>&& a) : close_button(close_text, std::move(a)) {
@@ -1257,6 +1271,7 @@ namespace printui {
 		virtual void render_foreground(ui_rectangle const& rect, window_data& win) override;
 		virtual void render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) override;
 		virtual void recreate_contents(window_data&, layout_node&) override;
+		virtual accessibility_object* get_accessibility_interface(window_data&) override;
 	};
 
 	struct single_line_empty_header : public render_interface {
@@ -1292,13 +1307,14 @@ namespace printui {
 		virtual void button_action(window_data&);
 	};
 
-	struct menu_control : public layout_interface {
+	struct menu_control : public generic_expandable {
 		single_line_empty_header header_space;
 		page_footer menu_footer;
 
 		static animation_defintion list_appearance;
 		static animation_defintion list_disappearance;
 
+		accessibility_object_ptr acc_obj;
 		menu_open open_button;
 		int32_t page_size = 1;
 		int32_t line_size = 6;
@@ -1307,6 +1323,7 @@ namespace printui {
 		bool list_is_open = false;
 		bool vertically_cover_parent = false;
 		uint16_t alt_text = uint16_t(-1);
+		uint16_t name = uint16_t(-1);
 
 		menu_control() {
 		}
@@ -1325,9 +1342,13 @@ namespace printui {
 		virtual void recreate_contents(window_data&, layout_node&) override;
 		virtual void on_lose_focus(window_data&) override;
 		virtual layout_rect get_content_rectangle(window_data&) override;
+		virtual accessibility_object* get_accessibility_interface(window_data&) override;
 
-		void open_menu(window_data&, bool move_focus);
-		void close_menu(window_data&, bool move_focus);
+		virtual void open(window_data&, bool move_focus) override;
+		virtual void close(window_data&, bool move_focus) override;
+		virtual bool is_open() const override {
+			return list_is_open;
+		}
 
 		virtual std::vector<layout_interface*> get_options(window_data&) = 0;
 		virtual void on_open(window_data&) {
@@ -1367,7 +1388,7 @@ namespace printui {
 		virtual void button_action(window_data&) override;
 	};
 
-	struct language_menu : public menu_control {
+	struct language_menu : public menu_control, public generic_selection_container {
 		std::vector<std::unique_ptr<layout_interface>> lbuttons;
 
 		virtual ~language_menu() {
@@ -1376,6 +1397,8 @@ namespace printui {
 		virtual std::vector<layout_interface*> get_options(window_data&);
 		virtual void on_open(window_data&);
 		virtual void on_close(window_data&);
+		virtual accessibility_object* get_accessibility_interface(window_data&) override;
+		virtual layout_interface* selected_item() const override;
 	};
 
 	struct settings_orientation_list : public list_control {
@@ -1818,6 +1841,8 @@ namespace printui {
 		virtual accessibility_object* make_open_list_control_accessibility_interface(window_data& w, open_list_control& b) = 0;
 		virtual accessibility_object* make_container_accessibility_interface(window_data& w, layout_interface* b, uint16_t name) = 0;
 		virtual accessibility_object* make_plain_text_accessibility_interface(window_data& w, layout_interface* b, stored_text* t, bool is_content) = 0;
+		virtual accessibility_object* make_expandable_selection_list(window_data& win, generic_expandable* control, generic_selection_container* sc, uint16_t name, uint16_t alt_text) = 0;
+		virtual accessibility_object* make_expandable_container(window_data& win, generic_expandable* control, uint16_t name, uint16_t alt_text) = 0;
 		virtual void on_invoke(accessibility_object* b) = 0;
 		virtual void on_enable_disable(accessibility_object* b, bool disabled) = 0;
 		virtual void on_select_unselect(accessibility_object* b, bool selection_state) = 0;
@@ -1826,6 +1851,7 @@ namespace printui {
 		virtual void on_toggle_change(accessibility_object* b) = 0;
 		virtual void on_selection_change(accessibility_object* b) = 0;
 		virtual void on_contents_changed(accessibility_object* b) = 0;
+		virtual void on_expand_collapse(accessibility_object* b, bool expanded) = 0;
 		virtual void on_window_layout_changed() = 0;
 	};
 

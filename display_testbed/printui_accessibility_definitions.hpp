@@ -92,6 +92,8 @@ namespace printui {
         virtual accessibility_object* make_open_list_control_accessibility_interface(window_data& w, open_list_control& b) override;
         virtual accessibility_object* make_container_accessibility_interface(window_data& w, layout_interface* b, uint16_t name) override;
         virtual accessibility_object* make_plain_text_accessibility_interface(window_data& w, layout_interface* b, stored_text* t, bool is_content) override;
+        virtual accessibility_object* make_expandable_selection_list(window_data& win, generic_expandable* control, generic_selection_container* sc, uint16_t name, uint16_t alt_text) override;
+        virtual accessibility_object* make_expandable_container(window_data& win, generic_expandable* control, uint16_t name, uint16_t alt_text) override;
         virtual void on_invoke(accessibility_object* b) override;
         virtual void on_enable_disable(accessibility_object* b, bool disabled) override;
         virtual void on_select_unselect(accessibility_object* b, bool selection_state) override;
@@ -100,6 +102,7 @@ namespace printui {
         virtual void on_toggle_change(accessibility_object* b) override;
         virtual void on_selection_change(accessibility_object* b) override;
         virtual void on_contents_changed(accessibility_object* b) override;
+        virtual void on_expand_collapse(accessibility_object* b, bool expanded) override;
         virtual void on_window_layout_changed() override;
     };
 
@@ -447,5 +450,98 @@ namespace printui {
         // Ref counter for this COM object.
         ULONG m_refCount;
         bool is_content = true;
+    };
+
+    class expandable_selection_provider : public disconnectable,
+        public IRawElementProviderSimple,
+        public IRawElementProviderFragment,
+        public ISelectionProvider,
+        public IExpandCollapseProvider {
+    public:
+
+        expandable_selection_provider(window_data& win, generic_expandable* control, generic_selection_container* sc, uint16_t name, uint16_t alt_text);
+        void disconnect();
+
+        // IUnknown methods
+        IFACEMETHODIMP_(ULONG) AddRef();
+        IFACEMETHODIMP_(ULONG) Release();
+        IFACEMETHODIMP QueryInterface(REFIID riid, void** ppInterface);
+
+        // IRawElementProviderSimple methods
+        IFACEMETHODIMP get_ProviderOptions(ProviderOptions* pRetVal);
+        IFACEMETHODIMP GetPatternProvider(PATTERNID iid, IUnknown** pRetVal);
+        IFACEMETHODIMP GetPropertyValue(PROPERTYID idProp, VARIANT* pRetVal);
+        IFACEMETHODIMP get_HostRawElementProvider(IRawElementProviderSimple** pRetVal);
+
+        // IRawElementProviderFragment methods
+        IFACEMETHODIMP Navigate(NavigateDirection direction, IRawElementProviderFragment** pRetVal);
+        IFACEMETHODIMP GetRuntimeId(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP get_BoundingRectangle(UiaRect* pRetVal);
+        IFACEMETHODIMP GetEmbeddedFragmentRoots(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP SetFocus();
+        IFACEMETHODIMP get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal);
+
+        //ISelectionProvider
+        IFACEMETHODIMP GetSelection(__RPC__deref_out_opt SAFEARRAY** pRetVal);
+        IFACEMETHODIMP get_CanSelectMultiple(__RPC__out BOOL* pRetVal);
+        IFACEMETHODIMP get_IsSelectionRequired(__RPC__out BOOL* pRetVal);
+
+        //IExpandCollapseProvider
+        IFACEMETHODIMP Expand();
+        IFACEMETHODIMP Collapse() ;
+        IFACEMETHODIMP get_ExpandCollapseState(__RPC__out enum ExpandCollapseState* pRetVal);
+
+        virtual ~expandable_selection_provider();
+    private:
+        generic_expandable* control = nullptr;
+        generic_selection_container* sc = nullptr;
+        uint16_t name = uint16_t(-1);
+        uint16_t alt_text = uint16_t(-1);
+
+        // Ref counter for this COM object.
+        ULONG m_refCount;
+    };
+
+    class expandable_container : public disconnectable,
+        public IRawElementProviderSimple,
+        public IRawElementProviderFragment,
+        public IExpandCollapseProvider {
+    public:
+
+        expandable_container(window_data& win, generic_expandable* control, uint16_t name, uint16_t alt_text);
+        void disconnect();
+
+        // IUnknown methods
+        IFACEMETHODIMP_(ULONG) AddRef();
+        IFACEMETHODIMP_(ULONG) Release();
+        IFACEMETHODIMP QueryInterface(REFIID riid, void** ppInterface);
+
+        // IRawElementProviderSimple methods
+        IFACEMETHODIMP get_ProviderOptions(ProviderOptions* pRetVal);
+        IFACEMETHODIMP GetPatternProvider(PATTERNID iid, IUnknown** pRetVal);
+        IFACEMETHODIMP GetPropertyValue(PROPERTYID idProp, VARIANT* pRetVal);
+        IFACEMETHODIMP get_HostRawElementProvider(IRawElementProviderSimple** pRetVal);
+
+        // IRawElementProviderFragment methods
+        IFACEMETHODIMP Navigate(NavigateDirection direction, IRawElementProviderFragment** pRetVal);
+        IFACEMETHODIMP GetRuntimeId(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP get_BoundingRectangle(UiaRect* pRetVal);
+        IFACEMETHODIMP GetEmbeddedFragmentRoots(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP SetFocus();
+        IFACEMETHODIMP get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal);
+
+        //IExpandCollapseProvider
+        IFACEMETHODIMP Expand();
+        IFACEMETHODIMP Collapse();
+        IFACEMETHODIMP get_ExpandCollapseState(__RPC__out enum ExpandCollapseState* pRetVal);
+
+        virtual ~expandable_container();
+    private:
+        generic_expandable* control = nullptr;
+        uint16_t name = uint16_t(-1);
+        uint16_t alt_text = uint16_t(-1);
+
+        // Ref counter for this COM object.
+        ULONG m_refCount;
     };
 }

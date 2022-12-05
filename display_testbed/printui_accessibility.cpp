@@ -16,6 +16,7 @@
 
 namespace printui {
     constexpr int32_t expandable_list_type_control = 95180;
+    constexpr int32_t expandable_container_control = 95181;
 
     disconnectable* accessibility_object_to_iunk(accessibility_object* o) {
         disconnectable* p = (disconnectable*)o;
@@ -335,7 +336,16 @@ namespace printui {
                 break;
             case UIA_NamePropertyId:
                 pRetVal->vt = VT_BSTR;
-                pRetVal->bstrVal = SysAllocString(win.get_window_title());
+                if(win.visible_window_title()) {
+                    pRetVal->bstrVal = SysAllocString(win.get_window_title());
+                } else {
+                    WCHAR module_name[MAX_PATH] = {};
+                    int32_t path_used = GetModuleFileName(nullptr, module_name, MAX_PATH);
+                    while(path_used >= 0 && module_name[path_used] != L'\\') {
+                        --path_used;
+                    }
+                    pRetVal->bstrVal = SysAllocString(module_name + path_used + 1);
+                }
                 break;
             case UIA_BoundingRectanglePropertyId:
             {
@@ -623,7 +633,7 @@ namespace printui {
 
     IFACEMETHODIMP text_list_button_provider::GetPatternProvider(PATTERNID iid, IUnknown** pRetVal) {
         *pRetVal = nullptr;
-        if(iid == UIA_SelectionPatternId) {
+        if(iid == UIA_SelectionItemPatternId) {
             *pRetVal = static_cast<ISelectionItemProvider*>(this);
             AddRef();
         }
@@ -649,7 +659,7 @@ namespace printui {
                 pRetVal->vt = VT_BOOL;
                 pRetVal->boolVal = VARIANT_TRUE;
                 break;
-            case UIA_IsSelectionPatternAvailablePropertyId:
+            case UIA_IsSelectionItemPatternAvailablePropertyId:
                 pRetVal->vt = VT_BOOL;
                 pRetVal->boolVal = VARIANT_TRUE;
                 break;
@@ -1248,7 +1258,7 @@ namespace printui {
                 pRetVal->vt = VT_BOOL;
                 pRetVal->boolVal = VARIANT_TRUE;
                 break;
-            case UIA_IsTogglePatternAvailablePropertyId:
+            case UIA_IsSelectionPatternAvailablePropertyId:
                 pRetVal->vt = VT_BOOL;
                 pRetVal->boolVal = VARIANT_TRUE;
                 break;
@@ -1281,7 +1291,8 @@ namespace printui {
                     }
                     auto acc_ptr = sel ? sel->get_accessibility_interface(win) : nullptr;
                     IUnknown* iu_ptr = static_cast<IUnknown*>(accessibility_object_to_iunk(acc_ptr));
-                    iu_ptr->AddRef();
+                    if(iu_ptr)
+                       iu_ptr->AddRef();
                     LONG index = 0;
                     SafeArrayPutElement(psa, &index, iu_ptr);
                 }
@@ -1390,7 +1401,8 @@ namespace printui {
         auto acc_ptr = sel ? sel->get_accessibility_interface(win) : nullptr;
         IUnknown* iu_ptr = static_cast<IUnknown*>(accessibility_object_to_iunk(acc_ptr));
         IRawElementProviderSimple* stored_provider = nullptr;
-        iu_ptr->QueryInterface(IID_PPV_ARGS(&stored_provider));
+        if(iu_ptr)
+            iu_ptr->QueryInterface(IID_PPV_ARGS(&stored_provider));
         LONG index = 0;
         SafeArrayPutElement(psa, &index, stored_provider);
 
@@ -1743,6 +1755,486 @@ namespace printui {
     }
 
     //
+    // EXPANADABLE LIST PROVIDER
+    //
+
+    expandable_selection_provider::expandable_selection_provider(window_data& win, generic_expandable* control, generic_selection_container* sc, uint16_t name, uint16_t alt_text) : disconnectable(win), control(control), sc(sc), name(name), alt_text(alt_text), m_refCount(1) {
+    }
+
+    expandable_selection_provider::~expandable_selection_provider() {
+    }
+    IFACEMETHODIMP_(ULONG) expandable_selection_provider::AddRef() {
+        return InterlockedIncrement(&m_refCount);
+    }
+
+    IFACEMETHODIMP_(ULONG) expandable_selection_provider::Release() {
+        long val = InterlockedDecrement(&m_refCount);
+        if(val == 0) {
+            delete this;
+        }
+        return val;
+    }
+
+    IFACEMETHODIMP expandable_selection_provider::QueryInterface(REFIID riid, void** ppInterface) {
+        if(riid == __uuidof(IUnknown))
+            *ppInterface = static_cast<IRawElementProviderSimple*>(this);
+        else if(riid == __uuidof(IRawElementProviderSimple))
+            *ppInterface = static_cast<IRawElementProviderSimple*>(this);
+        else if(riid == __uuidof(IRawElementProviderFragment))
+            *ppInterface = static_cast<IRawElementProviderFragment*>(this);
+        else if(riid == __uuidof(ISelectionProvider))
+            *ppInterface = static_cast<ISelectionProvider*>(this);
+        else if(riid == __uuidof(IExpandCollapseProvider))
+            *ppInterface = static_cast<IExpandCollapseProvider*>(this);
+        else {
+            *ppInterface = NULL;
+            return E_NOINTERFACE;
+        }
+        (static_cast<IUnknown*>(*ppInterface))->AddRef();
+        return S_OK;
+    }
+
+    IFACEMETHODIMP expandable_selection_provider::get_ProviderOptions(ProviderOptions* pRetVal) {
+        *pRetVal = ProviderOptions_ServerSideProvider | ProviderOptions_RefuseNonClientSupport | ProviderOptions_UseComThreading;
+        return S_OK;
+    }
+
+    IFACEMETHODIMP expandable_selection_provider::get_HostRawElementProvider(IRawElementProviderSimple** pRetVal) {
+        *pRetVal = nullptr;
+        return S_OK;
+    }
+
+    IFACEMETHODIMP expandable_selection_provider::GetPatternProvider(PATTERNID iid, IUnknown** pRetVal) {
+        *pRetVal = nullptr;
+        if(iid == UIA_SelectionPatternId) {
+            *pRetVal = static_cast<ISelectionProvider*>(this);
+            AddRef();
+        } else if(iid == UIA_ExpandCollapsePatternId) {
+            *pRetVal = static_cast<IExpandCollapseProvider*>(this);
+            AddRef();
+        }
+        return S_OK;
+    }
+
+    IFACEMETHODIMP expandable_selection_provider::GetPropertyValue(PROPERTYID propertyId, VARIANT* pRetVal) {
+        VariantInit(pRetVal);
+        switch(propertyId) {
+            case UIA_ControlTypePropertyId:
+                pRetVal->vt = VT_I4;
+                pRetVal->lVal = expandable_list_type_control;
+                break;
+            case UIA_LocalizedControlTypePropertyId:
+                {
+                    auto resolved_text = win.text_data.instantiate_text(text_id::selection_list_localized_name).text_content.text;
+                    pRetVal->vt = VT_BSTR;
+                    pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
+                }
+                break;
+            case UIA_IsKeyboardFocusablePropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_FALSE;
+                break;
+            case UIA_IsContentElementPropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_TRUE;
+                break;
+            case UIA_IsControlElementPropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_TRUE;
+                break;
+            case UIA_IsSelectionPatternAvailablePropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_TRUE;
+                break;
+            case UIA_IsExpandCollapsePatternAvailablePropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_TRUE;
+                break;
+            case UIA_IsEnabledPropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_TRUE;
+                break;
+            case UIA_SelectionCanSelectMultiplePropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_FALSE;
+                break;
+            case UIA_SelectionIsSelectionRequiredPropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_TRUE;
+                break;
+            case UIA_ExpandCollapseExpandCollapseStatePropertyId:
+                pRetVal->vt = VT_I4;
+                pRetVal->lVal = control && control->is_open() ? ExpandCollapseState_Expanded : ExpandCollapseState_PartiallyExpanded;
+                break;
+            case UIA_SelectionSelectionPropertyId:
+                if(sc) {
+                    pRetVal->vt = VT_UNKNOWN | VT_ARRAY;
+                    SAFEARRAY* psa = SafeArrayCreateVector(VT_UNKNOWN, 0, 1);
+                    if(psa == nullptr) {
+                        return E_OUTOFMEMORY;
+                    }
+                    pRetVal->parray = psa;
+                    layout_interface* sel = sc->selected_item();
+                    auto acc_ptr = sel ? sel->get_accessibility_interface(win) : nullptr;
+                    IUnknown* iu_ptr = static_cast<IUnknown*>(accessibility_object_to_iunk(acc_ptr));
+                    if(iu_ptr)
+                        iu_ptr->AddRef();
+                    LONG index = 0;
+                    SafeArrayPutElement(psa, &index, iu_ptr);
+                }
+                break;
+            case UIA_NamePropertyId:
+                if(control && name != uint16_t(-1)) {
+                    auto resolved_text = win.text_data.instantiate_text(name).text_content.text;
+                    pRetVal->vt = VT_BSTR;
+                    pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
+                }
+                break;
+            case UIA_HelpTextPropertyId:
+                if(control && alt_text != uint16_t(-1)) {
+                    auto resolved_text = win.text_data.instantiate_text(alt_text).text_content.text;
+                    pRetVal->vt = VT_BSTR;
+                    pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
+                }
+                break;
+            case UIA_BoundingRectanglePropertyId:
+                if(control) {
+                    pRetVal->vt = VT_R8 | VT_ARRAY;
+                    SAFEARRAY* psa = SafeArrayCreateVector(VT_R8, 0, 4);
+                    pRetVal->parray = psa;
+
+                    if(psa == nullptr) {
+                        return E_OUTOFMEMORY;
+                    }
+                    auto window_rect = win.window_interface->get_window_location();
+                    auto client_rect = control->l_id != layout_reference_none ?
+                        win.get_current_location(control->l_id) :
+                        screen_space_rect{ 0,0,0,0 };
+                    double uiarect[] = { double(window_rect.x + client_rect.x), double(window_rect.y + client_rect.y), double(client_rect.width), double(client_rect.height) };
+                    for(LONG i = 0; i < 4; i++) {
+                        SafeArrayPutElement(psa, &i, (void*)&(uiarect[i]));
+                    }
+                }
+                break;
+            case UIA_HasKeyboardFocusPropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_FALSE;
+                break;
+        }
+        return S_OK;
+    }
+
+    IFACEMETHODIMP expandable_selection_provider::Navigate(NavigateDirection direction, IRawElementProviderFragment** pRetVal) {
+        *pRetVal = nullptr;
+
+        if(!control)
+            return S_OK;
+
+        return generic_navigate(direction, pRetVal, win, control->l_id);
+    }
+    IFACEMETHODIMP expandable_selection_provider::GetRuntimeId(SAFEARRAY** pRetVal) {
+        if(pRetVal == NULL) {
+            return E_INVALIDARG;
+        }
+        size_t ptr_value = reinterpret_cast<size_t>(control);
+        int rId[] = { UiaAppendRuntimeId, int32_t(ptr_value & 0xFFFFFFFF), int32_t(ptr_value >> 32) };
+        SAFEARRAY* psa = SafeArrayCreateVector(VT_I4, 0, 3);
+        if(psa == NULL) {
+            return E_OUTOFMEMORY;
+        }
+        for(LONG i = 0; i < 3; i++) {
+            SafeArrayPutElement(psa, &i, (void*)&(rId[i]));
+        }
+
+        *pRetVal = psa;
+        return S_OK;
+    }
+    IFACEMETHODIMP expandable_selection_provider::get_BoundingRectangle(UiaRect* pRetVal) {
+        auto window_rect = win.window_interface->get_window_location();
+        auto client_rect = (control && control->l_id != layout_reference_none) ?
+            win.get_current_location(control->l_id) :
+            screen_space_rect{ 0,0,0,0 };
+
+        pRetVal->left = window_rect.x + client_rect.x;
+        pRetVal->top = window_rect.y + client_rect.y;
+        pRetVal->width = client_rect.width;
+        pRetVal->height = client_rect.height;
+        return S_OK;
+    }
+    IFACEMETHODIMP expandable_selection_provider::GetEmbeddedFragmentRoots(SAFEARRAY** pRetVal) {
+        *pRetVal = nullptr;
+        return S_OK;
+    }
+    IFACEMETHODIMP expandable_selection_provider::SetFocus() {
+        return S_OK;
+    }
+    IFACEMETHODIMP expandable_selection_provider::get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal) {
+        if(auto root = win.accessibility_interface->peek_root_window_provider(); root) {
+            return root->get_FragmentRoot(pRetVal);
+        } else {
+            *pRetVal = nullptr;
+            return S_OK;
+        }
+    }
+    IFACEMETHODIMP expandable_selection_provider::GetSelection(__RPC__deref_out_opt SAFEARRAY** pRetVal) {
+        *pRetVal = nullptr;
+
+        SAFEARRAY* psa = SafeArrayCreateVector(VT_UNKNOWN, 0, 1);
+        if(psa == nullptr) {
+            return E_OUTOFMEMORY;
+        }
+
+        layout_interface* sel = sc ? sc->selected_item() : nullptr;
+        auto acc_ptr = sel ? sel->get_accessibility_interface(win) : nullptr;
+        IUnknown* iu_ptr = static_cast<IUnknown*>(accessibility_object_to_iunk(acc_ptr));
+        IRawElementProviderSimple* stored_provider = nullptr;
+        if(iu_ptr)
+            iu_ptr->QueryInterface(IID_PPV_ARGS(&stored_provider));
+        LONG index = 0;
+        SafeArrayPutElement(psa, &index, stored_provider);
+
+        *pRetVal = psa;
+        return S_OK;
+    }
+    IFACEMETHODIMP expandable_selection_provider::get_CanSelectMultiple(__RPC__out BOOL* pRetVal) {
+        *pRetVal = FALSE;
+        return S_OK;
+    }
+    IFACEMETHODIMP expandable_selection_provider::get_IsSelectionRequired(__RPC__out BOOL* pRetVal) {
+        *pRetVal = TRUE;
+        return S_OK;
+    }
+    IFACEMETHODIMP expandable_selection_provider::Expand() {
+        if(control)
+            control->open(win, true);
+        return S_OK;
+    }
+    IFACEMETHODIMP expandable_selection_provider::Collapse() {
+        if(control)
+            control->close(win, true);
+        return S_OK;
+
+    }
+    IFACEMETHODIMP expandable_selection_provider::get_ExpandCollapseState(__RPC__out enum ExpandCollapseState* pRetVal) {
+        *pRetVal = control && control->is_open() ? ExpandCollapseState_Expanded : ExpandCollapseState_PartiallyExpanded;
+        return S_OK;
+    }
+    void expandable_selection_provider::disconnect() {
+        control = nullptr;
+        sc = nullptr;
+        name = uint16_t(-1);
+        alt_text = uint16_t(-1);
+    }
+
+    //
+    // EXPANDABLE CONTAINER PROVIDER
+    //
+
+    expandable_container::expandable_container(window_data& win, generic_expandable* control, uint16_t name, uint16_t alt_text) : disconnectable(win), control(control), name(name), alt_text(alt_text), m_refCount(1) {
+    }
+
+    expandable_container::~expandable_container() {
+    }
+    IFACEMETHODIMP_(ULONG) expandable_container::AddRef() {
+        return InterlockedIncrement(&m_refCount);
+    }
+
+    IFACEMETHODIMP_(ULONG) expandable_container::Release() {
+        long val = InterlockedDecrement(&m_refCount);
+        if(val == 0) {
+            delete this;
+        }
+        return val;
+    }
+
+    IFACEMETHODIMP expandable_container::QueryInterface(REFIID riid, void** ppInterface) {
+        if(riid == __uuidof(IUnknown))
+            *ppInterface = static_cast<IRawElementProviderSimple*>(this);
+        else if(riid == __uuidof(IRawElementProviderSimple))
+            *ppInterface = static_cast<IRawElementProviderSimple*>(this);
+        else if(riid == __uuidof(IRawElementProviderFragment))
+            *ppInterface = static_cast<IRawElementProviderFragment*>(this);
+        else if(riid == __uuidof(IExpandCollapseProvider))
+            *ppInterface = static_cast<IExpandCollapseProvider*>(this);
+        else {
+            *ppInterface = NULL;
+            return E_NOINTERFACE;
+        }
+        (static_cast<IUnknown*>(*ppInterface))->AddRef();
+        return S_OK;
+    }
+
+    IFACEMETHODIMP expandable_container::get_ProviderOptions(ProviderOptions* pRetVal) {
+        *pRetVal = ProviderOptions_ServerSideProvider | ProviderOptions_RefuseNonClientSupport | ProviderOptions_UseComThreading;
+        return S_OK;
+    }
+
+    IFACEMETHODIMP expandable_container::get_HostRawElementProvider(IRawElementProviderSimple** pRetVal) {
+        *pRetVal = nullptr;
+        return S_OK;
+    }
+
+    IFACEMETHODIMP expandable_container::GetPatternProvider(PATTERNID iid, IUnknown** pRetVal) {
+        *pRetVal = nullptr;
+        if(iid == UIA_ExpandCollapsePatternId) {
+            *pRetVal = static_cast<IExpandCollapseProvider*>(this);
+            AddRef();
+        }
+        return S_OK;
+    }
+
+    IFACEMETHODIMP expandable_container::GetPropertyValue(PROPERTYID propertyId, VARIANT* pRetVal) {
+        VariantInit(pRetVal);
+        switch(propertyId) {
+            case UIA_ControlTypePropertyId:
+                pRetVal->vt = VT_I4;
+                pRetVal->lVal = expandable_container_control;
+                break;
+            case UIA_LocalizedControlTypePropertyId:
+            {
+                auto resolved_text = win.text_data.instantiate_text(text_id::expandable_container_localized_name).text_content.text;
+                pRetVal->vt = VT_BSTR;
+                pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
+            }
+            break;
+            case UIA_IsKeyboardFocusablePropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_FALSE;
+                break;
+            case UIA_IsContentElementPropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_TRUE;
+                break;
+            case UIA_IsControlElementPropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_TRUE;
+                break;
+            case UIA_IsExpandCollapsePatternAvailablePropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_TRUE;
+                break;
+            case UIA_IsEnabledPropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_TRUE;
+                break;
+            case UIA_ExpandCollapseExpandCollapseStatePropertyId:
+                pRetVal->vt = VT_I4;
+                pRetVal->lVal = control && control->is_open() ? ExpandCollapseState_Expanded : ExpandCollapseState_PartiallyExpanded;
+                break;
+            case UIA_NamePropertyId:
+                if(control && name != uint16_t(-1)) {
+                    auto resolved_text = win.text_data.instantiate_text(name).text_content.text;
+                    pRetVal->vt = VT_BSTR;
+                    pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
+                }
+                break;
+            case UIA_HelpTextPropertyId:
+                if(control && alt_text != uint16_t(-1)) {
+                    auto resolved_text = win.text_data.instantiate_text(alt_text).text_content.text;
+                    pRetVal->vt = VT_BSTR;
+                    pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
+                }
+                break;
+            case UIA_BoundingRectanglePropertyId:
+                if(control) {
+                    pRetVal->vt = VT_R8 | VT_ARRAY;
+                    SAFEARRAY* psa = SafeArrayCreateVector(VT_R8, 0, 4);
+                    pRetVal->parray = psa;
+
+                    if(psa == nullptr) {
+                        return E_OUTOFMEMORY;
+                    }
+                    auto window_rect = win.window_interface->get_window_location();
+                    auto client_rect = control->l_id != layout_reference_none ?
+                        win.get_current_location(control->l_id) :
+                        screen_space_rect{ 0,0,0,0 };
+                    double uiarect[] = { double(window_rect.x + client_rect.x), double(window_rect.y + client_rect.y), double(client_rect.width), double(client_rect.height) };
+                    for(LONG i = 0; i < 4; i++) {
+                        SafeArrayPutElement(psa, &i, (void*)&(uiarect[i]));
+                    }
+                }
+                break;
+            case UIA_HasKeyboardFocusPropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_FALSE;
+                break;
+        }
+        return S_OK;
+    }
+
+    IFACEMETHODIMP expandable_container::Navigate(NavigateDirection direction, IRawElementProviderFragment** pRetVal) {
+        *pRetVal = nullptr;
+
+        if(!control)
+            return S_OK;
+
+        return generic_navigate(direction, pRetVal, win, control->l_id);
+    }
+    IFACEMETHODIMP expandable_container::GetRuntimeId(SAFEARRAY** pRetVal) {
+        if(pRetVal == NULL) {
+            return E_INVALIDARG;
+        }
+        size_t ptr_value = reinterpret_cast<size_t>(control);
+        int rId[] = { UiaAppendRuntimeId, int32_t(ptr_value & 0xFFFFFFFF), int32_t(ptr_value >> 32) };
+        SAFEARRAY* psa = SafeArrayCreateVector(VT_I4, 0, 3);
+        if(psa == NULL) {
+            return E_OUTOFMEMORY;
+        }
+        for(LONG i = 0; i < 3; i++) {
+            SafeArrayPutElement(psa, &i, (void*)&(rId[i]));
+        }
+
+        *pRetVal = psa;
+        return S_OK;
+    }
+    IFACEMETHODIMP expandable_container::get_BoundingRectangle(UiaRect* pRetVal) {
+        auto window_rect = win.window_interface->get_window_location();
+        auto client_rect = (control && control->l_id != layout_reference_none) ?
+            win.get_current_location(control->l_id) :
+            screen_space_rect{ 0,0,0,0 };
+
+        pRetVal->left = window_rect.x + client_rect.x;
+        pRetVal->top = window_rect.y + client_rect.y;
+        pRetVal->width = client_rect.width;
+        pRetVal->height = client_rect.height;
+        return S_OK;
+    }
+    IFACEMETHODIMP expandable_container::GetEmbeddedFragmentRoots(SAFEARRAY** pRetVal) {
+        *pRetVal = nullptr;
+        return S_OK;
+    }
+    IFACEMETHODIMP expandable_container::SetFocus() {
+        return S_OK;
+    }
+    IFACEMETHODIMP expandable_container::get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal) {
+        if(auto root = win.accessibility_interface->peek_root_window_provider(); root) {
+            return root->get_FragmentRoot(pRetVal);
+        } else {
+            *pRetVal = nullptr;
+            return S_OK;
+        }
+    }
+    IFACEMETHODIMP expandable_container::Expand() {
+        if(control)
+            control->open(win, true);
+        return S_OK;
+    }
+    IFACEMETHODIMP expandable_container::Collapse() {
+        if(control)
+            control->close(win, true);
+        return S_OK;
+    }
+    IFACEMETHODIMP expandable_container::get_ExpandCollapseState(__RPC__out enum ExpandCollapseState* pRetVal) {
+        *pRetVal = control && control->is_open() ? ExpandCollapseState_Expanded : ExpandCollapseState_PartiallyExpanded;
+        return S_OK;
+    }
+    void expandable_container::disconnect() {
+        control = nullptr;
+        name = uint16_t(-1);
+        alt_text = uint16_t(-1);
+    }
+
+    //
     // WIN32 ACCESSIBILITY IMPLEMENTATION
     //
 
@@ -1867,6 +2359,16 @@ namespace printui {
         auto iunk = static_cast<disconnectable*>(new container_provider(w, b, name));
         return (accessibility_object*)iunk;
     }
+    accessibility_object* win32_accessibility::make_expandable_selection_list(window_data& w, generic_expandable* control, generic_selection_container* sc, uint16_t name, uint16_t alt_text) {
+
+        auto iunk = static_cast<disconnectable*>(new expandable_selection_provider(w, control, sc, name, alt_text));
+        return (accessibility_object*)iunk;
+    }
+    accessibility_object* win32_accessibility::make_expandable_container(window_data& w, generic_expandable* control, uint16_t name, uint16_t alt_text) {
+
+        auto iunk = static_cast<disconnectable*>(new expandable_container(w, control, name, alt_text));
+        return (accessibility_object*)iunk;
+    }
     accessibility_object* win32_accessibility::make_plain_text_accessibility_interface(window_data& w, layout_interface* b, stored_text* t, bool is_content) {
         auto iunk = static_cast<disconnectable*>(new plain_text_provider(w, b, t, is_content));
         return (accessibility_object*)iunk;
@@ -1960,6 +2462,28 @@ namespace printui {
             }
         }
     }
+
+    void win32_accessibility::on_expand_collapse(accessibility_object* b, bool expanded) {
+        auto iunk = accessibility_object_to_iunk(b);
+        if(UiaClientsAreListening() && window_interface) {
+            IRawElementProviderSimple* provider = nullptr;
+            iunk->QueryInterface(IID_PPV_ARGS(&provider));
+            if(provider) {
+                VARIANT old_state;
+                VARIANT new_state;
+                VariantInit(&old_state);
+                VariantInit(&new_state);
+                old_state.vt = VT_I4;
+                old_state.lVal =!expanded ? ExpandCollapseState_Expanded : ExpandCollapseState_PartiallyExpanded;
+                new_state.vt = VT_I4;
+                new_state.lVal = expanded ? ExpandCollapseState_Expanded : ExpandCollapseState_PartiallyExpanded;
+                UiaRaiseAutomationPropertyChangedEvent(provider, UIA_ExpandCollapseExpandCollapseStatePropertyId, old_state, new_state);
+
+                provider->Release();
+            }
+        }
+    }
+
     void win32_accessibility::on_select_unselect(accessibility_object* b, bool selection_state) {
         auto iunk = accessibility_object_to_iunk(b);
         if(UiaClientsAreListening() && window_interface) {

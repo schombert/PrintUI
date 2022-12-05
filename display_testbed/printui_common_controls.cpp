@@ -79,6 +79,12 @@ namespace printui {
 		button_node.x = uint16_t(self.width - 2);
 		win.immediate_add_child(l_id, button);
 	}
+	accessibility_object* single_line_centered_header::get_accessibility_interface(window_data& win) {
+		if(!acc_obj) {
+			acc_obj = win.accessibility_interface->make_plain_text_accessibility_interface(win, this, &text, false);
+		}
+		return acc_obj;
+	}
 	
 	ui_rectangle single_line_empty_header::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
 
@@ -709,51 +715,15 @@ namespace printui {
 	//
 
 
-	ui_rectangle page_footer_button::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
-		ui_rectangle r;
-		r.parent_object = this;
-		r.background_index = parent_background_index;
-		r.foreground_index = parent_foreground_index;
-		return r;
-	}
-	layout_node_type page_footer_button::get_node_type() {
-		return layout_node_type::control;
-	}
-	simple_layout_specification page_footer_button::get_specification(window_data&) {
-		simple_layout_specification spec;
-		spec.minimum_line_size = 4;
-		spec.minimum_page_size = 1;
-		spec.line_flags = size_flags::fill_to_max;
-		spec.page_flags = size_flags::none;
-		return spec;
-	}
-	void page_footer_button::render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) {
-		
-		D2D1_RECT_F content_rect{
-			float(rect.x_position), float(rect.y_position),
-			float(rect.x_position + rect.width), float(rect.y_position + rect.height) };
-
-		render::background_rectangle(content_rect, win, rect.display_flags, rect.background_index, under_mouse && stored_page_total > 1);
-
-		auto icon_location = screen_topleft_from_layout_in_ui(win, 0, 0, 1, 1, rect);
-		render::interactable_or_icon(win, win.d2d_device_context, icon_location, saved_state, rect.foreground_index, false, win.common_icons.icons[standard_icons::control_pages]);
-
-		win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.foreground_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, content_rect, content_rect);
-	}
 	void page_footer_button::render_foreground(ui_rectangle const& rect, window_data& win) {
 
 		update_page(win);
-
+		
 		text::text_parameter page_numbers[2] = { text::int_param{ stored_page + 1 }, text::int_param{ stored_page_total } };
 
-		fraction_text.set_text(text_id::page_fraction, page_numbers, page_numbers + 2);
-		fraction_text.relayout_text(win, horizontal(win.orientation) ? screen_space_point{ rect.width - 2 * win.layout_size, rect.height } : screen_space_point{ rect.width, rect.height - 2 * win.layout_size });
+		button_control_base::set_text(win, text_id::page_fraction, page_numbers, page_numbers + 2);
 
-		auto text_bounding_rect = screen_rectangle_from_layout_in_ui(win, 1, 0, win.get_node(l_id).width - 2, 1, rect);
-
-		fraction_text.draw_text(win, text_bounding_rect.x, text_bounding_rect.y);
-	}
-	void page_footer_button::recreate_contents(window_data&, layout_node&) {
+		button_control_base::render_foreground(rect, win);
 	}
 	void page_footer_button::update_page(window_data& win) {
 		if(l_id != layout_reference_none) {
@@ -764,7 +734,7 @@ namespace printui {
 			auto max_page = parent_pginfo ? uint32_t(parent_pginfo->subpage_divisions.size() + 1) : 0;
 
 			if(current_page != stored_page || max_page != stored_page_total) {
-				fraction_text.invalidate();
+				button_control_base::invalidate_text();
 				stored_page = current_page;
 				stored_page_total = max_page;
 			}
@@ -773,15 +743,16 @@ namespace printui {
 			stored_page_total = 0;
 		}
 	}
-	void page_footer_button::on_click(window_data& win, uint32_t, uint32_t) {
+
+	void page_footer_button::button_action(window_data& win) {
 		if(l_id != layout_reference_none) {
 			auto parent = win.get_node(l_id).parent;
 			if(parent != layout_reference_none) {
 				page_footer* cf = static_cast<page_footer*>(win.get_node(parent).l_interface);
-				if(cf->is_open) {
-					cf->close_footer(win, true);
+				if(cf->is_open()) {
+					cf->close(win, true);
 				} else {
-					cf->open_footer(win, true);
+					cf->open(win, true);
 				}
 			}
 		}
@@ -1001,6 +972,17 @@ namespace printui {
 		win.update_window_focus();
 	}
 
+	layout_interface* open_list_control::selected_item() const {
+		layout_interface* sel = nullptr;
+		for(auto p : options) {
+			if(p->is_selected()) {
+				sel = p;
+				break;
+			}
+		}
+		return sel;
+	}
+
 	ui_rectangle open_list_control::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
 
 		ui_rectangle retvalue;
@@ -1087,7 +1069,7 @@ namespace printui {
 				auto& list_node = win.get_node(parent);
 				list_control* container = static_cast<list_control*>(list_node.l_interface);
 				if(container) {
-					container->open_list(win, true);
+					container->open(win, true);
 				}
 			}
 		}
@@ -1105,6 +1087,22 @@ namespace printui {
 		}
 	}
 
+	accessibility_object* list_control::get_accessibility_interface(window_data& win) {
+		if(!acc_obj) {
+			acc_obj = win.accessibility_interface->make_expandable_selection_list(win, this, this, name, alt_text_id);
+		}
+		return acc_obj;
+	}
+	layout_interface* list_control::selected_item() const {
+		layout_interface* sel = nullptr;
+		for(auto& p : this->options) {
+			if(p->is_selected()) {
+				sel = p.get();
+				break;
+			}
+		}
+		return sel;
+	}
 	ui_rectangle list_control::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
 
 		ui_rectangle retvalue;
@@ -1178,7 +1176,7 @@ namespace printui {
 		}
 	}
 	void list_control::on_lose_focus(window_data& win) {
-		close_list(win, false);
+		close(win, false);
 	}
 	layout_rect list_control::get_content_rectangle(window_data& win) {
 		if(list_is_open) {
@@ -1189,7 +1187,7 @@ namespace printui {
 		}
 	}
 
-	void list_control::open_list(window_data& win, bool move_focus) {
+	void list_control::open(window_data& win, bool move_focus) {
 		if(l_id != layout_reference_none) {
 			if(list_control::list_appearance.type != animation_type::none)
 				win.prepare_ui_animation();
@@ -1218,10 +1216,13 @@ namespace printui {
 					list_control::list_appearance.duration_seconds,
 					list_control::list_appearance.animate_in });
 			}
+
+			if(acc_obj)
+				win.accessibility_interface->on_expand_collapse(acc_obj, true);
 		}
 	}
 
-	void list_control::close_list(window_data& win, bool move_focus) {
+	void list_control::close(window_data& win, bool move_focus) {
 		if(list_is_open && l_id != layout_reference_none) {
 			screen_space_rect loc{};
 			if(list_control::list_disappearance.type != animation_type::none) {
@@ -1255,6 +1256,9 @@ namespace printui {
 			} else {
 				win.stop_ui_animations();
 			}
+
+			if(acc_obj)
+				win.accessibility_interface->on_expand_collapse(acc_obj, false);
 		}
 	}
 	void list_control::quiet_select_option_by_value(window_data& win, size_t d) {
@@ -1277,7 +1281,7 @@ namespace printui {
 
 	}
 	void list_control::select_option_by_value(window_data& win, size_t d) {
-		close_list(win, true);
+		close(win, true);
 		quiet_select_option_by_value(win, d);
 		on_select(win, d);
 	}
@@ -1325,7 +1329,7 @@ namespace printui {
 				auto& list_node = win.get_node(parent);
 				menu_control* container = static_cast<menu_control*>(list_node.l_interface);
 				if(container) {
-					container->open_menu(win, true);
+					container->open(win, true);
 				}
 			}
 		}
@@ -1430,7 +1434,7 @@ namespace printui {
 		}
 	}
 	void menu_control::on_lose_focus(window_data& win) {
-		close_menu(win, false);
+		close(win, false);
 	}
 
 	int32_t menu_control::get_menu_height(window_data const& win) const {
@@ -1485,7 +1489,7 @@ namespace printui {
 		}
 	}
 
-	void menu_control::open_menu(window_data& win, bool move_focus) {
+	void menu_control::open(window_data& win, bool move_focus) {
 		if(l_id != layout_reference_none) {
 
 			if(menu_control::list_appearance.type != animation_type::none)
@@ -1517,9 +1521,12 @@ namespace printui {
 			}
 
 			on_open(win);
+
+			if(acc_obj)
+				win.accessibility_interface->on_expand_collapse(acc_obj, true);
 		}
 	}
-	void menu_control::close_menu(window_data& win, bool move_focus) {
+	void menu_control::close(window_data& win, bool move_focus) {
 		if(list_is_open && l_id != layout_reference_none) {
 			screen_space_rect loc{};
 
@@ -1556,13 +1563,28 @@ namespace printui {
 			}
 
 			on_close(win);
+
+			if(acc_obj)
+				win.accessibility_interface->on_expand_collapse(acc_obj, false);
 		}
 	}
+	accessibility_object* menu_control::get_accessibility_interface(window_data& win) {
+		if(!acc_obj) {
+			acc_obj = win.accessibility_interface->make_expandable_container(win, this, name, alt_text);
+		}
+		return acc_obj;
+	}
+
 
 	animation_defintion menu_control::list_appearance;
 	animation_defintion menu_control::list_disappearance;
 
-
+	accessibility_object* page_footer::get_accessibility_interface(window_data& win) {
+		if(!acc_obj) {
+			acc_obj = win.accessibility_interface->make_expandable_container(win, this, text_id::page_footer_name, text_id::page_footer_info);
+		}
+		return acc_obj;
+	}
 	ui_rectangle page_footer::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
 
 		ui_rectangle retvalue;
@@ -1571,7 +1593,7 @@ namespace printui {
 		retvalue.foreground_index = parent_foreground_index;
 		retvalue.parent_object = l_id;
 
-		if(is_open) {
+		if(footer_is_open) {
 			retvalue.top_border = 1;
 			retvalue.bottom_border = 1;
 			retvalue.left_border = 1;
@@ -1590,7 +1612,7 @@ namespace printui {
 		auto const node_height = n.height;
 		auto const node_width = n.width;
 
-		if(is_open) {
+		if(footer_is_open) {
 			if(node_width <= 8) {
 				{
 					auto child_ref = win.create_node(&jump_back, 2, 1, false, true);
@@ -1680,7 +1702,7 @@ namespace printui {
 		}
 	}
 	layout_rect page_footer::get_content_rectangle(window_data& win) {
-		if(is_open) {
+		if(footer_is_open) {
 			auto nwidth = l_id != layout_reference_none ? win.get_node(l_id).width : 0ui16;
 			return layout_rect{ 0i16, (nwidth <= 8ui16) ? -2i16 : -1i16, 0i16, (nwidth <= 8ui16) ? 2i16 : 1i16 };
 		} else {
@@ -1688,19 +1710,19 @@ namespace printui {
 		}
 	}
 	void page_footer::on_focus(window_data& win) {
-		open_footer(win, false);
+		open(win, false);
 	}
 	void page_footer::on_lose_focus(window_data& win) {
-		close_footer(win, false);
+		close(win, false);
 	}
 
-	void page_footer::open_footer(window_data& win, bool move_focus) {
-		if(!is_open && l_id != layout_reference_none) {
+	void page_footer::open(window_data& win, bool move_focus) {
+		if(!footer_is_open && l_id != layout_reference_none) {
 
 			if(page_footer::footer_appearance.type != animation_type::none)
 				win.prepare_ui_animation();
 
-			is_open = true;
+			footer_is_open = true;
 
 			win.recreate_contents(this, &(win.get_node(l_id)));
 			win.redraw_ui();
@@ -1726,10 +1748,13 @@ namespace printui {
 					page_footer::footer_appearance.duration_seconds,
 					page_footer::footer_appearance.animate_in });
 			}
+
+			if(acc_obj)
+				win.accessibility_interface->on_expand_collapse(acc_obj, true);
 		}
 	}
-	void page_footer::close_footer(window_data& win, bool move_focus) {
-		if(is_open && l_id != layout_reference_none) {
+	void page_footer::close(window_data& win, bool move_focus) {
+		if(footer_is_open && l_id != layout_reference_none) {
 			screen_space_rect loc{};
 			if(page_footer::footer_disappearance.type != animation_type::none) {
 				auto nwidth = win.get_node(l_id).width;
@@ -1738,7 +1763,7 @@ namespace printui {
 				win.prepare_ui_animation();
 			}
 
-			is_open = false;
+			footer_is_open = false;
 
 			win.recreate_contents(this, &(win.get_node(l_id)));
 			win.redraw_ui();
@@ -1761,6 +1786,9 @@ namespace printui {
 					page_footer::footer_disappearance.duration_seconds,
 					page_footer::footer_disappearance.animate_in });
 			}
+
+			if(acc_obj)
+				win.accessibility_interface->on_expand_collapse(acc_obj, false);
 		}
 	}
 

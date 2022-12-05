@@ -194,12 +194,15 @@ namespace printui {
 
 		language_label.alt_text = text_id::language_info;
 		lang_menu.alt_text = text_id::language_info;
+		lang_menu.name = text_id::language_label;
 
 		orientation_label.alt_text = text_id::orientation_info;
 		orientation_list.alt_text_id = text_id::orientation_info;
+		orientation_list.name = text_id::orientation_label;
 
 		input_mode_label.alt_text = text_id::input_mode_info;
 		input_mode_list.alt_text_id = text_id::input_mode_info;
+		input_mode_list.name = text_id::input_mode_label;
 	}
 
 	accessibility_object* common_printui_settings::get_accessibility_interface(window_data& win) {
@@ -305,7 +308,7 @@ namespace printui {
 
 	void language_button::button_action(window_data& win) {
 		win.text_data.change_locale(lang, region, win);
-		win.window_bar.print_ui_settings.lang_menu.close_menu(win, true);
+		win.window_bar.print_ui_settings.lang_menu.close(win, true);
 	}
 
 	std::vector<layout_interface*> language_menu::get_options(window_data& win) {
@@ -332,13 +335,30 @@ namespace printui {
 		return result;
 	}
 	void language_menu::on_open(window_data& win) {
-		for(auto& ptr : win.window_bar.print_ui_settings.lang_menu.lbuttons) {
+		for(auto& ptr : lbuttons) {
 			language_button* b = static_cast<language_button*>(ptr.get());
 			b->set_selected(win, win.text_data.is_current_locale(b->lang, b->region));
 		}
 	}
 	void language_menu::on_close(window_data&) {
 
+	}
+	accessibility_object* language_menu::get_accessibility_interface(window_data& win) {
+		if(!acc_obj) {
+			acc_obj = win.accessibility_interface->make_expandable_selection_list(win, this, this, name, alt_text);
+		}
+		return acc_obj;
+	}
+	layout_interface* language_menu::selected_item() const {
+		layout_interface* sel = nullptr;
+		for(auto& ptr : lbuttons) {
+			language_button* b = static_cast<language_button*>(ptr.get());
+			if(b->is_selected()) {
+				sel = ptr.get();
+				break;
+			}
+		}
+		return sel;
 	}
 }
 
