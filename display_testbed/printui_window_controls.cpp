@@ -117,6 +117,7 @@ namespace printui {
 	}
 	vertical_2x2_info_icon::vertical_2x2_info_icon(window_data& win) : icon_button_base(text_id::info_name, text_id::info_info), win(win) {
 		ico = standard_icons::window_info;
+		category = button_category::toggle_button;
 		display_vertically = true;
 	}
 	void vertical_2x2_info_icon::button_action(window_data& w) {
@@ -179,26 +180,14 @@ namespace printui {
 		return spec;
 	}
 
-	auto_layout_specification window_bar_element::get_auto_layout_specification(window_data const& ) {
-		auto_layout_specification spec;
-
-		spec.orientation = content_orientation::page;
-		spec.internal_alignment = content_alignment::trailing;
-		spec.group_alignment = content_alignment::trailing;
-
-		return spec;
-	}
 	void window_bar_element::recreate_contents(window_data& win, layout_node& n) {
 		std::vector<layout_interface*> buttons;
 		buttons.reserve(5);
-
-		auto const bar_height = n.height;
 
 		if(setting_i.has_value()) {
 			buttons.push_back(&(*setting_i));
 		}
 		buttons.push_back(&info_i);
-
 		if(min_i.has_value()) {
 			buttons.push_back(&(*min_i));
 		}
@@ -206,15 +195,23 @@ namespace printui {
 			buttons.push_back(&(*max_i));
 		}
 		buttons.push_back(&close_i);
+		
+		n.height = std::max(n.height, uint16_t(buttons.size() * 3));
+		auto const bar_height = n.height;
+		int32_t v_off = bar_height - int32_t(buttons.size()) * 3;
+		for(auto b : buttons) {
+			auto bid = win.create_node(b, 2, 3, false, false);
+			win.immediate_add_child(l_id, bid);
+			win.get_node(bid).x = 0;
+			win.get_node(bid).y = uint16_t(v_off);
+			v_off += 3;
+		}
 
-		default_recreate_container(win, this, &n, buttons);
-
-		auto existing_sp_width = settings_pages.l_id != layout_reference_none ? win.get_node(settings_pages.l_id).width : 6;
-		auto settings_pages_id = win.create_node(&settings_pages, existing_sp_width, bar_height, true);
+		auto settings_pages_id = win.create_node(&settings_pages, win.layout_width - 2, bar_height, true);
 		auto& pages_node = win.get_node(settings_pages_id);
 		win.immediate_add_child(l_id, settings_pages_id);
 		pages_node.x = 2;
-		pages_node.ignore = !expanded_show_settings;
+		pages_node.set_ignore(!expanded_show_settings);
 	}
 	accessibility_object* window_bar_element::get_accessibility_interface(window_data& win) {
 		if(!acc_obj) {

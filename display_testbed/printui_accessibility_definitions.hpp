@@ -87,6 +87,7 @@ namespace printui {
         virtual void release_root_provider() override;
         virtual accessibility_object* make_action_button_accessibility_interface(window_data& w, button_control_base& b) override;
         virtual accessibility_object* make_selection_button_accessibility_interface(window_data& w, button_control_base& b) override;
+        virtual accessibility_object* make_toggle_button_accessibility_interface(window_data& w, button_control_toggle& b) override;
         virtual accessibility_object* make_icon_button_accessibility_interface(window_data& w, icon_button_base& b) override;
         virtual accessibility_object* make_icon_toggle_button_accessibility_interface(window_data& w, icon_button_base& b) override;
         virtual accessibility_object* make_open_list_control_accessibility_interface(window_data& w, open_list_control& b) override;
@@ -333,6 +334,46 @@ namespace printui {
         virtual ~icon_toggle_button_provider();
     private:
         icon_button_base* button = nullptr;
+
+        // Ref counter for this COM object.
+        ULONG m_refCount;
+    };
+
+    class text_toggle_button_provider : public disconnectable,
+        public IRawElementProviderSimple,
+        public IRawElementProviderFragment,
+        public IToggleProvider {
+    public:
+
+        text_toggle_button_provider(window_data& win, button_control_toggle& b);
+        void disconnect();
+
+        // IUnknown methods
+        IFACEMETHODIMP_(ULONG) AddRef();
+        IFACEMETHODIMP_(ULONG) Release();
+        IFACEMETHODIMP QueryInterface(REFIID riid, void** ppInterface);
+
+        // IRawElementProviderSimple methods
+        IFACEMETHODIMP get_ProviderOptions(ProviderOptions* pRetVal);
+        IFACEMETHODIMP GetPatternProvider(PATTERNID iid, IUnknown** pRetVal);
+        IFACEMETHODIMP GetPropertyValue(PROPERTYID idProp, VARIANT* pRetVal);
+        IFACEMETHODIMP get_HostRawElementProvider(IRawElementProviderSimple** pRetVal);
+
+        // IRawElementProviderFragment methods
+        IFACEMETHODIMP Navigate(NavigateDirection direction, IRawElementProviderFragment** pRetVal);
+        IFACEMETHODIMP GetRuntimeId(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP get_BoundingRectangle(UiaRect* pRetVal);
+        IFACEMETHODIMP GetEmbeddedFragmentRoots(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP SetFocus();
+        IFACEMETHODIMP get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal);
+
+        //IToggleProvider
+        IFACEMETHODIMP Toggle();
+        IFACEMETHODIMP get_ToggleState(__RPC__out enum ToggleState* pRetVal);
+
+        virtual ~text_toggle_button_provider();
+    private:
+        button_control_toggle* button = nullptr;
 
         // Ref counter for this COM object.
         ULONG m_refCount;

@@ -802,6 +802,200 @@ namespace printui {
     }
 
     //
+    // TEXT TOGGLE BUTTON PROVIDER
+    //
+
+    text_toggle_button_provider::text_toggle_button_provider(window_data& win, button_control_toggle& b) : disconnectable(win), button(&b), m_refCount(1) {
+    }
+
+    text_toggle_button_provider::~text_toggle_button_provider() {
+    }
+    IFACEMETHODIMP_(ULONG) text_toggle_button_provider::AddRef() {
+        return InterlockedIncrement(&m_refCount);
+    }
+
+    IFACEMETHODIMP_(ULONG) text_toggle_button_provider::Release() {
+        long val = InterlockedDecrement(&m_refCount);
+        if(val == 0) {
+            delete this;
+        }
+        return val;
+    }
+
+    IFACEMETHODIMP text_toggle_button_provider::QueryInterface(REFIID riid, void** ppInterface) {
+        if(riid == __uuidof(IUnknown))
+            *ppInterface = static_cast<IRawElementProviderSimple*>(this);
+        else if(riid == __uuidof(IRawElementProviderSimple))
+            *ppInterface = static_cast<IRawElementProviderSimple*>(this);
+        else if(riid == __uuidof(IRawElementProviderFragment))
+            *ppInterface = static_cast<IRawElementProviderFragment*>(this);
+        else if(riid == __uuidof(IToggleProvider))
+            *ppInterface = static_cast<IToggleProvider*>(this);
+        else {
+            *ppInterface = NULL;
+            return E_NOINTERFACE;
+        }
+        (static_cast<IUnknown*>(*ppInterface))->AddRef();
+        return S_OK;
+    }
+
+    IFACEMETHODIMP text_toggle_button_provider::get_ProviderOptions(ProviderOptions* pRetVal) {
+        *pRetVal = ProviderOptions_ServerSideProvider | ProviderOptions_RefuseNonClientSupport | ProviderOptions_UseComThreading;
+        return S_OK;
+    }
+
+    IFACEMETHODIMP text_toggle_button_provider::get_HostRawElementProvider(IRawElementProviderSimple** pRetVal) {
+        *pRetVal = nullptr;
+        return S_OK;
+    }
+
+    IFACEMETHODIMP text_toggle_button_provider::GetPatternProvider(PATTERNID iid, IUnknown** pRetVal) {
+        *pRetVal = nullptr;
+        if(iid == UIA_TogglePatternId) {
+            *pRetVal = static_cast<IToggleProvider*>(this);
+            AddRef();
+        }
+        return S_OK;
+    }
+
+    IFACEMETHODIMP text_toggle_button_provider::GetPropertyValue(PROPERTYID propertyId, VARIANT* pRetVal) {
+        VariantInit(pRetVal);
+        switch(propertyId) {
+            case UIA_ControlTypePropertyId:
+                pRetVal->vt = VT_I4;
+                pRetVal->lVal = UIA_ButtonControlTypeId;
+                break;
+            case UIA_IsKeyboardFocusablePropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_FALSE;
+                break;
+            case UIA_IsContentElementPropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_TRUE;
+                break;
+            case UIA_IsControlElementPropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_TRUE;
+                break;
+            case UIA_IsTogglePatternAvailablePropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_TRUE;
+                break;
+            case UIA_IsEnabledPropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = button && button->is_disabled() ? VARIANT_FALSE : VARIANT_TRUE;
+                break;
+            case UIA_ToggleToggleStatePropertyId:
+                pRetVal->vt = VT_I4;
+                pRetVal->lVal = button && button->toggle_is_on ? ToggleState::ToggleState_On : ToggleState::ToggleState_Off;
+                break;
+            case UIA_NamePropertyId:
+                if(button) {
+                    auto resolved_text = button->get_raw_text(win);
+                    pRetVal->vt = VT_BSTR;
+                    pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
+                }
+                break;
+            case UIA_HelpTextPropertyId:
+                if(button) {
+                    auto resolved_text = win.text_data.instantiate_text(button->get_alt_text()).text_content.text;
+                    pRetVal->vt = VT_BSTR;
+                    pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
+                }
+                break;
+            case UIA_BoundingRectanglePropertyId:
+            {
+                pRetVal->vt = VT_R8 | VT_ARRAY;
+                SAFEARRAY* psa = SafeArrayCreateVector(VT_R8, 0, 4);
+                pRetVal->parray = psa;
+
+                if(psa == nullptr) {
+                    return E_OUTOFMEMORY;
+                }
+                auto window_rect = win.window_interface->get_window_location();
+                auto client_rect = (button && button->l_id != layout_reference_none) ?
+                    win.get_current_location(button->l_id) :
+                    screen_space_rect{ 0,0,0,0 };
+                double uiarect[] = { double(window_rect.x + client_rect.x), double(window_rect.y + client_rect.y), double(client_rect.width), double(client_rect.height) };
+                for(LONG i = 0; i < 4; i++) {
+                    SafeArrayPutElement(psa, &i, (void*)&(uiarect[i]));
+                }
+                break;
+            }
+            case UIA_HasKeyboardFocusPropertyId:
+                pRetVal->vt = VT_BOOL;
+                pRetVal->boolVal = VARIANT_FALSE;
+                break;
+        }
+        return S_OK;
+    }
+
+    IFACEMETHODIMP text_toggle_button_provider::Navigate(NavigateDirection direction, IRawElementProviderFragment** pRetVal) {
+        *pRetVal = nullptr;
+
+        if(!button)
+            return S_OK;
+
+        return generic_navigate(direction, pRetVal, win, button->l_id);
+    }
+    IFACEMETHODIMP text_toggle_button_provider::GetRuntimeId(SAFEARRAY** pRetVal) {
+        if(pRetVal == NULL) {
+            return E_INVALIDARG;
+        }
+        size_t ptr_value = reinterpret_cast<size_t>(button);
+        int rId[] = { UiaAppendRuntimeId, int32_t(ptr_value & 0xFFFFFFFF), int32_t(ptr_value >> 32) };
+        SAFEARRAY* psa = SafeArrayCreateVector(VT_I4, 0, 3);
+        if(psa == NULL) {
+            return E_OUTOFMEMORY;
+        }
+        for(LONG i = 0; i < 3; i++) {
+            SafeArrayPutElement(psa, &i, (void*)&(rId[i]));
+        }
+
+        *pRetVal = psa;
+        return S_OK;
+    }
+    IFACEMETHODIMP text_toggle_button_provider::get_BoundingRectangle(UiaRect* pRetVal) {
+        auto window_rect = win.window_interface->get_window_location();
+        auto client_rect = button && button->l_id != layout_reference_none ?
+            win.get_current_location(button->l_id) :
+            screen_space_rect{ 0,0,0,0 };
+
+        pRetVal->left = window_rect.x + client_rect.x;
+        pRetVal->top = window_rect.y + client_rect.y;
+        pRetVal->width = client_rect.width;
+        pRetVal->height = client_rect.height;
+        return S_OK;
+    }
+    IFACEMETHODIMP text_toggle_button_provider::GetEmbeddedFragmentRoots(SAFEARRAY** pRetVal) {
+        *pRetVal = nullptr;
+        return S_OK;
+    }
+    IFACEMETHODIMP text_toggle_button_provider::SetFocus() {
+        return S_OK;
+    }
+    IFACEMETHODIMP text_toggle_button_provider::get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal) {
+        if(auto root = win.accessibility_interface->peek_root_window_provider(); root) {
+            return root->get_FragmentRoot(pRetVal);
+        } else {
+            *pRetVal = nullptr;
+            return S_OK;
+        }
+    }
+    IFACEMETHODIMP text_toggle_button_provider::Toggle() {
+        if(button)
+            button->on_click(win, 0, 0);
+        return S_OK;
+    }
+    IFACEMETHODIMP text_toggle_button_provider::get_ToggleState(__RPC__out enum ToggleState* pRetVal) {
+        *pRetVal = button && button->toggle_is_on ? ToggleState::ToggleState_On : ToggleState::ToggleState_Off;
+        return S_OK;
+    }
+    void text_toggle_button_provider::disconnect() {
+        button = nullptr;
+    }
+
+    //
     // ICON BUTTON PROVIDER
     //
 
@@ -2341,6 +2535,10 @@ namespace printui {
     }
     accessibility_object* win32_accessibility::make_selection_button_accessibility_interface(window_data& w, button_control_base& b) {
         auto iunk = static_cast<disconnectable*>(new text_list_button_provider(w, b));
+        return (accessibility_object*)iunk;
+    }
+    accessibility_object* win32_accessibility::make_toggle_button_accessibility_interface(window_data& w, button_control_toggle& b) {
+        auto iunk = static_cast<disconnectable*>(new text_toggle_button_provider(w, b));
         return (accessibility_object*)iunk;
     }
     accessibility_object* win32_accessibility::make_icon_button_accessibility_interface(window_data& w, icon_button_base& b) {

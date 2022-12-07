@@ -240,6 +240,11 @@ namespace printui {
 		icons[control_prev_prev].ysize = 1;
 		icons[control_prev_prev].edge_padding = 0.0f;
 
+		icons[control_toggle].file_name = L"control_toggle.svg";
+		icons[control_toggle].xsize = 1;
+		icons[control_toggle].ysize = 1;
+		icons[control_toggle].edge_padding = 0.0f;
+
 
 		icons[window_settings].file_name = L"settings_i.svg";
 		icons[window_settings].xsize = 2;

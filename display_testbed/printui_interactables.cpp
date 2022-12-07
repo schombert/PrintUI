@@ -205,7 +205,7 @@ namespace printui {
 
 		bool try_node(layout_reference r) {
 			auto& cn = lm.get_node(r);
-			if(cn.ignore) {
+			if(cn.ignore()) {
 				return false;
 			} else if(cn.page_info()) {
 				std::optional<int32_t> count = lm.interactables_at_node_over_threshold(cn, interactable_threshold_count);

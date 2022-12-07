@@ -24,6 +24,15 @@
 #include "printui_windows_definitions.hpp"
 #include "printui_accessibility_definitions.hpp"
 
+#define XINPUT_ON_GAMEINPUT_NO_XINPUTENABLE
+
+#include "xinput.h"
+#include <hidsdi.h>
+#include <hidpi.h>
+
+#pragma comment(lib, "Xinput.lib")
+#pragma comment(lib, "Xinput9_1_0.lib")
+
 namespace printui {
 
 	os_win32_wrapper::os_win32_wrapper() {
@@ -167,6 +176,15 @@ namespace printui {
 
 			if(UiaHasServerSideProvider(m_hwnd))
 				OutputDebugStringA("provider found\n");
+
+			RAWINPUTDEVICE deviceList[2];
+			deviceList[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
+			deviceList[0].usUsage = HID_USAGE_GENERIC_GAMEPAD;
+			deviceList[0].dwFlags = RIDEV_INPUTSINK | RIDEV_DEVNOTIFY;
+			deviceList[0].hwndTarget = m_hwnd;
+			deviceList[1] = deviceList[0];
+			deviceList[1].usUsage = HID_USAGE_GENERIC_JOYSTICK;
+			RegisterRawInputDevices(deviceList, 2, sizeof(RAWINPUTDEVICE));
 
 			return true;
 		}
@@ -334,28 +352,28 @@ namespace printui {
 
 	void window_data::create_highlight_brushes() {
 		d2d_device_context->CreateSolidColorBrush(
-			D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.08f),
+			D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.11f),
 			&light_selected
 		);
 		d2d_device_context->CreateSolidColorBrush(
-			D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.16f),
+			D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.06f),
 			&light_line
 		);
 		d2d_device_context->CreateSolidColorBrush(
-			D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.24f),
+			D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.15f),
 			&light_selected_line
 		);
 
 		d2d_device_context->CreateSolidColorBrush(
-			D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.07f),
+			D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.11f),
 			&dark_selected
 		);
 		d2d_device_context->CreateSolidColorBrush(
-			D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.14f),
+			D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.06f),
 			&dark_line
 		);
 		d2d_device_context->CreateSolidColorBrush(
-			D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.21f),
+			D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.15f),
 			&dark_selected_line
 		);
 	}
@@ -598,9 +616,10 @@ namespace printui {
 		}
 
 		if(dynamic_settings.imode == input_mode::follow_input) {
-			if(window_interface->is_mouse_cursor_visible()) {
+			if(window_interface->is_mouse_cursor_visible() || prompts != printui::prompt_mode::keyboard) {
 				window_interface->hide_mouse_cursor();
 				set_prompt_visibility(printui::prompt_mode::keyboard);
+				set_window_focus(nullptr);
 				window_interface->invalidate_window();
 				return true; // eat the key so that we don't do something bad
 			}
@@ -625,10 +644,138 @@ namespace printui {
 		return true;
 	}
 
+	void window_data::on_device_change(uint64_t /*status*/, void* /*handle*/) {
+		auto old_number = controller_number_plugged_in;
+		controller_number_plugged_in = 0;
+
+		for(uint32_t i = 0; i < 4; ++i) {
+			XINPUT_STATE state;
+			ZeroMemory(&state, sizeof(XINPUT_STATE));
+
+			if(XInputGetState(i, &state) == ERROR_SUCCESS) {
+				controller_number_plugged_in |= (1 << i);
+			}
+		}
+		if(controller_number_plugged_in != old_number) {
+			if(auto p = window_bar.print_ui_settings.input_mode_list.get_option(size_t(input_mode::controller_with_pointer)); p)
+				p->set_disabled(*this, controller_number_plugged_in == 0);
+			if(auto p = window_bar.print_ui_settings.input_mode_list.get_option(size_t(input_mode::controller_only)); p)
+				p->set_disabled(*this, controller_number_plugged_in == 0);
+			window_interface->invalidate_window();
+		}
+
+		/* -- FOR ACTUAL HID CONTROLLERS 
+		
+		WCHAR deviceName[1024] = { 0 };
+		UINT deviceNameLength = 1024;
+		bool gotName = GetRawInputDeviceInfo((HANDLE)handle, RIDI_DEVICENAME, deviceName, &deviceNameLength) > 0;
+		
+
+		if(gotName) {
+			if(status == GIDC_ARRIVAL) {
+				// if we handled HID joysticks
+			} else if(status == GIDC_REMOVAL) {
+				// if we handled HID joysticks
+			}
+		}
+		*/
+	}
+
+	void test_for_button(uint32_t& new_buttons_pressed, uint32_t& new_buttons_released, uint32_t& button_state, WORD gamepadstate, uint32_t gamepadmask, uint32_t button_storage_mask) {
+
+		if((gamepadstate & gamepadmask) != 0) {
+			if((button_state & button_storage_mask) == 0) {
+				button_state |= button_storage_mask;
+				new_buttons_pressed |= button_storage_mask;
+			}
+		} else {
+			if((button_state & button_storage_mask) != 0) {
+				button_state &= ~button_storage_mask;
+				new_buttons_released |= button_storage_mask;
+			}
+		}
+
+	}
+
+	void window_data::on_controller_input() {
+		if(dynamic_settings.imode == input_mode::follow_input) {
+			// switch below
+		} else if(dynamic_settings.imode != input_mode::controller_only && dynamic_settings.imode != input_mode::controller_with_pointer) {
+			return;
+		}
+
+		for(uint32_t i = 0; i < 4; ++i) {
+			if(((1 << i) & controller_number_plugged_in) != 0) {
+				XINPUT_STATE state;
+				ZeroMemory(&state, sizeof(XINPUT_STATE));
+
+				if(XInputGetState(i, &state) == ERROR_SUCCESS) {
+					// Controller is connected
+					
+					uint32_t buttons_pressed = 0;
+					uint32_t buttons_released = 0;
+					test_for_button(buttons_pressed, buttons_released, controller_buttons.val, state.Gamepad.wButtons, XINPUT_GAMEPAD_LEFT_SHOULDER, controller_buttons.button_lb);
+					test_for_button(buttons_pressed, buttons_released, controller_buttons.val, state.Gamepad.wButtons, XINPUT_GAMEPAD_RIGHT_SHOULDER, controller_buttons.button_rb);
+					test_for_button(buttons_pressed, buttons_released, controller_buttons.val, state.Gamepad.wButtons, XINPUT_GAMEPAD_Y, controller_buttons.button_y);
+					test_for_button(buttons_pressed, buttons_released, controller_buttons.val, state.Gamepad.wButtons, XINPUT_GAMEPAD_X, controller_buttons.button_x);
+					test_for_button(buttons_pressed, buttons_released, controller_buttons.val, state.Gamepad.wButtons, XINPUT_GAMEPAD_B, controller_buttons.button_b);
+					test_for_button(buttons_pressed, buttons_released, controller_buttons.val, state.Gamepad.wButtons, XINPUT_GAMEPAD_A, controller_buttons.button_a);
+
+					if(buttons_pressed || buttons_released) {
+						if(dynamic_settings.imode == input_mode::follow_input) {
+							if(window_interface->is_mouse_cursor_visible() || prompts != printui::prompt_mode::controller) {
+								window_interface->hide_mouse_cursor();
+								set_prompt_visibility(printui::prompt_mode::controller);
+								set_window_focus(nullptr);
+								window_interface->invalidate_window();
+								return; // eat the key so that we don't do something bad
+							}
+						}
+
+
+						if((buttons_released & (controller_buttons.button_lb | controller_buttons.button_rb)) != 0) {
+							window_interface->invalidate_window();
+						}
+						if((buttons_pressed & (controller_buttons.button_lb | controller_buttons.button_rb)) != 0) {
+							window_interface->invalidate_window();
+
+							if((controller_buttons.val & (controller_buttons.button_lb | controller_buttons.button_rb)) == (controller_buttons.button_lb | controller_buttons.button_rb)) {
+								execute_focus_action(focus_actions.escape);
+								return;
+							}
+						}
+
+						int32_t action_offset = 0;
+						if((controller_buttons.val & controller_buttons.button_lb) != 0) {
+							action_offset = 4;
+						} else if((controller_buttons.val & controller_buttons.button_rb) != 0) {
+							action_offset = 8;
+						}
+
+						if((buttons_pressed & controller_buttons.button_y) != 0) {
+							execute_focus_action(focus_actions.button_actions[action_offset + 0]);
+						} else if((buttons_pressed & controller_buttons.button_x) != 0) {
+							execute_focus_action(focus_actions.button_actions[action_offset + 1]);
+						} else if((buttons_pressed & controller_buttons.button_b) != 0) {
+							execute_focus_action(focus_actions.button_actions[action_offset + 2]);
+						} else if((buttons_pressed & controller_buttons.button_a) != 0) {
+							execute_focus_action(focus_actions.button_actions[action_offset + 3]);
+						}
+
+						return; // only process one controller
+					} // end if some button was pressed
+				} else { // else -- controller could not be read, stop trying it
+					controller_number_plugged_in &= ~(1 << i);
+				}
+			}
+		} // end loop over xinput controllers
+	}
+
 	bool window_data::on_key_up(uint32_t scan_code, uint32_t /*key_code*/) {
 		if(scan_code == primary_right_click_modifier_sc || scan_code == secondary_right_click_modifier_sc) {
 			pending_right_click = false;
 			window_bar.info_i.mark_for_update(*this);
+			return true;
 		}
 
 		if(dynamic_settings.imode == input_mode::follow_input) {
@@ -925,6 +1072,21 @@ namespace printui {
 						}
 						break;
 					}
+					case WM_ACTIVATEAPP:
+						if(wParam == TRUE) {
+							// being activated
+							// XInputEnable(TRUE);
+						} else {
+							// being deactivated
+							// XInputEnable(FALSE);
+						}
+						return 0;
+					case WM_INPUT:
+						app->on_controller_input();
+						return 0;
+					case WM_INPUT_DEVICE_CHANGE:
+						app->on_device_change(wParam, (HANDLE)lParam);
+						return 0;
 					default:
 						break;
 				}
@@ -1245,7 +1407,7 @@ namespace printui {
 		start_ui_animation(animation_description{ screen_rect, animation_type::flip, animation_direction::left, 0.5f, true});
 
 		window_bar.expanded_show_settings = true;
-		get_node(window_bar.settings_pages.l_id).ignore = false;
+		get_node(window_bar.settings_pages.l_id).set_ignore(false);
 		redraw_ui();
 
 		if(window_bar.acc_obj) {
@@ -1266,7 +1428,7 @@ namespace printui {
 		start_ui_animation(animation_description{ screen_rect, animation_type::flip, animation_direction::left, 0.5f, false });
 
 		window_bar.expanded_show_settings = false;
-		get_node(window_bar.settings_pages.l_id).ignore = true;
+		get_node(window_bar.settings_pages.l_id).set_ignore(true);
 		redraw_ui();
 
 		if(window_bar.acc_obj) {

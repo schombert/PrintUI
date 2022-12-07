@@ -96,6 +96,11 @@ void main_window::load_default_dynamic_settings() {
 	text_data.register_name("page_next_next_name", text_id::page_next_next_name);
 	text_data.register_name("page_footer_name", text_id::page_footer_name);
 	text_data.register_name("page_footer_info", text_id::page_footer_info);
+
+	text_data.register_name("generic_toggle_on", text_id::generic_toggle_on);
+	text_data.register_name("generic_toggle_off", text_id::generic_toggle_off);
+	text_data.register_name("ui_animations_label", text_id::ui_animations_label);
+	text_data.register_name("ui_animations_info", text_id::ui_animations_info);
 }
 
 int WINAPI wWinMain(

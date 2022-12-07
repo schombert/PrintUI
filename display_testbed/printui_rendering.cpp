@@ -601,11 +601,12 @@ namespace printui {
 		}
 	}
 
-	void flag_for_update_from_interface(window_data& lm, render_interface const* i) {
+	void window_data::flag_for_update_from_interface(render_interface const* i) {
 		if(i->l_id != layout_reference_none) {
-			auto& n = lm.get_node(i->l_id);
-			if(n.visible_rect < lm.get_ui_rects().size()) {
-				lm.get_ui_rects()[n.visible_rect].display_flags |= ui_rectangle::flag_needs_update;
+			auto& n = get_node(i->l_id);
+			if(n.visible_rect < get_ui_rects().size()) {
+				get_ui_rects()[n.visible_rect].display_flags |= ui_rectangle::flag_needs_update;
+				window_interface->invalidate_window();
 			}
 		}
 	}
@@ -671,6 +672,29 @@ namespace printui {
 			d2d_device_context->EndDraw();
 		}
 
+		std::array<ID2D1Bitmap1*, 12> button_text_bitmaps;
+		wchar_t button_names[] = { L'Y', L'X', L'B', L'A', L'L', L'R', L'-' };
+
+		for(uint32_t i = 0; i < 7; ++i) {
+
+			d2d_device_context->CreateBitmap(
+				D2D1_SIZE_U{ uint32_t(layout_size), uint32_t(layout_size) }, nullptr, 0,
+				D2D1_BITMAP_PROPERTIES1{
+					D2D1::PixelFormat(DXGI_FORMAT_A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED),
+					dpi, dpi, D2D1_BITMAP_OPTIONS_TARGET, nullptr },
+					& button_text_bitmaps[i]);
+
+			d2d_device_context->SetTarget(button_text_bitmaps[i]);
+			d2d_device_context->BeginDraw();
+			d2d_device_context->Clear(D2D1_COLOR_F{ 0.0f,0.0f,0.0f,0.0f });
+
+			d2d_device_context->DrawTextW(button_names + i, 1, label_format,
+				D2D1_RECT_F{ 0.0f, dynamic_settings.primary_font.baseline - baseline, float(layout_size), dynamic_settings.primary_font.baseline - baseline + float(layout_size) },
+				dummy_brush);
+
+			d2d_device_context->EndDraw();
+		}
+
 		ID2D1Effect* arithmeticCompositeEffect;
 		d2d_device_context->CreateEffect(CLSID_D2D1ArithmeticComposite, &arithmeticCompositeEffect);
 		arithmeticCompositeEffect->SetValue(D2D1_ARITHMETICCOMPOSITE_PROP_COEFFICIENTS, D2D1::Vector4F(0.0f, 1.0f, -1.0f, 0.0f));
@@ -690,6 +714,26 @@ namespace printui {
 					&(horizontal_interactable[i]));
 			d2d_device_context->BeginDraw();
 			d2d_device_context->SetTarget(horizontal_interactable[i]);
+			d2d_device_context->Clear(D2D1_COLOR_F{ 0.0f,0.0f,0.0f,0.0f });
+
+			d2d_device_context->DrawImage(arithmeticCompositeEffect);
+			d2d_device_context->SetTarget(nullptr);
+			d2d_device_context->EndDraw();
+		}
+
+		for(uint32_t i = 0; i < 7; ++i) {
+			arithmeticCompositeEffect->SetInput(1, button_text_bitmaps[i]);
+
+			safe_release(horizontal_controller_interactable[i]);
+
+			d2d_device_context->CreateBitmap(
+				D2D1_SIZE_U{ uint32_t(layout_size), uint32_t(layout_size) }, nullptr, 0,
+				D2D1_BITMAP_PROPERTIES1{
+					D2D1::PixelFormat(DXGI_FORMAT_A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED),
+					dpi, dpi, D2D1_BITMAP_OPTIONS_TARGET, nullptr },
+					&(horizontal_controller_interactable[i]));
+			d2d_device_context->BeginDraw();
+			d2d_device_context->SetTarget(horizontal_controller_interactable[i]);
 			d2d_device_context->Clear(D2D1_COLOR_F{ 0.0f,0.0f,0.0f,0.0f });
 
 			d2d_device_context->DrawImage(arithmeticCompositeEffect);
@@ -720,10 +764,34 @@ namespace printui {
 			d2d_device_context->EndDraw();
 		}
 
+		for(uint32_t i = 0; i < 7; ++i) {
+			arithmeticCompositeEffect->SetInput(1, button_text_bitmaps[i]);
+
+			safe_release(vertical_controller_interactable[i]);
+
+			d2d_device_context->CreateBitmap(
+				D2D1_SIZE_U{ uint32_t(layout_size), uint32_t(layout_size) }, nullptr, 0,
+				D2D1_BITMAP_PROPERTIES1{
+					D2D1::PixelFormat(DXGI_FORMAT_A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED),
+					dpi, dpi, D2D1_BITMAP_OPTIONS_TARGET, nullptr },
+					&(vertical_controller_interactable[i]));
+			d2d_device_context->BeginDraw();
+			d2d_device_context->SetTarget(vertical_controller_interactable[i]);
+			d2d_device_context->Clear(D2D1_COLOR_F{ 0.0f,0.0f,0.0f,0.0f });
+
+
+			d2d_device_context->DrawImage(arithmeticCompositeEffect);
+			d2d_device_context->SetTarget(nullptr);
+			d2d_device_context->EndDraw();
+		}
+
 		safe_release(arithmeticCompositeEffect);
 
 		for(uint32_t i = 0; i < 12; ++i) {
 			safe_release(text_bitmaps[i]);
+		}
+		for(uint32_t i = 0; i < 7; ++i) {
+			safe_release(button_text_bitmaps[i]);
 		}
 
 		safe_release(label_format);
@@ -1320,20 +1388,65 @@ namespace printui {
 		}
 		void interactable(window_data& win, ID2D1DeviceContext5* dc, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical) {
 
-			auto is_light = win.dynamic_settings.brushes[fg_brush].is_light_color;
-			auto resolved_brush = is_light ?
-				(win.dynamic_settings.light_interactable_brush >= 0 ? win.dynamic_settings.light_interactable_brush : fg_brush) :
-				(win.dynamic_settings.dark_interactable_brush >= 0 ? win.dynamic_settings.dark_interactable_brush : fg_brush);
+			if(win.prompts != prompt_mode::controller) {
+				auto is_light = win.dynamic_settings.brushes[fg_brush].is_light_color;
+				auto resolved_brush = is_light ?
+					(win.dynamic_settings.light_interactable_brush >= 0 ? win.dynamic_settings.light_interactable_brush : fg_brush) :
+					(win.dynamic_settings.dark_interactable_brush >= 0 ? win.dynamic_settings.dark_interactable_brush : fg_brush);
 
-			if(state.holds_key()) {
-				dc->SetTransform(D2D1::Matrix3x2F::Translation(float(location.x), float(location.y)));
-				dc->FillOpacityMask(
-					vertical ? win.vertical_interactable[state.get_key()] : win.horizontal_interactable[state.get_key()],
-					win.palette[resolved_brush],
-					D2D1_OPACITY_MASK_CONTENT_GRAPHICS);
-				dc->SetTransform(D2D1::Matrix3x2F::Identity());
-			} else if(state.holds_group()) {
-				// TODO
+				if(state.holds_key()) {
+					dc->SetTransform(D2D1::Matrix3x2F::Translation(float(location.x), float(location.y)));
+					dc->FillOpacityMask(
+						vertical ? win.vertical_interactable[state.get_key()] : win.horizontal_interactable[state.get_key()],
+						win.palette[resolved_brush],
+						D2D1_OPACITY_MASK_CONTENT_GRAPHICS);
+					dc->SetTransform(D2D1::Matrix3x2F::Identity());
+				} else if(state.holds_group()) {
+					// TODO
+				}
+			} else {
+				auto is_light = win.dynamic_settings.brushes[fg_brush].is_light_color;
+				auto resolved_brush = is_light ?
+					(win.dynamic_settings.light_interactable_brush >= 0 ? win.dynamic_settings.light_interactable_brush : fg_brush) :
+					(win.dynamic_settings.dark_interactable_brush >= 0 ? win.dynamic_settings.dark_interactable_brush : fg_brush);
+
+				if(state.holds_key()) {
+					dc->SetTransform(D2D1::Matrix3x2F::Translation(float(location.x), float(location.y)));
+
+					int32_t resolved_icon = 0;
+					if((win.controller_buttons.val & (win.controller_buttons.button_lb | win.controller_buttons.button_rb)) == 0) {
+						if(state.get_key() < 4) {
+							resolved_icon = state.get_key();
+						} else if(state.get_key() < 8) {
+							resolved_icon = 4;
+						} else {
+							resolved_icon = 5;
+						}
+					} else if((win.controller_buttons.val & win.controller_buttons.button_lb ) != 0) {
+						if(state.get_key() < 4) {
+							resolved_icon = 6;
+						} else if(state.get_key() < 8) {
+							resolved_icon = state.get_key() - 4;
+						} else {
+							resolved_icon = 5;
+						}
+					} else {
+						if(state.get_key() < 4) {
+							resolved_icon = 6;
+						} else if(state.get_key() < 8) {
+							resolved_icon = 4;
+						} else {
+							resolved_icon = state.get_key() - 8;
+						}
+					}
+					dc->FillOpacityMask(
+						vertical ? win.vertical_controller_interactable[resolved_icon] : win.horizontal_controller_interactable[resolved_icon],
+						win.palette[resolved_brush],
+						D2D1_OPACITY_MASK_CONTENT_GRAPHICS);
+					dc->SetTransform(D2D1::Matrix3x2F::Identity());
+				} else if(state.holds_group()) {
+					// TODO
+				}
 			}
 		}
 	}
@@ -1342,6 +1455,9 @@ namespace printui {
 		animation_status.is_running = false;
 	}
 	void window_data::prepare_ui_animation() {
+		if(ui_animations_on == false)
+			return;
+
 		stop_ui_animations();
 
 		refresh_foregound();
@@ -1359,6 +1475,9 @@ namespace printui {
 	}
 
 	void window_data::start_ui_animation(animation_description description) {
+		if(ui_animations_on == false)
+			return;
+
 		animation_status.description = description;
 		animation_status.description.animated_region = render::extend_rect_to_edges(animation_status.description.animated_region, *this);
 
