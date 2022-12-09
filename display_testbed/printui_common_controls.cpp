@@ -116,25 +116,6 @@ namespace printui {
 		}
 	}
 
-	button_control_base::~button_control_base() {
-	}
-	layout_node_type button_control_base::get_node_type() {
-		return layout_node_type::control;
-	}
-	ui_rectangle button_control_base::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
-
-		ui_rectangle retvalue;
-
-		retvalue.background_index = parent_background_index;
-		retvalue.foreground_index = parent_foreground_index;
-		retvalue.display_flags = (!disabled) ? ui_rectangle::flag_interactable : 0ui8;
-		retvalue.parent_object = this;
-
-		return retvalue;
-	}
-	void button_control_base::recreate_contents(window_data&, layout_node&) {
-	}
-
 	layout_position common_prepare_base_text_layout(window_data const& win, IDWriteTextLayout*& formatted_text, std::wstring const& text, content_alignment text_alignment, bool use_large_size) {
 		layout_position result;
 
@@ -317,6 +298,428 @@ namespace printui {
 		}
 	}
 
+	//
+	// SIMPLE EDIT CONTROL
+	//
+
+	simple_editable_text::simple_editable_text(content_alignment text_alignment, uint16_t alt_text, uint8_t minimum_layout_space) : analysis_obj(text::make_analysis_object()), text_alignment(text_alignment), alt_text(alt_text), minimum_layout_space(minimum_layout_space) {
+	}
+	simple_editable_text::~simple_editable_text() {
+		safe_release(formatted_text);
+	}
+
+	void simple_editable_text::prepare_selection_regions(window_data const& win) {
+		if(selection_out_of_date) {
+			cached_selection_region.clear();
+
+			if(anchor_position != cursor_position && formatted_text) {
+				prepare_analysis(win);
+
+				auto selection_start = std::min(anchor_position, cursor_position);
+				auto selection_end = std::max(anchor_position, cursor_position);
+
+				uint32_t metrics_size = 0;
+				formatted_text->HitTestTextRange(selection_start, selection_end - selection_start, 0, 0, nullptr, 0, &metrics_size);
+
+				std::vector<DWRITE_HIT_TEST_METRICS> mstorage(metrics_size);
+				formatted_text->HitTestTextRange(selection_start, selection_end - selection_start, 0, 0, mstorage.data(), metrics_size, &metrics_size);
+
+				for(auto& r : mstorage) {
+					bool left_to_right_section = (r.bidiLevel % 1) == 0;
+
+					if(r.length > 1 && r.textPosition < selection_start && selection_start < r.textPosition + r.length) {
+						int32_t num_positions_in_metrics = std::max(text::number_of_cursor_positions_in_range(analysis_obj, text, r.textPosition, r.length), 1);
+						int32_t num_positions_after_start = text::number_of_cursor_positions_in_range(analysis_obj, text, selection_start, (r.textPosition + r.length) - selection_start);
+						float percentage_through_region = float(num_positions_in_metrics - num_positions_after_start) / float(num_positions_in_metrics);
+						if(horizontal(win.orientation)) {
+							if(left_to_right_section) {
+								cached_selection_region.push_back(selection_run{
+									int32_t(std::round(r.left + r.width * percentage_through_region)),
+									int32_t(std::round(r.left + r.width)) });
+							} else {
+								cached_selection_region.push_back(selection_run{
+									int32_t(std::round(r.left)),
+									int32_t(std::round(r.left + r.width * (1.0f - percentage_through_region))) });
+							}
+						} else {
+							if(left_to_right_section) {
+								cached_selection_region.push_back(selection_run{
+									int32_t(std::round(r.top + r.height * percentage_through_region)),
+									int32_t(std::round(r.top + r.height)) });
+							} else {
+								cached_selection_region.push_back(selection_run{
+									int32_t(std::round(r.top)),
+									int32_t(std::round(r.top + r.height * (1.0f - percentage_through_region))) });
+							}
+						}
+					} else if(r.length > 1 && r.textPosition < selection_end && selection_end < r.textPosition + r.length - 1) {
+						int32_t num_positions_in_metrics = std::max(text::number_of_cursor_positions_in_range(analysis_obj, text, r.textPosition, r.length), 1);
+						int32_t num_positions_before_end = text::number_of_cursor_positions_in_range(analysis_obj, text, r.textPosition, selection_end - r.textPosition);
+						float percentage_through_region = float(num_positions_before_end) / float(num_positions_in_metrics);
+
+						if(horizontal(win.orientation)) {
+							if(left_to_right_section) {
+								cached_selection_region.push_back(selection_run{
+									int32_t(std::round(r.left)),
+									int32_t(std::round(r.left + r.width * percentage_through_region)) });
+							} else {
+								cached_selection_region.push_back(selection_run{
+									int32_t(std::round(r.left + r.width * (1.0f - percentage_through_region))),
+									int32_t(std::round(r.left + r.width )) });
+							}
+						} else {
+							if(left_to_right_section) {
+								cached_selection_region.push_back(selection_run{
+									int32_t(std::round(r.top)),
+									int32_t(std::round(r.top + r.height * percentage_through_region)) });
+							} else {
+								cached_selection_region.push_back(selection_run{
+									int32_t(std::round(r.top + r.height * (1.0f - percentage_through_region))),
+									int32_t(std::round(r.top + r.height)) });
+							}
+						}
+					} else {
+						if(horizontal(win.orientation)) {
+							cached_selection_region.push_back(selection_run{
+								int32_t(std::round(r.left)),
+								int32_t(std::round(r.left + r.width)) });
+							
+						} else {
+							cached_selection_region.push_back(selection_run{
+								int32_t(std::round(r.top)),
+								int32_t(std::round(r.top + r.height)) });
+						}
+					}
+				} // end loop through ea. selection region
+			}
+
+			cached_cursor_postion = 0;
+			if(formatted_text) {
+				DWRITE_HIT_TEST_METRICS curmetrics{};
+				float xout = 0.0f;
+				float yout = 0.0f;
+
+				bool is_at_text_end = cursor_position == text.length();
+				formatted_text->HitTestTextPosition(
+					is_at_text_end ? cursor_position - 1 :
+					cursor_position, is_at_text_end ? TRUE : FALSE,
+					&xout, &yout, &curmetrics);
+
+				float coff_pos = 0.0f;
+				bool left_to_right_section = (curmetrics.bidiLevel % 1) == 0;
+
+				if(is_at_text_end) {
+					if(horizontal(win.orientation)) {
+						coff_pos =  curmetrics.left + (left_to_right_section ? curmetrics.width : 0.0f);
+					} else {
+						coff_pos = curmetrics.top + (left_to_right_section ? curmetrics.height : 0.0f);
+					}
+				} else {
+					std::wstring_view tv(text);
+					int32_t num_positions_in_metrics = std::max(text::number_of_cursor_positions_in_range(analysis_obj, text, curmetrics.textPosition, curmetrics.length), 1);
+					if(num_positions_in_metrics == 1 || curmetrics.length == 0) {
+						if(horizontal(win.orientation)) {
+							coff_pos = curmetrics.left + (left_to_right_section ? 0.0f : curmetrics.width);
+						} else {
+							coff_pos = curmetrics.top + (left_to_right_section ? 0.0f : curmetrics.height);
+						}
+					} else {
+						int32_t num_positions_after_cursor = text::number_of_cursor_positions_in_range(analysis_obj, text, cursor_position, (curmetrics.textPosition + curmetrics.length) - cursor_position);
+						float percentage_through_region = float(num_positions_in_metrics - num_positions_after_cursor) / float(num_positions_in_metrics);
+
+						if(horizontal(win.orientation)) {
+							coff_pos = curmetrics.left + (left_to_right_section ? percentage_through_region * curmetrics.width : (1.0f - percentage_through_region) * curmetrics.width);
+						} else {
+							coff_pos = curmetrics.top + (left_to_right_section ? percentage_through_region * curmetrics.height : (1.0f - percentage_through_region) * curmetrics.height);
+						}
+					}
+				}
+
+				cached_cursor_postion = int32_t(std::round(coff_pos));
+			}
+
+			selection_out_of_date = false;
+		}
+	}
+	void simple_editable_text::prepare_analysis(window_data const& win) {
+		if(analysis_out_of_date) {
+			update_analyzed_text(analysis_obj, text, win.orientation != layout_orientation::horizontal_right_to_left, win.text_data);
+			analysis_out_of_date = false;
+		}
+	}
+	void simple_editable_text::internal_on_text_changed(window_data&) {
+		analysis_out_of_date = true;
+		selection_out_of_date = true;
+	}
+	void simple_editable_text::internal_on_selection_changed(window_data&) {
+		selection_out_of_date = true;
+	}
+
+	void simple_editable_text::prepare_text(window_data const& win) {
+		if(formatted_text) {
+			if(formatted_text->GetReadingDirection() !=
+				DWRITE_READING_DIRECTION(reading_direction_from_orientation(win.orientation)) ||
+				formatted_text->GetFlowDirection() != DWRITE_FLOW_DIRECTION(flow_direction_from_orientation(win.orientation))) {
+					safe_release(formatted_text);
+					analysis_out_of_date = true;
+					selection_out_of_date = true;
+			}
+		}
+		
+		if(!formatted_text) {
+			auto text_format = win.common_text_format;
+			auto& font = win.dynamic_settings.primary_font;
+
+			text_format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+			text_format->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+			text_format->SetReadingDirection(DWRITE_READING_DIRECTION(reading_direction_from_orientation(win.orientation)));
+			text_format->SetFlowDirection(DWRITE_FLOW_DIRECTION(flow_direction_from_orientation(win.orientation)));
+			text_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
+			text_format->SetOpticalAlignment(DWRITE_OPTICAL_ALIGNMENT_NO_SIDE_BEARINGS);
+
+			if(!horizontal(win.orientation)) {
+				text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, font.line_spacing, font.vertical_baseline);
+			} else {
+				text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, font.line_spacing, font.baseline);
+			}
+
+			if(horizontal(win.orientation)) {
+				win.dwrite_factory->CreateTextLayout(text.c_str(), uint32_t(text.length()), text_format, 100.0f, float(font.line_spacing), &formatted_text);
+				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
+			} else {
+				win.dwrite_factory->CreateTextLayout(text.c_str(), uint32_t(text.length()), text_format, float(font.line_spacing), 100.0f, &formatted_text);
+				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
+			}
+		}
+	}
+	void simple_editable_text::relayout_text(window_data const& win, screen_space_point sz) {
+		if(formatted_text) {
+			if(formatted_text->GetReadingDirection() !=
+				DWRITE_READING_DIRECTION(reading_direction_from_orientation(win.orientation)) ||
+				formatted_text->GetFlowDirection() != DWRITE_FLOW_DIRECTION(flow_direction_from_orientation(win.orientation))) {
+						safe_release(formatted_text);
+						analysis_out_of_date = true;
+						selection_out_of_date = true;
+			}
+		}
+			
+
+		if(!formatted_text) {
+			prepare_text(win);
+		}
+		if(formatted_text->GetMaxWidth() != float(sz.x))
+			formatted_text->SetMaxWidth(float(sz.x));
+		if(formatted_text->GetMaxHeight() != float(sz.y))
+			formatted_text->SetMaxHeight(float(sz.y));
+	}
+	void simple_editable_text::draw_text(window_data const& win, int32_t x, int32_t y) const {
+		win.d2d_device_context->DrawTextLayout(D2D1_POINT_2F{ float(x), float(y) }, formatted_text, win.dummy_brush, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+	}
+	void simple_editable_text::invalidate() {
+		safe_release(formatted_text);
+		analysis_out_of_date = true;
+		selection_out_of_date = true;
+	}
+
+	ui_rectangle simple_editable_text::prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) {
+		ui_rectangle retvalue;
+		retvalue.background_index = parent_background_index;
+		retvalue.foreground_index = parent_foreground_index;
+		retvalue.display_flags = (!disabled) ? ui_rectangle::flag_interactable : 0ui8;
+		retvalue.parent_object = this;
+		return retvalue;
+	}
+	simple_layout_specification simple_editable_text::get_specification(window_data&) {
+		simple_layout_specification spec;
+		spec.minimum_page_size = 1;
+		spec.minimum_line_size = minimum_layout_space + 1;
+		spec.page_flags = size_flags::none;
+		spec.line_flags = size_flags::none;
+		return spec;
+	}
+
+
+	void simple_editable_text::render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) {
+		D2D1_RECT_F content_rect{
+			float(rect.x_position), float(rect.y_position),
+			float(rect.x_position + rect.width), float(rect.y_position + rect.height) };
+
+		render::background_rectangle(content_rect, win, rect.display_flags,
+			rect.background_index, under_mouse && !disabled);
+
+		if(!disabled) {
+			auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, 0, 1, 1, rect);
+			render::interactable_or_foreground(win, win.d2d_device_context, new_top_left, saved_state, rect.foreground_index, false);
+		}
+
+		auto& node = win.get_node(l_id);
+
+		auto new_content_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin() + node.right_margin()), 1, rect);
+
+		D2D1_RECT_F adjusted_content_rect{
+			float(new_content_rect.x), float(new_content_rect.y),
+			float(new_content_rect.x + new_content_rect.width), float(new_content_rect.y + new_content_rect.height)
+		};
+
+		if(!disabled) {
+			prepare_analysis(win);
+			prepare_selection_regions(win);
+			
+			// render text
+			win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.foreground_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, adjusted_content_rect, adjusted_content_rect);
+
+			// render selection, if any
+			if(anchor_position != cursor_position && formatted_text) {
+				for(auto& rng : cached_selection_region) {
+					if(horizontal(win.orientation)) {
+						D2D1_RECT_F section_rect{
+							float(rng.start + adjusted_content_rect.left), float(rect.y_position),
+							float(rng.end + adjusted_content_rect.left), float(rect.y_position + rect.height) };
+						render::background_rectangle(section_rect, win, 0, rect.foreground_index, false);
+						win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.background_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, section_rect, section_rect);
+					} else {
+						D2D1_RECT_F section_rect{
+							float(rect.x_position), float(rng.start + adjusted_content_rect.top),
+							float(rect.x_position + rect.width), float(rng.end + adjusted_content_rect.top) };
+						render::background_rectangle(section_rect, win, 0, rect.foreground_index, false);
+						win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.background_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, section_rect, section_rect);
+					}
+				}
+			}
+
+			// render cursor
+			if(cursor_visible && formatted_text) {
+				win.register_in_place_animation();
+				auto ms_in_cycle = win.in_place_animation_running_ms() % 1024;
+				float in_cycle_length = float(ms_in_cycle) * 2.0f * 3.1415f / 1024.0f;
+				float intensity = (cos(in_cycle_length) + 1.0f) * 0.5f;
+
+				auto is_light = win.dynamic_settings.brushes[rect.foreground_index].is_light_color;
+				auto resolved_brush = is_light ?
+					(win.dynamic_settings.light_interactable_brush >= 0 ? win.dynamic_settings.light_interactable_brush : rect.foreground_index) :
+					(win.dynamic_settings.dark_interactable_brush >= 0 ? win.dynamic_settings.dark_interactable_brush : rect.foreground_index);
+
+				win.palette[resolved_brush]->SetOpacity(intensity);
+				if(horizontal(win.orientation)) {
+					D2D_RECT_F cursorrect{ cached_cursor_postion + adjusted_content_rect.left, adjusted_content_rect.top, std::ceil(cached_cursor_postion + adjusted_content_rect.left + 1.0f * win.dpi / 96.0f), adjusted_content_rect.bottom };
+					win.d2d_device_context->FillRectangle(cursorrect, win.palette[resolved_brush]);
+				} else {
+					D2D_RECT_F cursorrect{ adjusted_content_rect.left, cached_cursor_postion + adjusted_content_rect.top, adjusted_content_rect.right , std::ceil(cached_cursor_postion + adjusted_content_rect.top + 1.0f * win.dpi / 96.0f) };
+					win.d2d_device_context->FillRectangle(cursorrect, win.palette[resolved_brush]);
+				}
+				win.palette[resolved_brush]->SetOpacity(1.0f);
+			}
+		} else { // case: disabled
+			win.palette[rect.foreground_index]->SetOpacity(0.6f);
+			win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.foreground_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, adjusted_content_rect, adjusted_content_rect);
+			win.palette[rect.foreground_index]->SetOpacity(1.0f);
+		}
+	}
+	void simple_editable_text::render_foreground(ui_rectangle const& rect, window_data& win) {
+		auto& node = win.get_node(l_id);
+
+		relayout_text(win, horizontal(win.orientation) ? screen_space_point{ rect.width - (node.left_margin() + node.right_margin()) * win.layout_size, rect.height } : screen_space_point{ rect.width, rect.height - (node.left_margin() + node.right_margin()) * win.layout_size });
+
+		auto icon_location = screen_topleft_from_layout_in_ui(win, 0, 0, 1, 1, rect);
+		win.common_icons.icons[standard_icons::control_text].present_image(icon_location.x, icon_location.y, win.d2d_device_context, win.dummy_brush);
+
+		// get sub layout positions
+		auto text_bounding_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin() + node.right_margin()), 1, rect);
+		draw_text(win, text_bounding_rect.x, text_bounding_rect.y);
+	}
+	void simple_editable_text::on_click(window_data& win, uint32_t x, uint32_t y) {
+		if(!disabled) {
+			// TODO move selection / deselect
+			if(formatted_text) {
+
+				auto& node = win.get_node(l_id);
+				auto location = win.get_current_location(l_id);
+				ui_rectangle temp;
+				temp.x_position = location.x;
+				temp.y_position = location.y;
+				temp.width = location.width;
+				temp.height = location.height;
+
+				auto new_content_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin() + node.right_margin()), 1, temp);
+
+				auto adjusted_x = new_content_rect.x - int32_t(x);
+				auto adjusted_y = new_content_rect.y - int32_t(y);
+
+				BOOL is_trailing = FALSE;
+				BOOL is_inside = FALSE;
+				DWRITE_HIT_TEST_METRICS curmetrics{};
+				formatted_text->HitTestPoint(float(adjusted_x), float(adjusted_y), &is_trailing, &is_inside, &curmetrics);
+
+				if(is_inside == FALSE) {
+					if(is_trailing == TRUE) {
+						cursor_position = int32_t(std::min(curmetrics.textPosition + curmetrics.length, uint32_t(text.length())));
+					} else {
+						cursor_position = int32_t(curmetrics.textPosition);
+					}
+				} else if(curmetrics.length == 1) {
+					if(is_trailing == TRUE) {
+						cursor_position = int32_t(std::min(curmetrics.textPosition + 1, uint32_t(text.length())));
+					} else {
+						cursor_position = int32_t(curmetrics.textPosition);
+					}
+				} else {
+					prepare_analysis(win);
+					int32_t num_positions_in_metrics = std::max(text::number_of_cursor_positions_in_range(analysis_obj, text, curmetrics.textPosition, curmetrics.length), 1);
+
+					if(num_positions_in_metrics == 1) {
+						if(is_trailing == TRUE) {
+							cursor_position = int32_t(std::min(curmetrics.textPosition + curmetrics.length, uint32_t(text.length())));
+						} else {
+							cursor_position = int32_t(curmetrics.textPosition);
+						}
+					} else {
+						bool left_to_right_section = (curmetrics.bidiLevel % 1) == 0;
+						float percentage_in_region = horizontal(win.orientation) ? ((adjusted_x - curmetrics.left) / curmetrics.width) : ((adjusted_y - curmetrics.top) / curmetrics.height);
+						if(left_to_right_section)
+							percentage_in_region = 1.0f - percentage_in_region;
+						float section_size = 1.0f / float(num_positions_in_metrics);
+						float running_total = section_size / 2.0f;
+
+						cursor_position = int32_t(curmetrics.textPosition);
+						[&]() {
+							if(percentage_in_region <= running_total) {
+								return;
+							}
+							cursor_position = text::get_next_cursor_position(analysis_obj, text, cursor_position);
+							for(int32_t i = 0; i < num_positions_in_metrics; ++i) {
+								running_total += section_size;
+								if(percentage_in_region <= running_total) {
+									return;
+								}
+								cursor_position = text::get_next_cursor_position(analysis_obj, text, cursor_position);
+							}
+							cursor_position = int32_t(std::min(curmetrics.textPosition + curmetrics.length, uint32_t(text.length())));
+						}();
+					}
+				}
+			}
+
+			win.set_keyboard_focus(this);
+			cursor_visible = true;
+			internal_on_selection_changed(win);
+			win.window_interface->invalidate_window();
+		}
+	}
+	void simple_editable_text::on_right_click(window_data& win, uint32_t, uint32_t) {
+		auto& node = win.get_node(l_id);
+
+		if(alt_text != uint16_t(-1)) {
+			win.info_popup.open(win, info_window::parameters{ l_id }.right(text_alignment == content_alignment::trailing).text(alt_text).width(8).internal_margins(node.left_margin(), node.right_margin()));
+		}
+	}
+	accessibility_object* simple_editable_text::get_accessibility_interface(window_data&) {
+		return nullptr;
+	}
+
+	//
+	// LABEL
+	//
+
 	ui_rectangle label_control::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
 
 		ui_rectangle retvalue;
@@ -397,6 +800,29 @@ namespace printui {
 		if(acc_obj && win.is_visible(l_id)) {
 			win.accessibility_interface->on_change_name(acc_obj, val);
 		}
+	}
+
+	//
+	// BASIC BUTTON CONTROL
+	//
+
+	button_control_base::~button_control_base() {
+	}
+	layout_node_type button_control_base::get_node_type() {
+		return layout_node_type::control;
+	}
+	ui_rectangle button_control_base::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
+
+		ui_rectangle retvalue;
+
+		retvalue.background_index = parent_background_index;
+		retvalue.foreground_index = parent_foreground_index;
+		retvalue.display_flags = (!disabled) ? ui_rectangle::flag_interactable : 0ui8;
+		retvalue.parent_object = this;
+
+		return retvalue;
+	}
+	void button_control_base::recreate_contents(window_data&, layout_node&) {
 	}
 
 	simple_layout_specification button_control_base::get_specification(window_data& win) {

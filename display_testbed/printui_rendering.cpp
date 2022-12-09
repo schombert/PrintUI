@@ -328,7 +328,6 @@ namespace printui {
 			if(win.prompts != prompt_mode::hidden)
 				win.repopulate_interactable_statuses();
 
-
 			win.d2d_device_context->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
 			win.window_interface->set_text_rendering_parameters(win.d2d_device_context, win.dwrite_factory);
 
@@ -1298,6 +1297,9 @@ namespace printui {
 
 			update_window_focus();
 
+			previous_frame_in_place_animation =  running_in_place_animation;
+			running_in_place_animation = false;
+
 			if(animation_status.is_running == false) {
 				d2d_device_context->BeginDraw();
 				d2d_device_context->SetTarget(back_buffer_target);
@@ -1336,6 +1338,9 @@ namespace printui {
 				hr = d2d_device_context->EndDraw();
 			}
 
+			if(running_in_place_animation)
+				window_interface->invalidate_window();
+
 			DXGI_PRESENT_PARAMETERS params{ 0, nullptr, nullptr, nullptr };
 			hr = swap_chain->Present1(1, 0, &params);
 		} else {
@@ -1364,7 +1369,7 @@ namespace printui {
 		void interactable_or_icon(window_data& win, ID2D1DeviceContext5* dc, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical, icon const& ico) {
 
 			interactable(win, dc, location, state, fg_brush, vertical);
-			if(!state.holds_key() && !state.holds_group()) {
+			if(win.keyboard_target || (!state.holds_key() && !state.holds_group())) {
 				dc->SetTransform(D2D1::Matrix3x2F::Translation(float(location.x), float(location.y)));
 				dc->FillOpacityMask(
 					ico.rendered_layer,
@@ -1376,7 +1381,7 @@ namespace printui {
 		void interactable_or_foreground(window_data& win, ID2D1DeviceContext5* dc, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical) {
 
 			interactable(win, dc, location, state, fg_brush, vertical);
-			if(!state.holds_key() && !state.holds_group()) {
+			if(win.keyboard_target || (!state.holds_key() && !state.holds_group())) {
 				D2D1_RECT_F content_rect{
 					float(location.x),
 					float(location.y),
@@ -1387,6 +1392,9 @@ namespace printui {
 			}
 		}
 		void interactable(window_data& win, ID2D1DeviceContext5* dc, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical) {
+
+			if(win.keyboard_target)
+				return;
 
 			if(win.prompts != prompt_mode::controller) {
 				auto is_light = win.dynamic_settings.brushes[fg_brush].is_light_color;
@@ -1515,5 +1523,22 @@ namespace printui {
 		animation_status.is_running = true;
 		animation_status.start_time = std::chrono::steady_clock::now();
 		window_interface->invalidate_window();
+	}
+
+	void window_data::register_in_place_animation() {
+		if(!running_in_place_animation && !previous_frame_in_place_animation) {
+			in_place_animation_start = std::chrono::steady_clock::now();
+		}
+		running_in_place_animation = true;
+	}
+
+	int64_t window_data::in_place_animation_running_ms() const {
+		if(running_in_place_animation || previous_frame_in_place_animation) {
+			auto duration = std::chrono::steady_clock::now() - in_place_animation_start;
+			auto in_ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
+			return in_ms.count();
+		} else {
+			return 0;
+		}
 	}
 }

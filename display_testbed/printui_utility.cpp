@@ -245,6 +245,10 @@ namespace printui {
 		icons[control_toggle].ysize = 1;
 		icons[control_toggle].edge_padding = 0.0f;
 
+		icons[control_text].file_name = L"control_text.svg";
+		icons[control_text].xsize = 1;
+		icons[control_text].ysize = 1;
+		icons[control_text].edge_padding = 0.0f;
 
 		icons[window_settings].file_name = L"settings_i.svg";
 		icons[window_settings].xsize = 2;
@@ -353,6 +357,8 @@ namespace printui {
 				break;
 			}
 		}
+		if(keyboard_target && keyboard_target->get_layout_interface() == l)
+			set_keyboard_focus(nullptr);
 	}
 
 	void window_data::safely_release_interface(layout_interface* v) {
@@ -381,5 +387,50 @@ namespace printui {
 			}
 		}
 		v.clear();
+	}
+
+	std::optional<undo_item> undo_buffer::undo(undo_item current_state) {
+		push_state(current_state);
+
+		auto temp_back = buffer_position - 1;
+		if(temp_back < 0) {
+			temp_back += total_size;
+		}
+
+		if(interal_buffer[temp_back].from == current_state.from) {
+			buffer_position = temp_back;
+			return interal_buffer[temp_back];
+		}
+
+		return std::optional<undo_item>{};
+	}
+	std::optional<undo_item> undo_buffer::redo(undo_item current_state) {
+		if(interal_buffer[buffer_position] == current_state) {
+			auto temp_back = buffer_position + 1;
+			if(temp_back >= total_size) {
+				temp_back -= total_size;
+			}
+
+			if(interal_buffer[temp_back].from == current_state.from) {
+				buffer_position = temp_back;
+				return interal_buffer[buffer_position];
+			}
+		} 
+		return std::optional<undo_item>{};
+	}
+	void undo_buffer::push_state(undo_item state) {
+		if(interal_buffer[buffer_position] != state) {
+			++buffer_position;
+			if(buffer_position >= total_size) {
+				buffer_position -= total_size;
+			}
+			
+			interal_buffer[buffer_position] = state;
+			auto temp_next = buffer_position + 1;
+			if(temp_next >= total_size) {
+				temp_next -= total_size;
+			}
+			interal_buffer[temp_next].from = nullptr;
+		}
 	}
 }

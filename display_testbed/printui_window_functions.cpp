@@ -110,7 +110,7 @@ namespace printui {
 	bool os_win32_wrapper::create_window(window_data& win) {
 
 		WNDCLASSEX wcex = { sizeof(WNDCLASSEX) };
-		wcex.style = CS_OWNDC;
+		wcex.style = CS_OWNDC | CS_DBLCLKS;
 		wcex.lpfnWndProc = WndProc;
 		wcex.cbClsExtra = 0;
 		wcex.cbWndExtra = sizeof(LONG_PTR);
@@ -140,6 +140,9 @@ namespace printui {
 		);
 
 		if(m_hwnd) {
+			win.double_click_ms = GetDoubleClickTime();
+			win.last_double_click = std::chrono::steady_clock::now();
+
 			if(win.dynamic_settings.imode == printui::input_mode::mouse_and_keyboard
 				|| win.dynamic_settings.imode == printui::input_mode::mouse_only
 				|| (win.dynamic_settings.imode == printui::input_mode::follow_input && win.prompts == prompt_mode::hidden)
@@ -548,12 +551,17 @@ namespace printui {
 				set_prompt_visibility(printui::prompt_mode::hidden);
 				window_interface->invalidate_window();
 			}
-		} else if(dynamic_settings.imode != input_mode::mouse_only && dynamic_settings.imode != input_mode::mouse_and_keyboard) {
+		} else if(dynamic_settings.imode != input_mode::mouse_only && dynamic_settings.imode != input_mode::mouse_and_keyboard && dynamic_settings.imode != input_mode::controller_with_pointer) {
 			return false;
 		}
 
 		last_cursor_x_position = x;
 		last_cursor_y_position = y;
+
+		if(keyboard_target && selecting_edit_text) {
+			keyboard_target->move_cursor_by_screen_pt(*this, screen_space_point{int32_t(x), int32_t(y) }, true);
+			return true;
+		}
 
 		auto& rects = get_ui_rects();
 		auto new_under_cursor = printui::reference_under_point(rects, last_cursor_x_position, last_cursor_y_position);
@@ -608,7 +616,81 @@ namespace printui {
 		return true;
 	}
 
-	bool window_data::on_key_down(uint32_t scan_code, uint32_t /* key_code */) {
+	bool window_data::on_key_down(uint32_t scan_code, uint32_t key_code) {
+		if(keyboard_target && scan_code != secondary_escape_sc) {
+			bool shift_held = (GetKeyState(VK_SHIFT) & 0x80) != 0;
+			bool ctrl_held = (GetKeyState(VK_CONTROL) & 0x80) != 0;
+
+			if(key_code == VK_RETURN) {
+				keyboard_target->command(*this, edit_command::new_line, false);
+			} else if(key_code == VK_BACK) {
+				if(ctrl_held)
+					keyboard_target->command(*this, edit_command::backspace_word, false);
+				else
+					keyboard_target->command(*this, edit_command::backspace, false);
+			} else if(key_code == VK_DELETE) {
+				if(ctrl_held)
+					keyboard_target->command(*this, edit_command::delete_word, false);
+				else
+					keyboard_target->command(*this, edit_command::delete_char, false);
+			} else if(key_code == VK_TAB) {
+				keyboard_target->command(*this, edit_command::tab, false);
+			} else if(key_code == VK_LEFT) {
+				if(ctrl_held)
+					keyboard_target->command(*this, edit_command::cursor_left_word, shift_held);
+				else
+					keyboard_target->command(*this, edit_command::cursor_left, shift_held);
+			} else if(key_code == VK_RIGHT) {
+				if(ctrl_held)
+					keyboard_target->command(*this, edit_command::cursor_right_word, shift_held);
+				else
+					keyboard_target->command(*this, edit_command::cursor_right, shift_held);
+			} else if(key_code == VK_UP) {
+				keyboard_target->command(*this, edit_command::cursor_up, shift_held);
+			} else if(key_code == VK_DOWN) {
+				keyboard_target->command(*this, edit_command::cursor_down, shift_held);
+			} else if(key_code == VK_HOME) {
+				if(ctrl_held)
+					keyboard_target->command(*this, edit_command::to_text_start, shift_held);
+				else
+					keyboard_target->command(*this, edit_command::to_line_start, shift_held);
+			} else if(key_code == VK_END) {
+				if(ctrl_held)
+					keyboard_target->command(*this, edit_command::to_text_end, shift_held);
+				else
+					keyboard_target->command(*this, edit_command::to_line_end, shift_held);
+			} else if(key_code == VK_INSERT) {
+				if(ctrl_held)
+					keyboard_target->command(*this, edit_command::copy, false);
+				else if(shift_held)
+					keyboard_target->command(*this, edit_command::paste, false);
+			} else if(key_code == 'A') {
+				if(ctrl_held) {
+					keyboard_target->command(*this, edit_command::select_all, false);
+				}
+			} else if(key_code == 'C') {
+				if(ctrl_held) {
+					keyboard_target->command(*this, edit_command::copy, false);
+				}
+			} else if(key_code == 'X') {
+				if(ctrl_held) {
+					keyboard_target->command(*this, edit_command::cut, false);
+				}
+			} else if(key_code == 'V') {
+				if(ctrl_held) {
+					keyboard_target->command(*this, edit_command::paste, false);
+				}
+			} else if(key_code == 'Z') {
+				if(ctrl_held) {
+					keyboard_target->command(*this, edit_command::undo, false);
+				}
+			} else if(key_code == 'Y') {
+				if(ctrl_held) {
+					keyboard_target->command(*this, edit_command::redo, false);
+				}
+			}
+		}
+
 		if(scan_code == primary_right_click_modifier_sc || scan_code == secondary_right_click_modifier_sc) {
 			pending_right_click = true;
 			window_bar.info_i.mark_for_update(*this);
@@ -630,7 +712,11 @@ namespace printui {
 
 		if(scan_code == primary_escape_sc || scan_code == secondary_escape_sc) {
 			// go up
-			execute_focus_action(focus_actions.escape);
+			if(keyboard_target) {
+				set_keyboard_focus(nullptr);
+			} else {
+				execute_focus_action(focus_actions.escape);
+			}
 		} else {
 			for(int32_t i = 0; i < 12; i++) {
 				if(sc_values[i] == scan_code) {
@@ -704,7 +790,7 @@ namespace printui {
 			return;
 		}
 
-		for(uint32_t i = 0; i < 4; ++i) {
+		for(int32_t i = 0; i < 4; ++i) {
 			if(((1 << i) & controller_number_plugged_in) != 0) {
 				XINPUT_STATE state;
 				ZeroMemory(&state, sizeof(XINPUT_STATE));
@@ -712,6 +798,54 @@ namespace printui {
 				if(XInputGetState(i, &state) == ERROR_SUCCESS) {
 					// Controller is connected
 					
+
+					if(dynamic_settings.imode == input_mode::controller_with_pointer && (i == controller_mouse.for_controller || !controller_mouse.running)) {
+						double LX = state.Gamepad.sThumbLX;
+						double LY = state.Gamepad.sThumbLY;
+
+						//determine how far the controller is pushed
+						double magnitude = sqrt(LX * LX + LY * LY);
+						double norm_lx = LX / magnitude;
+						double norm_ly = -LY / magnitude;
+						magnitude = std::min(magnitude, 32767.0) / 32767.0;
+
+						//check if the controller is outside a circular dead zone
+						if(magnitude >= 0.02) {
+							if(!controller_mouse.running) {
+								controller_mouse.start_time = std::chrono::steady_clock::now();
+								controller_mouse.running = true;
+								controller_mouse.for_controller = i;
+
+								POINT p{};
+								GetCursorPos(&p);
+
+								controller_mouse.current_x = p.x;
+								controller_mouse.current_y = p.y;
+							} else {
+								auto new_time = std::chrono::steady_clock::now();
+								auto duration = new_time - controller_mouse.start_time;
+								controller_mouse.start_time = new_time;
+								auto in_ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
+
+								auto scaled_magnitude = (magnitude * magnitude * magnitude) * 1.5;
+								controller_mouse.current_x += double(in_ms.count()) * norm_lx * scaled_magnitude;
+								controller_mouse.current_y += double(in_ms.count()) * norm_ly * scaled_magnitude;
+
+								auto winrect = window_interface->get_window_location();
+								auto temp_x = int32_t(controller_mouse.current_x);
+								auto temp_y = int32_t(controller_mouse.current_y);
+								temp_x = std::clamp(temp_x, winrect.x + window_border, winrect.x + winrect.width - window_border);
+								temp_y = std::clamp(temp_y, winrect.y + window_border, winrect.y + winrect.height - window_border);
+
+								SetCursorPos(temp_x, temp_y);
+							}
+
+							
+						} else {
+							controller_mouse.running = false;
+						}
+					}
+
 					uint32_t buttons_pressed = 0;
 					uint32_t buttons_released = 0;
 					test_for_button(buttons_pressed, buttons_released, controller_buttons.val, state.Gamepad.wButtons, XINPUT_GAMEPAD_LEFT_SHOULDER, controller_buttons.button_lb);
@@ -796,6 +930,15 @@ namespace printui {
 			}
 		} else if(dynamic_settings.imode != input_mode::mouse_only && dynamic_settings.imode != input_mode::mouse_and_keyboard) {
 			return false;
+		}
+
+		if(keyboard_target) {
+			if(keyboard_target->move_cursor_by_screen_pt(*this, screen_space_point{ int32_t(x), int32_t(y) }, false)) {
+				selecting_edit_text = true;
+				return true;
+			} else {
+				set_keyboard_focus(nullptr);
+			}
 		}
 
 		auto under_cursor = printui::interface_under_point(get_ui_rects(), x, y);
@@ -921,7 +1064,9 @@ namespace printui {
 					case WM_CHAR:
 					{
 						// only route to text box, if it has focus
-
+						if(app->keyboard_target && wParam >= 0x20) {
+							app->keyboard_target->insert_codepoint(*app, wParam);
+						}
 						return 0;
 					}
 					case WM_RBUTTONDOWN:
@@ -933,11 +1078,33 @@ namespace printui {
 					}
 					case WM_LBUTTONDOWN:
 					{
-						if(app->on_mouse_left_down(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)))
+						SetCapture(hwnd);
+						if(app->keyboard_target) {
+							auto duration = std::chrono::steady_clock::now() - app->last_double_click;
+							auto in_ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
+							if(in_ms.count() <= app->double_click_ms) {
+								app->keyboard_target->command(*app, edit_command::select_current_section, false);
+								return 0;
+							}
+						}
+						if(app->on_mouse_left_down(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam))) {
 							return 0;
-						else
+						} else {
 							break;
+						}
 					}
+					case WM_LBUTTONDBLCLK:
+					{
+						if(app->keyboard_target) {
+							app->keyboard_target->command(*app, edit_command::select_current_word, false);
+							app->last_double_click = std::chrono::steady_clock::now();
+						}
+						return 0;
+					}
+					case WM_LBUTTONUP:
+						ReleaseCapture();
+						app->selecting_edit_text = false;
+						return 0;
 					case WM_NCCALCSIZE:
 						if(wParam == TRUE)
 							return 0;
@@ -1086,6 +1253,41 @@ namespace printui {
 						return 0;
 					case WM_INPUT_DEVICE_CHANGE:
 						app->on_device_change(wParam, (HANDLE)lParam);
+						return 0;
+					case WM_APPCOMMAND:
+					{
+						auto cmd = GET_APPCOMMAND_LPARAM(lParam);
+						if(cmd == APPCOMMAND_COPY) {
+							if(app->keyboard_target)
+								app->keyboard_target->command(*app, edit_command::copy, false);
+							return TRUE;
+						} else if(cmd == APPCOMMAND_CUT) {
+							if(app->keyboard_target)
+								app->keyboard_target->command(*app, edit_command::cut, false);
+							return TRUE;
+						} else if(cmd == APPCOMMAND_PASTE) {
+							if(app->keyboard_target)
+								app->keyboard_target->command(*app, edit_command::paste, false);
+							return TRUE;
+						} else if(cmd == APPCOMMAND_REDO) {
+							if(app->keyboard_target)
+								app->keyboard_target->command(*app, edit_command::redo, false);
+							return TRUE;
+						} else if(cmd == APPCOMMAND_UNDO) {
+							if(app->keyboard_target)
+								app->keyboard_target->command(*app, edit_command::undo, false);
+							return TRUE;
+						}
+						break;
+					}
+					case WM_KILLFOCUS:
+						app->selecting_edit_text = false;
+						if(app->keyboard_target)
+							app->keyboard_target->set_cursor_visibility(*app, false);
+						return 0;
+					case WM_SETFOCUS:
+						if(app->keyboard_target)
+							app->keyboard_target->set_cursor_visibility(*app, true);
 						return 0;
 					default:
 						break;
@@ -1447,5 +1649,14 @@ namespace printui {
 		} else {
 			return nullptr;
 		}
+	}
+
+	void window_data::set_keyboard_focus(edit_interface* i) {
+		if(keyboard_target != nullptr) {
+			keyboard_target->on_finalize(*this);
+			selecting_edit_text = false;
+		}
+
+		keyboard_target = i;
 	}
 }

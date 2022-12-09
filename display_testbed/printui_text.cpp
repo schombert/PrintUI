@@ -12,6 +12,9 @@
 #include <dwrite_3.h>
 #include <Shlobj.h>
 #include <wchar.h>
+#include <usp10.h>
+
+#pragma comment(lib, "Usp10.lib")
 
 namespace printui::text {
 	void load_fallbacks_by_type(std::vector<font_fallback> const& fb, font_type type, IDWriteFontFallbackBuilder* bldr, IDWriteFontCollection1* collection, IDWriteFactory6* dwrite_factory) {
@@ -1496,12 +1499,9 @@ namespace printui::text {
 								if(val < 0x10000) {
 									codepoint_storage += wchar_t(val);
 								} else {
-									uint32_t v = val - 0x10000;
-									uint32_t h = ((v >> 10) & 0x03FF) + 0xD800;
-									uint32_t l = (v & 0x03FF) + 0xDC00;
-
-									codepoint_storage += wchar_t(h);
-									codepoint_storage += wchar_t(l);
+									auto p = make_surrogate_pair(val);
+									codepoint_storage += wchar_t(p.high);
+									codepoint_storage += wchar_t(p.low);
 								}
 							} else if(content_token.content == "em-space") {
 								codepoint_storage += wchar_t(0x2003);
@@ -2365,5 +2365,730 @@ namespace printui::text {
 		}
 
 		return result;
+	}
+
+	//Non spacing marks
+	//SINGLE 16 BIT
+	uint16_t isolated_nonspacing[] = {
+	0x05BF,          //       HEBREW POINT RAFE
+	0x05C7,          //       HEBREW POINT QAMATS QATAN
+	0x0670,          //       ARABIC LETTER SUPERSCRIPT ALEF
+	0x0711,          //       SYRIAC LETTER SUPERSCRIPT ALAPH
+	0x07FD,          //       NKO DANTAYALAN
+	0x093A,          //       DEVANAGARI VOWEL SIGN OE
+	0x093C,          //       DEVANAGARI SIGN NUKTA
+	0x094D,          //       DEVANAGARI SIGN VIRAMA
+	0x0981,          //       BENGALI SIGN CANDRABINDU
+	0x09BC,          //       BENGALI SIGN NUKTA
+	0x09CD,          //       BENGALI SIGN VIRAMA
+	0x09FE,          //       BENGALI SANDHI MARK
+	0x0A3C,          //       GURMUKHI SIGN NUKTA
+	0x0A51,          //       GURMUKHI SIGN UDAAT
+	0x0A75,          //       GURMUKHI SIGN YAKASH
+	0x0ABC,          //       GUJARATI SIGN NUKTA
+	0x0ACD,          //       GUJARATI SIGN VIRAMA
+	0x0B01,          //       ORIYA SIGN CANDRABINDU
+	0x0B3C,          //       ORIYA SIGN NUKTA
+	0x0B3F,          //       ORIYA VOWEL SIGN I
+	0x0B4D,          //       ORIYA SIGN VIRAMA
+	0x0B82,          //       TAMIL SIGN ANUSVARA
+	0x0BC0,          //       TAMIL VOWEL SIGN II
+	0x0BCD,          //       TAMIL SIGN VIRAMA
+	0x0C00,          //       TELUGU SIGN COMBINING CANDRABINDU ABOVE
+	0x0C04,          //       TELUGU SIGN COMBINING ANUSVARA ABOVE
+	0x0C3C,          //       TELUGU SIGN NUKTA
+	0x0C81,          //       KANNADA SIGN CANDRABINDU
+	0x0CBC,          //       KANNADA SIGN NUKTA
+	0x0CBF,          //       KANNADA VOWEL SIGN I
+	0x0CC6,          //       KANNADA VOWEL SIGN E
+	0x0D4D,          //       MALAYALAM SIGN VIRAMA
+	0x0D81,          //       SINHALA SIGN CANDRABINDU
+	0x0DCA,          //       SINHALA SIGN AL-LAKUNA
+	0x0DD6,          //       SINHALA VOWEL SIGN DIGA PAA-PILLA
+	0x0E31,          //       THAI CHARACTER MAI HAN-AKAT
+	0x0EB1,          //       LAO VOWEL SIGN MAI KAN
+	0x0F35,          //       TIBETAN MARK NGAS BZUNG NYI ZLA
+	0x0F37,          //       TIBETAN MARK NGAS BZUNG SGOR RTAGS
+	0x0F39,          //       TIBETAN MARK TSA -PHRU
+	0x0FC6,          //       TIBETAN SYMBOL PADMA GDAN
+	0x1082,          //       MYANMAR CONSONANT SIGN SHAN MEDIAL WA
+	0x108D,          //       MYANMAR SIGN SHAN COUNCIL EMPHATIC TONE
+	0x109D,          //       MYANMAR VOWEL SIGN AITON AI
+	0x17C6,          //       KHMER SIGN NIKAHIT
+	0x17DD,          //       KHMER SIGN ATTHACAN
+	0x180F,          //       MONGOLIAN FREE VARIATION SELECTOR FOUR
+	0x18A9,          //       MONGOLIAN LETTER ALI GALI DAGALGA
+	0x1932,          //       LIMBU SMALL LETTER ANUSVARA
+	0x1A1B,          //       BUGINESE VOWEL SIGN AE
+	0x1A56,          //       TAI THAM CONSONANT SIGN MEDIAL LA
+	0x1A60,          //       TAI THAM SIGN SAKOT
+	0x1A62,          //       TAI THAM VOWEL SIGN MAI SAT
+	0x1A7F,          //       TAI THAM COMBINING CRYPTOGRAMMIC DOT
+	0x1B34,          //       BALINESE SIGN REREKAN
+	0x1B3C,          //       BALINESE VOWEL SIGN LA LENGA
+	0x1B42,          //       BALINESE VOWEL SIGN PEPET
+	0x1BE6,          //       BATAK SIGN TOMPI
+	0x1BED,          //       BATAK VOWEL SIGN KARO O
+	0x1CED,          //       VEDIC SIGN TIRYAK
+	0x1CF4,          //       VEDIC TONE CANDRA ABOVE
+	0x20E1,          //       COMBINING LEFT RIGHT ARROW ABOVE
+	0x2D7F,          //       TIFINAGH CONSONANT JOINER
+	0xA66F,          //       COMBINING CYRILLIC VZMET
+	0xA802,          //       SYLOTI NAGRI SIGN DVISVARA
+	0xA806,          //       SYLOTI NAGRI SIGN HASANTA
+	0xA80B,          //       SYLOTI NAGRI SIGN ANUSVARA
+	0xA82C,          //       SYLOTI NAGRI SIGN ALTERNATE HASANTA
+	0xA8FF,          //       DEVANAGARI VOWEL SIGN AY
+	0xA9B3,          //       JAVANESE SIGN CECAK TELU
+	0xA9E5,          //       MYANMAR SIGN SHAN SAW
+	0xAA43,          //       CHAM CONSONANT SIGN FINAL NG
+	0xAA4C,          //       CHAM CONSONANT SIGN FINAL M
+	0xAA7C,          //       MYANMAR SIGN TAI LAING TONE-2
+	0xAAB0,          //       TAI VIET MAI KANG
+	0xAAC1,          //       TAI VIET TONE MAI THO
+	0xAAF6,          //       MEETEI MAYEK VIRAMA
+	0xABE5,          //       MEETEI MAYEK VOWEL SIGN ANAP
+	0xABE8,          //       MEETEI MAYEK VOWEL SIGN UNAP
+	0xABED,          //       MEETEI MAYEK APUN IYEK
+	0xFB1E           //       HEBREW POINT JUDEO-SPANISH VARIKA
+	};
+
+	//SINGLE 32 BIT
+	uint32_t isolated_nonspacing_32[] = {
+	0x101FD,         //       PHAISTOS DISC SIGN COMBINING OBLIQUE STROKE
+	0x102E0,         //       COPTIC EPACT THOUSANDS MARK
+	0x10A3F,         //       KHAROSHTHI VIRAMA
+	0x11001,         //       BRAHMI SIGN ANUSVARA
+	0x11070,         //       BRAHMI SIGN OLD TAMIL VIRAMA
+	0x110C2,         //       KAITHI VOWEL SIGN VOCALIC R
+	0x11173,         //       MAHAJANI SIGN NUKTA
+	0x111CF,         //       SHARADA SIGN INVERTED CANDRABINDU
+	0x11234,         //       KHOJKI SIGN ANUSVARA
+	0x1123E,         //       KHOJKI SIGN SUKUN
+	0x11241,         //       KHOJKI VOWEL SIGN VOCALIC R
+	0x112DF,         //       KHUDAWADI SIGN ANUSVARA
+	0x11340,         //       GRANTHA VOWEL SIGN II
+	0x11446,         //       NEWA SIGN NUKTA
+	0x1145E,         //       NEWA SANDHI MARK
+	0x114BA,         //       TIRHUTA VOWEL SIGN SHORT E
+	0x1163D,         //       MODI SIGN ANUSVARA
+	0x116AB,         //       TAKRI SIGN ANUSVARA
+	0x116AD,         //       TAKRI VOWEL SIGN AA
+	0x116B7,         //       TAKRI SIGN NUKTA
+	0x1193E,         //       DIVES AKURU VIRAMA
+	0x11943,         //       DIVES AKURU SIGN NUKTA
+	0x119E0,         //       NANDINAGARI SIGN VIRAMA
+	0x11A47,         //       ZANABAZAR SQUARE SUBJOINER
+	0x11C3F,         //       BHAIKSUKI SIGN VIRAMA
+	0x11D3A,         //       MASARAM GONDI VOWEL SIGN E
+	0x11D47,         //       MASARAM GONDI RA-KARA
+	0x11D95,         //       GUNJALA GONDI SIGN ANUSVARA
+	0x11D97,         //       GUNJALA GONDI VIRAMA
+	0x11F40,         //       KAWI VOWEL SIGN EU
+	0x11F42,         //       KAWI CONJOINER
+	0x13440,         //       EGYPTIAN HIEROGLYPH MIRROR HORIZONTALLY
+	0x16F4F,         //       MIAO SIGN CONSONANT MODIFIER BAR
+	0x16FE4,         //       KHITAN SMALL SCRIPT FILLER
+	0x1DA75,         //       SIGNWRITING UPPER BODY TILTING FROM HIP JOINTS
+	0x1DA84,         //       SIGNWRITING LOCATION HEAD NECK
+	0x1E08F,         //       COMBINING CYRILLIC SMALL LETTER BYELORUSSIAN-UKRAINIAN I
+	0x1E2AE          //       TOTO SIGN RISING TONE
+	};
+
+	//16 BIT RANGE
+	uint16_t nonspacing_ranges[] = {
+	0x0300, 0x036F,    // [112] COMBINING GRAVE ACCENT, 0xCOMBINING LATIN SMALL LETTER X
+	0x0483, 0x0487,    //   [5] COMBINING CYRILLIC TITLO, 0xCOMBINING CYRILLIC POKRYTIE
+	0x0591, 0x05BD,    //  [45] HEBREW ACCENT ETNAHTA, 0xHEBREW POINT METEG
+	0x05C1, 0x05C2,    //   [2] HEBREW POINT SHIN DOT, 0xHEBREW POINT SIN DOT
+	0x05C4, 0x05C5,    //   [2] HEBREW MARK UPPER DOT, 0xHEBREW MARK LOWER DOT
+	0x0610, 0x061A,    //  [11] ARABIC SIGN SALLALLAHOU ALAYHE WASSALLAM, 0xARABIC SMALL KASRA
+	0x064B, 0x065F,    //  [21] ARABIC FATHATAN, 0xARABIC WAVY HAMZA BELOW
+	0x06D6, 0x06DC,    //   [7] ARABIC SMALL HIGH LIGATURE SAD WITH LAM WITH ALEF MAKSURA, 0xARABIC SMALL HIGH SEEN
+	0x06DF, 0x06E4,    //   [6] ARABIC SMALL HIGH ROUNDED ZERO, 0xARABIC SMALL HIGH MADDA
+	0x06E7, 0x06E8,    //   [2] ARABIC SMALL HIGH YEH, 0xARABIC SMALL HIGH NOON
+	0x06EA, 0x06ED,    //   [4] ARABIC EMPTY CENTRE LOW STOP, 0xARABIC SMALL LOW MEEM
+	0x0730, 0x074A,    //  [27] SYRIAC PTHAHA ABOVE, 0xSYRIAC BARREKH
+	0x07A6, 0x07B0,    //  [11] THAANA ABAFILI, 0xTHAANA SUKUN
+	0x07EB, 0x07F3,    //   [9] NKO COMBINING SHORT HIGH TONE, 0xNKO COMBINING DOUBLE DOT ABOVE
+	0x0816, 0x0819,    //   [4] SAMARITAN MARK IN, 0xSAMARITAN MARK DAGESH
+	0x081B, 0x0823,    //   [9] SAMARITAN MARK EPENTHETIC YUT, 0xSAMARITAN VOWEL SIGN A
+	0x0825, 0x0827,    //   [3] SAMARITAN VOWEL SIGN SHORT A, 0xSAMARITAN VOWEL SIGN U
+	0x0829, 0x082D,    //   [5] SAMARITAN VOWEL SIGN LONG I, 0xSAMARITAN MARK NEQUDAA
+	0x0859, 0x085B,    //   [3] MANDAIC AFFRICATION MARK, 0xMANDAIC GEMINATION MARK
+	0x0898, 0x089F,    //   [8] ARABIC SMALL HIGH WORD AL-JUZ, 0xARABIC HALF MADDA OVER MADDA
+	0x08CA, 0x08E1,    //  [24] ARABIC SMALL HIGH FARSI YEH, 0xARABIC SMALL HIGH SIGN SAFHA
+	0x08E3, 0x0902,    //  [32] ARABIC TURNED DAMMA BELOW, 0xDEVANAGARI SIGN ANUSVARA
+	0x0941, 0x0948,    //   [8] DEVANAGARI VOWEL SIGN U, 0xDEVANAGARI VOWEL SIGN AI
+	0x0951, 0x0957,    //   [7] DEVANAGARI STRESS SIGN UDATTA, 0xDEVANAGARI VOWEL SIGN UUE
+	0x0962, 0x0963,    //   [2] DEVANAGARI VOWEL SIGN VOCALIC L, 0xDEVANAGARI VOWEL SIGN VOCALIC LL
+	0x09C1, 0x09C4,    //   [4] BENGALI VOWEL SIGN U, 0xBENGALI VOWEL SIGN VOCALIC RR
+	0x09E2, 0x09E3,    //   [2] BENGALI VOWEL SIGN VOCALIC L, 0xBENGALI VOWEL SIGN VOCALIC LL
+	0x0A01, 0x0A02,    //   [2] GURMUKHI SIGN ADAK BINDI, 0xGURMUKHI SIGN BINDI
+	0x0A41, 0x0A42,    //   [2] GURMUKHI VOWEL SIGN U, 0xGURMUKHI VOWEL SIGN UU
+	0x0A47, 0x0A48,    //   [2] GURMUKHI VOWEL SIGN EE, 0xGURMUKHI VOWEL SIGN AI
+	0x0A4B, 0x0A4D,    //   [3] GURMUKHI VOWEL SIGN OO, 0xGURMUKHI SIGN VIRAMA
+	0x0A70, 0x0A71,    //   [2] GURMUKHI TIPPI, 0xGURMUKHI ADDAK
+	0x0A81, 0x0A82,    //   [2] GUJARATI SIGN CANDRABINDU, 0xGUJARATI SIGN ANUSVARA
+	0x0AC1, 0x0AC5,    //   [5] GUJARATI VOWEL SIGN U, 0xGUJARATI VOWEL SIGN CANDRA E
+	0x0AC7, 0x0AC8,    //   [2] GUJARATI VOWEL SIGN E, 0xGUJARATI VOWEL SIGN AI
+	0x0AE2, 0x0AE3,    //   [2] GUJARATI VOWEL SIGN VOCALIC L, 0xGUJARATI VOWEL SIGN VOCALIC LL
+	0x0AFA, 0x0AFF,    //   [6] GUJARATI SIGN SUKUN, 0xGUJARATI SIGN TWO-CIRCLE NUKTA ABOVE
+	0x0B41, 0x0B44,    //   [4] ORIYA VOWEL SIGN U, 0xORIYA VOWEL SIGN VOCALIC RR
+	0x0B55, 0x0B56,    //   [2] ORIYA SIGN OVERLINE, 0xORIYA AI LENGTH MARK
+	0x0B62, 0x0B63,    //   [2] ORIYA VOWEL SIGN VOCALIC L, 0xORIYA VOWEL SIGN VOCALIC LL
+	0x0C3E, 0x0C40,    //   [3] TELUGU VOWEL SIGN AA, 0xTELUGU VOWEL SIGN II
+	0x0C46, 0x0C48,    //   [3] TELUGU VOWEL SIGN E, 0xTELUGU VOWEL SIGN AI
+	0x0C4A, 0x0C4D,    //   [4] TELUGU VOWEL SIGN O, 0xTELUGU SIGN VIRAMA
+	0x0C55, 0x0C56,    //   [2] TELUGU LENGTH MARK, 0xTELUGU AI LENGTH MARK
+	0x0C62, 0x0C63,    //   [2] TELUGU VOWEL SIGN VOCALIC L, 0xTELUGU VOWEL SIGN VOCALIC LL
+	0x0CCC, 0x0CCD,    //   [2] KANNADA VOWEL SIGN AU, 0xKANNADA SIGN VIRAMA
+	0x0CE2, 0x0CE3,    //   [2] KANNADA VOWEL SIGN VOCALIC L, 0xKANNADA VOWEL SIGN VOCALIC LL
+	0x0D00, 0x0D01,    //   [2] MALAYALAM SIGN COMBINING ANUSVARA ABOVE, 0xMALAYALAM SIGN CANDRABINDU
+	0x0D3B, 0x0D3C,    //   [2] MALAYALAM SIGN VERTICAL BAR VIRAMA, 0xMALAYALAM SIGN CIRCULAR VIRAMA
+	0x0D41, 0x0D44,    //   [4] MALAYALAM VOWEL SIGN U, 0xMALAYALAM VOWEL SIGN VOCALIC RR
+	0x0D62, 0x0D63,    //   [2] MALAYALAM VOWEL SIGN VOCALIC L, 0xMALAYALAM VOWEL SIGN VOCALIC LL
+	0x0DD2, 0x0DD4,    //   [3] SINHALA VOWEL SIGN KETTI IS-PILLA, 0xSINHALA VOWEL SIGN KETTI PAA-PILLA
+	0x0E34, 0x0E3A,    //   [7] THAI CHARACTER SARA I, 0xTHAI CHARACTER PHINTHU
+	0x0E47, 0x0E4E,    //   [8] THAI CHARACTER MAITAIKHU, 0xTHAI CHARACTER YAMAKKAN
+	0x0EB4, 0x0EBC,    //   [9] LAO VOWEL SIGN I, 0xLAO SEMIVOWEL SIGN LO
+	0x0EC8, 0x0ECE,    //   [7] LAO TONE MAI EK, 0xLAO YAMAKKAN
+	0x0F18, 0x0F19,    //   [2] TIBETAN ASTROLOGICAL SIGN -KHYUD PA, 0xTIBETAN ASTROLOGICAL SIGN SDONG TSHUGS
+	0x0F71, 0x0F7E,    //  [14] TIBETAN VOWEL SIGN AA, 0xTIBETAN SIGN RJES SU NGA RO
+	0x0F80, 0x0F84,    //   [5] TIBETAN VOWEL SIGN REVERSED I, 0xTIBETAN MARK HALANTA
+	0x0F86, 0x0F87,    //   [2] TIBETAN SIGN LCI RTAGS, 0xTIBETAN SIGN YANG RTAGS
+	0x0F8D, 0x0F97,    //  [11] TIBETAN SUBJOINED SIGN LCE TSA CAN, 0xTIBETAN SUBJOINED LETTER JA
+	0x0F99, 0x0FBC,    //  [36] TIBETAN SUBJOINED LETTER NYA, 0xTIBETAN SUBJOINED LETTER FIXED-FORM RA
+	0x102D, 0x1030,    //   [4] MYANMAR VOWEL SIGN I, 0xMYANMAR VOWEL SIGN UU
+	0x1032, 0x1037,    //   [6] MYANMAR VOWEL SIGN AI, 0xMYANMAR SIGN DOT BELOW
+	0x1039, 0x103A,    //   [2] MYANMAR SIGN VIRAMA, 0xMYANMAR SIGN ASAT
+	0x103D, 0x103E,    //   [2] MYANMAR CONSONANT SIGN MEDIAL WA, 0xMYANMAR CONSONANT SIGN MEDIAL HA
+	0x1058, 0x1059,    //   [2] MYANMAR VOWEL SIGN VOCALIC L, 0xMYANMAR VOWEL SIGN VOCALIC LL
+	0x105E, 0x1060,    //   [3] MYANMAR CONSONANT SIGN MON MEDIAL NA, 0xMYANMAR CONSONANT SIGN MON MEDIAL LA
+	0x1071, 0x1074,    //   [4] MYANMAR VOWEL SIGN GEBA KAREN I, 0xMYANMAR VOWEL SIGN KAYAH EE
+	0x1085, 0x1086,    //   [2] MYANMAR VOWEL SIGN SHAN E ABOVE, 0xMYANMAR VOWEL SIGN SHAN FINAL Y
+	0x135D, 0x135F,    //   [3] ETHIOPIC COMBINING GEMINATION AND VOWEL LENGTH MARK, 0xETHIOPIC COMBINING GEMINATION MARK
+	0x1712, 0x1714,    //   [3] TAGALOG VOWEL SIGN I, 0xTAGALOG SIGN VIRAMA
+	0x1732, 0x1733,    //   [2] HANUNOO VOWEL SIGN I, 0xHANUNOO VOWEL SIGN U
+	0x1752, 0x1753,    //   [2] BUHID VOWEL SIGN I, 0xBUHID VOWEL SIGN U
+	0x1772, 0x1773,    //   [2] TAGBANWA VOWEL SIGN I, 0xTAGBANWA VOWEL SIGN U
+	0x17B4, 0x17B5,    //   [2] KHMER VOWEL INHERENT AQ, 0xKHMER VOWEL INHERENT AA
+	0x17B7, 0x17BD,    //   [7] KHMER VOWEL SIGN I, 0xKHMER VOWEL SIGN UA
+	0x17C9, 0x17D3,    //  [11] KHMER SIGN MUUSIKATOAN, 0xKHMER SIGN BATHAMASAT
+	0x180B, 0x180D,    //   [3] MONGOLIAN FREE VARIATION SELECTOR ONE, 0xMONGOLIAN FREE VARIATION SELECTOR THREE
+	0x1885, 0x1886,    //   [2] MONGOLIAN LETTER ALI GALI BALUDA, 0xMONGOLIAN LETTER ALI GALI THREE BALUDA
+	0x1920, 0x1922,    //   [3] LIMBU VOWEL SIGN A, 0xLIMBU VOWEL SIGN U
+	0x1927, 0x1928,    //   [2] LIMBU VOWEL SIGN E, 0xLIMBU VOWEL SIGN O
+	0x1939, 0x193B,    //   [3] LIMBU SIGN MUKPHRENG, 0xLIMBU SIGN SA-I
+	0x1A17, 0x1A18,    //   [2] BUGINESE VOWEL SIGN I, 0xBUGINESE VOWEL SIGN U
+	0x1A58, 0x1A5E,    //   [7] TAI THAM SIGN MAI KANG LAI, 0xTAI THAM CONSONANT SIGN SA
+	0x1A65, 0x1A6C,    //   [8] TAI THAM VOWEL SIGN I, 0xTAI THAM VOWEL SIGN OA BELOW
+	0x1A73, 0x1A7C,    //  [10] TAI THAM VOWEL SIGN OA ABOVE, 0xTAI THAM SIGN KHUEN-LUE KARAN
+	0x1AB0, 0x1ABD,    //  [14] COMBINING DOUBLED CIRCUMFLEX ACCENT, 0xCOMBINING PARENTHESES BELOW
+	0x1ABF, 0x1ACE,    //  [16] COMBINING LATIN SMALL LETTER W BELOW, 0xCOMBINING LATIN SMALL LETTER INSULAR T
+	0x1B00, 0x1B03,    //   [4] BALINESE SIGN ULU RICEM, 0xBALINESE SIGN SURANG
+	0x1B36, 0x1B3A,    //   [5] BALINESE VOWEL SIGN ULU, 0xBALINESE VOWEL SIGN RA REPA
+	0x1B6B, 0x1B73,    //   [9] BALINESE MUSICAL SYMBOL COMBINING TEGEH, 0xBALINESE MUSICAL SYMBOL COMBINING GONG
+	0x1B80, 0x1B81,    //   [2] SUNDANESE SIGN PANYECEK, 0xSUNDANESE SIGN PANGLAYAR
+	0x1BA2, 0x1BA5,    //   [4] SUNDANESE CONSONANT SIGN PANYAKRA, 0xSUNDANESE VOWEL SIGN PANYUKU
+	0x1BA8, 0x1BA9,    //   [2] SUNDANESE VOWEL SIGN PAMEPET, 0xSUNDANESE VOWEL SIGN PANEULEUNG
+	0x1BAB, 0x1BAD,    //   [3] SUNDANESE SIGN VIRAMA, 0xSUNDANESE CONSONANT SIGN PASANGAN WA
+	0x1BE8, 0x1BE9,    //   [2] BATAK VOWEL SIGN PAKPAK E, 0xBATAK VOWEL SIGN EE
+	0x1BEF, 0x1BF1,    //   [3] BATAK VOWEL SIGN U FOR SIMALUNGUN SA, 0xBATAK CONSONANT SIGN H
+	0x1C2C, 0x1C33,    //   [8] LEPCHA VOWEL SIGN E, 0xLEPCHA CONSONANT SIGN T
+	0x1C36, 0x1C37,    //   [2] LEPCHA SIGN RAN, 0xLEPCHA SIGN NUKTA
+	0x1CD0, 0x1CD2,    //   [3] VEDIC TONE KARSHANA, 0xVEDIC TONE PRENKHA
+	0x1CD4, 0x1CE0,    //  [13] VEDIC SIGN YAJURVEDIC MIDLINE SVARITA, 0xVEDIC TONE RIGVEDIC KASHMIRI INDEPENDENT SVARITA
+	0x1CE2, 0x1CE8,    //   [7] VEDIC SIGN VISARGA SVARITA, 0xVEDIC SIGN VISARGA ANUDATTA WITH TAIL
+	0x1CF8, 0x1CF9,    //   [2] VEDIC TONE RING ABOVE, 0xVEDIC TONE DOUBLE RING ABOVE
+	0x1DC0, 0x1DFF,    //  [64] COMBINING DOTTED GRAVE ACCENT, 0xCOMBINING RIGHT ARROWHEAD AND DOWN ARROWHEAD BELOW
+	0x20D0, 0x20DC,    //  [13] COMBINING LEFT HARPOON ABOVE, 0xCOMBINING FOUR DOTS ABOVE
+	0x20E5, 0x20F0,    //  [12] COMBINING REVERSE SOLIDUS OVERLAY, 0xCOMBINING ASTERISK ABOVE
+	0x2CEF, 0x2CF1,    //   [3] COPTIC COMBINING NI ABOVE, 0xCOPTIC COMBINING SPIRITUS LENIS
+	0x2DE0, 0x2DFF,    //  [32] COMBINING CYRILLIC LETTER BE, 0xCOMBINING CYRILLIC LETTER IOTIFIED BIG YUS
+	0x302A, 0x302D,    //   [4] IDEOGRAPHIC LEVEL TONE MARK, 0xIDEOGRAPHIC ENTERING TONE MARK
+	0x3099, 0x309A,    //   [2] COMBINING KATAKANA-HIRAGANA VOICED SOUND MARK, 0xCOMBINING KATAKANA-HIRAGANA SEMI-VOICED SOUND MARK
+	0xA674, 0xA67D,    //  [10] COMBINING CYRILLIC LETTER UKRAINIAN IE, 0xCOMBINING CYRILLIC PAYEROK
+	0xA69E, 0xA69F,    //   [2] COMBINING CYRILLIC LETTER EF, 0xCOMBINING CYRILLIC LETTER IOTIFIED E
+	0xA6F0, 0xA6F1,    //   [2] BAMUM COMBINING MARK KOQNDON, 0xBAMUM COMBINING MARK TUKWENTIS
+	0xA825, 0xA826,    //   [2] SYLOTI NAGRI VOWEL SIGN U, 0xSYLOTI NAGRI VOWEL SIGN E
+	0xA8C4, 0xA8C5,    //   [2] SAURASHTRA SIGN VIRAMA, 0xSAURASHTRA SIGN CANDRABINDU
+	0xA8E0, 0xA8F1,    //  [18] COMBINING DEVANAGARI DIGIT ZERO, 0xCOMBINING DEVANAGARI SIGN AVAGRAHA
+	0xA926, 0xA92D,    //   [8] KAYAH LI VOWEL UE, 0xKAYAH LI TONE CALYA PLOPHU
+	0xA947, 0xA951,    //  [11] REJANG VOWEL SIGN I, 0xREJANG CONSONANT SIGN R
+	0xA980, 0xA982,    //   [3] JAVANESE SIGN PANYANGGA, 0xJAVANESE SIGN LAYAR
+	0xA9B6, 0xA9B9,    //   [4] JAVANESE VOWEL SIGN WULU, 0xJAVANESE VOWEL SIGN SUKU MENDUT
+	0xA9BC, 0xA9BD,    //   [2] JAVANESE VOWEL SIGN PEPET, 0xJAVANESE CONSONANT SIGN KERET
+	0xAA29, 0xAA2E,    //   [6] CHAM VOWEL SIGN AA, 0xCHAM VOWEL SIGN OE
+	0xAA31, 0xAA32,    //   [2] CHAM VOWEL SIGN AU, 0xCHAM VOWEL SIGN UE
+	0xAA35, 0xAA36,    //   [2] CHAM CONSONANT SIGN LA, 0xCHAM CONSONANT SIGN WA
+	0xAAB2, 0xAAB4,    //   [3] TAI VIET VOWEL I, 0xTAI VIET VOWEL U
+	0xAAB7, 0xAAB8,    //   [2] TAI VIET MAI KHIT, 0xTAI VIET VOWEL IA
+	0xAABE, 0xAABF,    //   [2] TAI VIET VOWEL AM, 0xTAI VIET TONE MAI EK
+	0xAAEC, 0xAAED,    //   [2] MEETEI MAYEK VOWEL SIGN UU, 0xMEETEI MAYEK VOWEL SIGN AAI
+	0xFE00, 0xFE0F,    //  [16] VARIATION SELECTOR-1, 0xVARIATION SELECTOR-16
+	0xFE20, 0xFE2F     //  [16] COMBINING LIGATURE LEFT HALF, 0xCOMBINING CYRILLIC TITLO RIGHT HALF
+	};
+
+	//32 BIT RANGE
+	uint32_t nonspacing_ranges_32[] = {
+	0x10376, 0x1037A,  //   [5] COMBINING OLD PERMIC LETTER AN, 0xCOMBINING OLD PERMIC LETTER SII
+	0x10A01, 0x10A03,  //   [3] KHAROSHTHI VOWEL SIGN I, 0xKHAROSHTHI VOWEL SIGN VOCALIC R
+	0x10A05, 0x10A06,  //   [2] KHAROSHTHI VOWEL SIGN E, 0xKHAROSHTHI VOWEL SIGN O
+	0x10A0C, 0x10A0F,  //   [4] KHAROSHTHI VOWEL LENGTH MARK, 0xKHAROSHTHI SIGN VISARGA
+	0x10A38, 0x10A3A,  //   [3] KHAROSHTHI SIGN BAR ABOVE, 0xKHAROSHTHI SIGN DOT BELOW
+	0x10AE5, 0x10AE6,  //   [2] MANICHAEAN ABBREVIATION MARK ABOVE, 0xMANICHAEAN ABBREVIATION MARK BELOW
+	0x10D24, 0x10D27,  //   [4] HANIFI ROHINGYA SIGN HARBAHAY, 0xHANIFI ROHINGYA SIGN TASSI
+	0x10EAB, 0x10EAC,  //   [2] YEZIDI COMBINING HAMZA MARK, 0xYEZIDI COMBINING MADDA MARK
+	0x10EFD, 0x10EFF,  //   [3] ARABIC SMALL LOW WORD SAKTA, 0xARABIC SMALL LOW WORD MADDA
+	0x10F46, 0x10F50,  //  [11] SOGDIAN COMBINING DOT BELOW, 0xSOGDIAN COMBINING STROKE BELOW
+	0x10F82, 0x10F85,  //   [4] OLD UYGHUR COMBINING DOT ABOVE, 0xOLD UYGHUR COMBINING TWO DOTS BELOW
+	0x11038, 0x11046,  //  [15] BRAHMI VOWEL SIGN AA, 0xBRAHMI VIRAMA
+	0x11073, 0x11074,  //   [2] BRAHMI VOWEL SIGN OLD TAMIL SHORT E, 0xBRAHMI VOWEL SIGN OLD TAMIL SHORT O
+	0x1107F, 0x11081,  //   [3] BRAHMI NUMBER JOINER, 0xKAITHI SIGN ANUSVARA
+	0x110B3, 0x110B6,  //   [4] KAITHI VOWEL SIGN U, 0xKAITHI VOWEL SIGN AI
+	0x110B9, 0x110BA,  //   [2] KAITHI SIGN VIRAMA, 0xKAITHI SIGN NUKTA
+	0x11100, 0x11102,  //   [3] CHAKMA SIGN CANDRABINDU, 0xCHAKMA SIGN VISARGA
+	0x11127, 0x1112B,  //   [5] CHAKMA VOWEL SIGN A, 0xCHAKMA VOWEL SIGN UU
+	0x1112D, 0x11134,  //   [8] CHAKMA VOWEL SIGN AI, 0xCHAKMA MAAYYAA
+	0x11180, 0x11181,  //   [2] SHARADA SIGN CANDRABINDU, 0xSHARADA SIGN ANUSVARA
+	0x111B6, 0x111BE,  //   [9] SHARADA VOWEL SIGN U, 0xSHARADA VOWEL SIGN O
+	0x111C9, 0x111CC,  //   [4] SHARADA SANDHI MARK, 0xSHARADA EXTRA SHORT VOWEL MARK
+	0x1122F, 0x11231,  //   [3] KHOJKI VOWEL SIGN U, 0xKHOJKI VOWEL SIGN AI
+	0x11236, 0x11237,  //   [2] KHOJKI SIGN NUKTA, 0xKHOJKI SIGN SHADDA
+	0x112E3, 0x112EA,  //   [8] KHUDAWADI VOWEL SIGN U, 0xKHUDAWADI SIGN VIRAMA
+	0x11300, 0x11301,  //   [2] GRANTHA SIGN COMBINING ANUSVARA ABOVE, 0xGRANTHA SIGN CANDRABINDU
+	0x1133B, 0x1133C,  //   [2] COMBINING BINDU BELOW, 0xGRANTHA SIGN NUKTA
+	0x11366, 0x1136C,  //   [7] COMBINING GRANTHA DIGIT ZERO, 0xCOMBINING GRANTHA DIGIT SIX
+	0x11370, 0x11374,  //   [5] COMBINING GRANTHA LETTER A, 0xCOMBINING GRANTHA LETTER PA
+	0x11438, 0x1143F,  //   [8] NEWA VOWEL SIGN U, 0xNEWA VOWEL SIGN AI
+	0x11442, 0x11444,  //   [3] NEWA SIGN VIRAMA, 0xNEWA SIGN ANUSVARA
+	0x114B3, 0x114B8,  //   [6] TIRHUTA VOWEL SIGN U, 0xTIRHUTA VOWEL SIGN VOCALIC LL
+	0x114BF, 0x114C0,  //   [2] TIRHUTA SIGN CANDRABINDU, 0xTIRHUTA SIGN ANUSVARA
+	0x114C2, 0x114C3,  //   [2] TIRHUTA SIGN VIRAMA, 0xTIRHUTA SIGN NUKTA
+	0x115B2, 0x115B5,  //   [4] SIDDHAM VOWEL SIGN U, 0xSIDDHAM VOWEL SIGN VOCALIC RR
+	0x115BC, 0x115BD,  //   [2] SIDDHAM SIGN CANDRABINDU, 0xSIDDHAM SIGN ANUSVARA
+	0x115BF, 0x115C0,  //   [2] SIDDHAM SIGN VIRAMA, 0xSIDDHAM SIGN NUKTA
+	0x115DC, 0x115DD,  //   [2] SIDDHAM VOWEL SIGN ALTERNATE U, 0xSIDDHAM VOWEL SIGN ALTERNATE UU
+	0x11633, 0x1163A,  //   [8] MODI VOWEL SIGN U, 0xMODI VOWEL SIGN AI
+	0x1163F, 0x11640,  //   [2] MODI SIGN VIRAMA, 0xMODI SIGN ARDHACANDRA
+	0x116B0, 0x116B5,  //   [6] TAKRI VOWEL SIGN U, 0xTAKRI VOWEL SIGN AU
+	0x1171D, 0x1171F,  //   [3] AHOM CONSONANT SIGN MEDIAL LA, 0xAHOM CONSONANT SIGN MEDIAL LIGATING RA
+	0x11722, 0x11725,  //   [4] AHOM VOWEL SIGN I, 0xAHOM VOWEL SIGN UU
+	0x11727, 0x1172B,  //   [5] AHOM VOWEL SIGN AW, 0xAHOM SIGN KILLER
+	0x1182F, 0x11837,  //   [9] DOGRA VOWEL SIGN U, 0xDOGRA SIGN ANUSVARA
+	0x11839, 0x1183A,  //   [2] DOGRA SIGN VIRAMA, 0xDOGRA SIGN NUKTA
+	0x1193B, 0x1193C,  //   [2] DIVES AKURU SIGN ANUSVARA, 0xDIVES AKURU SIGN CANDRABINDU
+	0x119D4, 0x119D7,  //   [4] NANDINAGARI VOWEL SIGN U, 0xNANDINAGARI VOWEL SIGN VOCALIC RR
+	0x119DA, 0x119DB,  //   [2] NANDINAGARI VOWEL SIGN E, 0xNANDINAGARI VOWEL SIGN AI
+	0x11A01, 0x11A0A,  //  [10] ZANABAZAR SQUARE VOWEL SIGN I, 0xZANABAZAR SQUARE VOWEL LENGTH MARK
+	0x11A33, 0x11A38,  //   [6] ZANABAZAR SQUARE FINAL CONSONANT MARK, 0xZANABAZAR SQUARE SIGN ANUSVARA
+	0x11A3B, 0x11A3E,  //   [4] ZANABAZAR SQUARE CLUSTER-FINAL LETTER YA, 0xZANABAZAR SQUARE CLUSTER-FINAL LETTER VA
+	0x11A51, 0x11A56,  //   [6] SOYOMBO VOWEL SIGN I, 0xSOYOMBO VOWEL SIGN OE
+	0x11A59, 0x11A5B,  //   [3] SOYOMBO VOWEL SIGN VOCALIC R, 0xSOYOMBO VOWEL LENGTH MARK
+	0x11A8A, 0x11A96,  //  [13] SOYOMBO FINAL CONSONANT SIGN G, 0xSOYOMBO SIGN ANUSVARA
+	0x11A98, 0x11A99,  //   [2] SOYOMBO GEMINATION MARK, 0xSOYOMBO SUBJOINER
+	0x11C30, 0x11C36,  //   [7] BHAIKSUKI VOWEL SIGN I, 0xBHAIKSUKI VOWEL SIGN VOCALIC L
+	0x11C38, 0x11C3D,  //   [6] BHAIKSUKI VOWEL SIGN E, 0xBHAIKSUKI SIGN ANUSVARA
+	0x11C92, 0x11CA7,  //  [22] MARCHEN SUBJOINED LETTER KA, 0xMARCHEN SUBJOINED LETTER ZA
+	0x11CAA, 0x11CB0,  //   [7] MARCHEN SUBJOINED LETTER RA, 0xMARCHEN VOWEL SIGN AA
+	0x11CB2, 0x11CB3,  //   [2] MARCHEN VOWEL SIGN U, 0xMARCHEN VOWEL SIGN E
+	0x11CB5, 0x11CB6,  //   [2] MARCHEN SIGN ANUSVARA, 0xMARCHEN SIGN CANDRABINDU
+	0x11D31, 0x11D36,  //   [6] MASARAM GONDI VOWEL SIGN AA, 0xMASARAM GONDI VOWEL SIGN VOCALIC R
+	0x11D3C, 0x11D3D,  //   [2] MASARAM GONDI VOWEL SIGN AI, 0xMASARAM GONDI VOWEL SIGN O
+	0x11D3F, 0x11D45,  //   [7] MASARAM GONDI VOWEL SIGN AU, 0xMASARAM GONDI VIRAMA
+	0x11D90, 0x11D91,  //   [2] GUNJALA GONDI VOWEL SIGN EE, 0xGUNJALA GONDI VOWEL SIGN AI
+	0x11EF3, 0x11EF4,  //   [2] MAKASAR VOWEL SIGN I, 0xMAKASAR VOWEL SIGN U
+	0x11F00, 0x11F01,  //   [2] KAWI SIGN CANDRABINDU, 0xKAWI SIGN ANUSVARA
+	0x11F36, 0x11F3A,  //   [5] KAWI VOWEL SIGN I, 0xKAWI VOWEL SIGN VOCALIC R
+	0x13447, 0x13455,  //  [15] EGYPTIAN HIEROGLYPH MODIFIER DAMAGED AT TOP START, 0xEGYPTIAN HIEROGLYPH MODIFIER DAMAGED
+	0x16AF0, 0x16AF4,  //   [5] BASSA VAH COMBINING HIGH TONE, 0xBASSA VAH COMBINING HIGH-LOW TONE
+	0x16B30, 0x16B36,  //   [7] PAHAWH HMONG MARK CIM TUB, 0xPAHAWH HMONG MARK CIM TAUM
+	0x16F8F, 0x16F92,  //   [4] MIAO TONE RIGHT, 0xMIAO TONE BELOW
+	0x1BC9D, 0x1BC9E,  //   [2] DUPLOYAN THICK LETTER SELECTOR, 0xDUPLOYAN DOUBLE MARK
+	0x1CF00, 0x1CF2D,  //  [46] ZNAMENNY COMBINING MARK GORAZDO NIZKO S KRYZHEM ON LEFT, 0xZNAMENNY COMBINING MARK KRYZH ON LEFT
+	0x1CF30, 0x1CF46,  //  [23] ZNAMENNY COMBINING TONAL RANGE MARK MRACHNO, 0xZNAMENNY PRIZNAK MODIFIER ROG
+	0x1D167, 0x1D169,  //   [3] MUSICAL SYMBOL COMBINING TREMOLO-1, 0xMUSICAL SYMBOL COMBINING TREMOLO-3
+	0x1D17B, 0x1D182,  //   [8] MUSICAL SYMBOL COMBINING ACCENT, 0xMUSICAL SYMBOL COMBINING LOURE
+	0x1D185, 0x1D18B,  //   [7] MUSICAL SYMBOL COMBINING DOIT, 0xMUSICAL SYMBOL COMBINING TRIPLE TONGUE
+	0x1D1AA, 0x1D1AD,  //   [4] MUSICAL SYMBOL COMBINING DOWN BOW, 0xMUSICAL SYMBOL COMBINING SNAP PIZZICATO
+	0x1D242, 0x1D244,  //   [3] COMBINING GREEK MUSICAL TRISEME, 0xCOMBINING GREEK MUSICAL PENTASEME
+	0x1DA00, 0x1DA36,  //  [55] SIGNWRITING HEAD RIM, 0xSIGNWRITING AIR SUCKING IN
+	0x1DA3B, 0x1DA6C,  //  [50] SIGNWRITING MOUTH CLOSED NEUTRAL, 0xSIGNWRITING EXCITEMENT
+	0x1DA9B, 0x1DA9F,  //   [5] SIGNWRITING FILL MODIFIER-2, 0xSIGNWRITING FILL MODIFIER-6
+	0x1DAA1, 0x1DAAF,  //  [15] SIGNWRITING ROTATION MODIFIER-2, 0xSIGNWRITING ROTATION MODIFIER-16
+	0x1E000, 0x1E006,  //   [7] COMBINING GLAGOLITIC LETTER AZU, 0xCOMBINING GLAGOLITIC LETTER ZHIVETE
+	0x1E008, 0x1E018,  //  [17] COMBINING GLAGOLITIC LETTER ZEMLJA, 0xCOMBINING GLAGOLITIC LETTER HERU
+	0x1E01B, 0x1E021,  //   [7] COMBINING GLAGOLITIC LETTER SHTA, 0xCOMBINING GLAGOLITIC LETTER YATI
+	0x1E023, 0x1E024,  //   [2] COMBINING GLAGOLITIC LETTER YU, 0xCOMBINING GLAGOLITIC LETTER SMALL YUS
+	0x1E026, 0x1E02A,  //   [5] COMBINING GLAGOLITIC LETTER YO, 0xCOMBINING GLAGOLITIC LETTER FITA
+	0x1E130, 0x1E136,  //   [7] NYIAKENG PUACHUE HMONG TONE-B, 0xNYIAKENG PUACHUE HMONG TONE-D
+	0x1E2EC, 0x1E2EF,  //   [4] WANCHO TONE TUP, 0xWANCHO TONE KOINI
+	0x1E4EC, 0x1E4EF,  //   [4] NAG MUNDARI SIGN MUHOR, 0xNAG MUNDARI SIGN SUTUH
+	0x1E8D0, 0x1E8D6,  //   [7] MENDE KIKAKUI COMBINING NUMBER TEENS, 0xMENDE KIKAKUI COMBINING NUMBER MILLIONS
+	0x1E944, 0x1E94A,  //   [7] ADLAM ALIF LENGTHENER, 0xADLAM NUKTA
+	0xE0100, 0xE01EF   // [240] VARIATION SELECTOR-17, 0xVARIATION SELECTOR-256
+	};
+
+	bool codepoint16_is_nonspacing(uint16_t c16) noexcept {
+		for(uint32_t i = 0; i < sizeof(isolated_nonspacing) / sizeof(uint16_t); ++i) {
+			if(isolated_nonspacing[i] == c16) {
+				return true;
+			}
+		}
+		for(uint32_t i = 0; i < sizeof(nonspacing_ranges) / sizeof(uint16_t); i += 2) {
+			if(nonspacing_ranges[i] <= c16 && c16 <= nonspacing_ranges[i + 1]) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool codepoint32_is_nonspacing(uint32_t c) noexcept {
+		for(uint32_t i = 0; i < sizeof(isolated_nonspacing_32) / sizeof(uint32_t); ++i) {
+			if(isolated_nonspacing_32[i] == c) {
+				return true;
+			}
+		}
+		for(uint32_t i = 0; i < sizeof(nonspacing_ranges_32) / sizeof(uint32_t); i += 2) {
+			if(nonspacing_ranges_32[i] <= c && c <= nonspacing_ranges_32[i + 1]) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	uint32_t assemble_codepoint(uint16_t high, uint16_t low) noexcept {
+		uint32_t high_bits = (high & 0x03FF) << 10;
+		uint32_t low_bits = low & 0x03FF;
+		uint32_t temp = high_bits | low_bits;
+		return temp + 0x10000;
+	}
+	
+	surrogate_pair make_surrogate_pair(uint32_t val) noexcept {
+		uint32_t v = val - 0x10000;
+		uint32_t h = ((v >> 10) & 0x03FF) | 0xD800;
+		uint32_t l = (v & 0x03FF) | 0xDC00;
+		return surrogate_pair{uint16_t(h), uint16_t(l) };
+	}
+
+	bool cursor_ignorable16(uint16_t at_position, uint16_t trailing) {
+		if(at_position >= 0xDC00 && at_position <= 0xDFFF) {
+			return false; // low surrogate
+		} else if(at_position == 0x200B || at_position == 0x200C || at_position == 0x200D || at_position == 0x2060 || at_position == 0xFEFF) {
+			//200B = zero width space
+			//200C = zero width non joiner
+			//200D = zero width joiner
+			//2060 = word joiner
+			//FEFF = zero width, no break space
+			return false;
+		} else if(at_position < 0x20) {
+			// legacy ascii control codes
+			if(at_position == 0x0A) // '\n'
+				return true;
+			else if(at_position == 0x09) // '\t'
+				return true;
+			return false;
+		} else if(at_position >= 0x7F && at_position <= 0x9F) {
+			return false;
+		} else if(at_position == 0x061C || at_position == 0x200E || at_position == 0x200F || (at_position >= 0x202A && at_position <= 0x202E) || (at_position >= 0x2066 && at_position <= 0x2069)) {
+			return false;
+		} else {
+			if(at_position >= 0xD800 && at_position <= 0xDBFF) { // high surrogate
+				return codepoint32_is_nonspacing(assemble_codepoint(at_position, trailing));
+			} else { // non surrogate
+				return codepoint16_is_nonspacing(at_position);
+			}
+		}
+	}
+
+	// TODO: replace with proper unicode decomposition
+	// https://www.unicode.org/reports/tr29/
+
+	int32_t num_logical_chars_in_range(std::wstring_view str) {
+		int32_t total = 0;
+		for(uint32_t i = 0; i < str.length(); ++i) {
+			auto char_code = str[i];
+			if(char_code >= 0xDC00 && char_code <= 0xDFFF) {
+				// don't count a low surrogate
+			} else if(char_code == 0x200B || char_code == 0x200C || char_code == 0x200D || char_code == 0x2060 || char_code == 0xFEFF) {
+				//200B = zero width space
+				//200C = zero width non joiner
+				//200D = zero width joiner
+				//2060 = word joiner
+				//FEFF = zero width, no break space
+			} else if(char_code < 0x20) {
+				// legacy ascii control codes
+				if(char_code == 0x0A) // '\n'
+					++total;
+				else if(char_code == 0x09) // '\t'
+					++total;
+			} else if(char_code >= 0x7F && char_code <= 0x9F) {
+				// other control codes
+			} else if(char_code == 0x061C || char_code == 0x200E || char_code == 0x200F || (char_code >= 0x202A && char_code <= 0x202E) || (char_code >= 0x2066 && char_code <= 0x2069)) {
+				// bidi control codes
+			} else {
+				if(char_code >= 0xD800 && char_code <= 0xDBFF) { // high surrogate
+					if(i + 1 != str.length()) {
+						if(!codepoint32_is_nonspacing(assemble_codepoint(str[i], str[i + 1])))
+							++total;
+					}
+				} else { // non surrogate
+					if(!codepoint16_is_nonspacing(str[i]))
+						++total;
+				}
+			}
+		}
+		return total;
+	}
+
+	struct text_analysis_object {
+		std::vector<SCRIPT_ITEM> processed_items;
+		int32_t item_count = 0;
+		text_analysis_object() {
+			processed_items.resize(8);
+		}
+	};
+
+	void release_text_analysis_object(text_analysis_object* ptr) {
+		delete ptr;
+	}
+	text_analysis_object* make_analysis_object() {
+		return new text_analysis_object();
+	}
+	void update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm) {
+		int32_t items_got = 0;
+		int32_t current_size = int32_t(ptr->processed_items.size());
+
+		SCRIPT_CONTROL control;
+		memset(&control, 0, sizeof(SCRIPT_CONTROL));
+		SCRIPT_STATE state;
+		memset(&state, 0, sizeof(SCRIPT_STATE));
+
+		control.uDefaultLanguage = LANGIDFROMLCID(tm.lcid);
+		state.uBidiLevel = ltr ? 0 : 1;
+		state.fArabicNumContext = tm.app_lang == L"ar" ? 1 : 0;
+
+		while(ScriptItemize(
+			str.data(),
+			int32_t(str.length()),
+			current_size - 1,
+			&control,
+			&state,
+			ptr->processed_items.data(),
+			&items_got) == E_OUTOFMEMORY) {
+			current_size *= 2;
+			ptr->processed_items.resize(current_size);
+		}
+
+		ptr->item_count = items_got;
+	}
+	int32_t number_of_cursor_positions_in_range(text_analysis_object* ptr, std::wstring const& str, int32_t start, int32_t count) {
+
+		int32_t block_index = 0;
+		//find first block containing range
+
+		for(; block_index < ptr->item_count; ++block_index) {
+			if(start >= ptr->processed_items[block_index].iCharPos) {
+				break;
+			}
+		}
+		if(block_index < ptr->item_count) {
+			int32_t total = 0;
+			int32_t wchars_processed = 0;
+			//finish first block
+			{
+				auto sub_position = start - ptr->processed_items[block_index].iCharPos;
+				auto char_count = ptr->processed_items[block_index + 1].iCharPos - ptr->processed_items[block_index].iCharPos;
+
+				std::vector<SCRIPT_LOGATTR> logattr(char_count);
+				ScriptBreak(str.data() + ptr->processed_items[block_index].iCharPos,
+					char_count,
+					&(ptr->processed_items[block_index].a),
+					logattr.data());
+
+				for(; sub_position < char_count; ++sub_position) {
+					if(logattr[sub_position].fCharStop)
+						++total;
+					++wchars_processed;
+					if(wchars_processed >= count)
+						return total;
+				}
+			}
+			for(; block_index < ptr->item_count; ++block_index) {
+				auto char_count = ptr->processed_items[block_index + 1].iCharPos - ptr->processed_items[block_index].iCharPos;
+				std::vector<SCRIPT_LOGATTR> logattr(char_count);
+				ScriptBreak(str.data() + ptr->processed_items[block_index].iCharPos,
+					char_count,
+					&(ptr->processed_items[block_index].a),
+					logattr.data());
+
+				for(int32_t sub_position = 0; sub_position < char_count; ++sub_position) {
+					if(logattr[sub_position].fCharStop)
+						++total;
+					++wchars_processed;
+					if(wchars_processed >= count)
+						return total;
+				}
+			}
+			return total;
+		} else {
+			return 0;
+		}
+	}
+	int32_t get_previous_cursor_position(text_analysis_object* ptr, std::wstring const& str, int32_t position) {
+		if(position <= 0)
+			return 0;
+
+		for(int32_t block_index = 0; block_index < ptr->item_count; ++block_index) {
+			if(position > ptr->processed_items[block_index].iCharPos
+				&& position <= ptr->processed_items[block_index + 1].iCharPos) {
+
+				auto char_count = ptr->processed_items[block_index + 1].iCharPos - ptr->processed_items[block_index].iCharPos;
+				std::vector<SCRIPT_LOGATTR> logattr(char_count);
+
+				ScriptBreak(str.data() + ptr->processed_items[block_index].iCharPos,
+					char_count,
+					&(ptr->processed_items[block_index].a),
+					logattr.data());
+
+				auto pos_in_block = (position - ptr->processed_items[block_index].iCharPos) - 1;
+				while(pos_in_block > 0) {
+					if(logattr[pos_in_block].fCharStop)
+						return ptr->processed_items[block_index].iCharPos + pos_in_block;
+					--pos_in_block;
+				}
+				return ptr->processed_items[block_index].iCharPos;
+			}
+		}
+
+		return position - 1;
+	}
+	int32_t get_next_cursor_position(text_analysis_object* ptr, std::wstring const& str, int32_t position) {
+		if(position == str.length())
+			return position;
+
+		for(int32_t block_index = 0; block_index < ptr->item_count; ++block_index) {
+			if(position >= ptr->processed_items[block_index].iCharPos
+				&& position < ptr->processed_items[block_index + 1].iCharPos) {
+
+				auto char_count = ptr->processed_items[block_index + 1].iCharPos - ptr->processed_items[block_index].iCharPos;
+				std::vector<SCRIPT_LOGATTR> logattr(char_count);
+
+				ScriptBreak(str.data() + ptr->processed_items[block_index].iCharPos,
+					char_count,
+					&(ptr->processed_items[block_index].a),
+					logattr.data());
+
+				auto pos_in_block = (position - ptr->processed_items[block_index].iCharPos) + 1;
+				while(pos_in_block < char_count) {
+					if(logattr[pos_in_block].fCharStop)
+						return ptr->processed_items[block_index].iCharPos + pos_in_block;
+					++pos_in_block;
+				}
+				return ptr->processed_items[block_index + 1].iCharPos;
+			}
+		}
+
+		return position + 1;
+	}
+	int32_t get_previous_word_position(text_analysis_object* ptr, std::wstring const& str, int32_t position) {
+		if(position <= 0)
+			return 0;
+
+		for(int32_t block_index = 0; block_index < ptr->item_count; ++block_index) {
+			if(position > ptr->processed_items[block_index].iCharPos
+				&& position <= ptr->processed_items[block_index + 1].iCharPos) {
+
+				{
+					auto char_count = ptr->processed_items[block_index + 1].iCharPos - ptr->processed_items[block_index].iCharPos;
+					std::vector<SCRIPT_LOGATTR> logattr(char_count);
+
+					ScriptBreak(str.data() + ptr->processed_items[block_index].iCharPos,
+						char_count,
+						&(ptr->processed_items[block_index].a),
+						logattr.data());
+
+					auto pos_in_block = (position - ptr->processed_items[block_index].iCharPos) - 1;
+					while(pos_in_block >= 0) {
+						if(logattr[pos_in_block].fWordStop)
+							return ptr->processed_items[block_index].iCharPos + pos_in_block;
+						--pos_in_block;
+					}
+				}
+				--block_index;
+				while(block_index >= 0) {
+
+					auto char_count = ptr->processed_items[block_index + 1].iCharPos - ptr->processed_items[block_index].iCharPos;
+					std::vector<SCRIPT_LOGATTR> logattr(char_count);
+
+					ScriptBreak(str.data() + ptr->processed_items[block_index].iCharPos,
+						char_count,
+						&(ptr->processed_items[block_index].a),
+						logattr.data());
+
+					auto pos_in_block = char_count - 1;
+					while(pos_in_block >= 0) {
+						if(logattr[pos_in_block].fWordStop)
+							return ptr->processed_items[block_index].iCharPos + pos_in_block;
+						--pos_in_block;
+					}
+
+					--block_index;
+				}
+
+				return 0;
+			}
+		}
+
+		return 0;
+	}
+	int32_t get_next_word_position(text_analysis_object* ptr, std::wstring const& str, int32_t position) {
+		if(position == str.length())
+			return position;
+
+		for(int32_t block_index = 0; block_index < ptr->item_count; ++block_index) {
+			if(position >= ptr->processed_items[block_index].iCharPos
+				&& position < ptr->processed_items[block_index + 1].iCharPos) {
+					{
+						auto char_count = ptr->processed_items[block_index + 1].iCharPos - ptr->processed_items[block_index].iCharPos;
+						std::vector<SCRIPT_LOGATTR> logattr(char_count);
+
+						ScriptBreak(str.data() + ptr->processed_items[block_index].iCharPos,
+							char_count,
+							&(ptr->processed_items[block_index].a),
+							logattr.data());
+
+						auto pos_in_block = (position - ptr->processed_items[block_index].iCharPos) + 1;
+						while(pos_in_block < char_count) {
+							if(logattr[pos_in_block].fWordStop)
+								return ptr->processed_items[block_index].iCharPos + pos_in_block;
+							++pos_in_block;
+						}
+					}
+					++block_index;
+					while(block_index < ptr->item_count) {
+						auto char_count = ptr->processed_items[block_index + 1].iCharPos - ptr->processed_items[block_index].iCharPos;
+						std::vector<SCRIPT_LOGATTR> logattr(char_count);
+
+						ScriptBreak(str.data() + ptr->processed_items[block_index].iCharPos,
+							char_count,
+							&(ptr->processed_items[block_index].a),
+							logattr.data());
+
+						auto pos_in_block = 0;
+						while(pos_in_block < char_count) {
+							if(logattr[pos_in_block].fWordStop)
+								return ptr->processed_items[block_index].iCharPos + pos_in_block;
+							++pos_in_block;
+						}
+
+						++block_index;
+					}
+					return int32_t(str.length());
+			}
+		}
+
+		return int32_t(str.length());
 	}
 }

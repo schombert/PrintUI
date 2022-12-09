@@ -111,6 +111,49 @@ namespace printui {
 	struct accessibility_object;
 	void release_accessibility_object(accessibility_object* o);
 
+	namespace text {
+		struct text_analysis_object;
+		void release_text_analysis_object(text_analysis_object* ptr);
+	}
+
+	class text_analysis_ptr {
+		text::text_analysis_object* ptr = nullptr;
+	public:
+		text_analysis_ptr() noexcept {
+		}
+		text_analysis_ptr(text::text_analysis_object* ptr) noexcept : ptr(ptr) {
+		}
+		text_analysis_ptr(text_analysis_ptr&& o) noexcept {
+			ptr = o.ptr;
+			o.ptr = nullptr;
+		}
+		~text_analysis_ptr() {
+			if(ptr)
+				text::release_text_analysis_object(ptr);
+			ptr = nullptr;
+		}
+		text_analysis_ptr& operator=(text_analysis_ptr const& o) = delete;
+		text_analysis_ptr& operator=(text_analysis_ptr&& o) noexcept {
+			if(ptr)
+				text::release_text_analysis_object(ptr);
+			ptr = o.ptr;
+			o.ptr = nullptr;
+			return *this;
+		}
+		text_analysis_ptr& operator=(text::text_analysis_object* o) noexcept {
+			if(ptr)
+				text::release_text_analysis_object(ptr);
+			ptr = o;
+			return *this;
+		}
+		operator bool() const noexcept {
+			return ptr != nullptr;
+		}
+		operator text::text_analysis_object* () const noexcept {
+			return ptr;
+		}
+	};
+
 	class accessibility_object_ptr {
 		accessibility_object* ptr = nullptr;
 	public:
@@ -359,24 +402,25 @@ namespace printui {
 		constexpr static uint8_t header_minimize = 0;
 		constexpr static uint8_t header_close = 1;
 
-		constexpr static uint8_t control_button = 2;
-		constexpr static uint8_t control_menu = 3;
-		constexpr static uint8_t control_pages = 4;
-		constexpr static uint8_t control_list = 5;
-		constexpr static uint8_t control_next = 6;
-		constexpr static uint8_t control_next_next = 7;
-		constexpr static uint8_t control_prev = 8;
-		constexpr static uint8_t control_prev_prev = 9;
-		constexpr static uint8_t control_toggle = 10;
+		constexpr static uint8_t window_settings = 2;
+		constexpr static uint8_t window_max = 3;
+		constexpr static uint8_t window_min = 4;
+		constexpr static uint8_t window_restore = 5;
+		constexpr static uint8_t window_info = 6;
+		constexpr static uint8_t window_close = 7;
 
-		constexpr static uint8_t window_settings = 11;
-		constexpr static uint8_t window_max = 12;
-		constexpr static uint8_t window_min = 13;
-		constexpr static uint8_t window_restore = 14;
-		constexpr static uint8_t window_info = 15;
-		constexpr static uint8_t window_close = 16;
+		constexpr static uint8_t control_button = 8;
+		constexpr static uint8_t control_menu = 9;
+		constexpr static uint8_t control_pages = 10;
+		constexpr static uint8_t control_list = 11;
+		constexpr static uint8_t control_next = 12;
+		constexpr static uint8_t control_next_next = 13;
+		constexpr static uint8_t control_prev = 14;
+		constexpr static uint8_t control_prev_prev = 15;
+		constexpr static uint8_t control_toggle = 16;
+		constexpr static uint8_t control_text = 17;
 
-		constexpr static uint32_t final_icon = 17;
+		constexpr static uint32_t final_icon = 18;
 
 		std::array<icon, final_icon> icons;
 
@@ -770,6 +814,37 @@ namespace printui {
 		}
 	};
 
+	enum class edit_command : uint8_t {
+		new_line, backspace, delete_char, backspace_word, delete_word, tab, cursor_down, cursor_up, cursor_left, cursor_right, cursor_left_word, cursor_right_word, to_line_start, to_line_end, to_text_start, to_text_end, cut, copy, paste, select_all, undo, redo, select_current_word, select_current_section
+	};
+
+	struct edit_interface {
+		virtual ~edit_interface() { }
+
+		// commands sent to control
+		virtual void insert_codepoint(window_data&, uint32_t codepoint) = 0;
+		virtual void clear(window_data&) = 0;
+		virtual void move_cursor(window_data&, uint32_t position, bool extend_selection) = 0;
+		virtual bool move_cursor_by_screen_pt(window_data&, screen_space_point pt, bool extend_selection) = 0; // returns if cursor was captured;
+		virtual void command(window_data&, edit_command cmd, bool extend_selection) = 0;
+		virtual void insert_temporary_codepoint(window_data&, uint32_t codepoint) = 0;
+		virtual void clear_temporary_contents(window_data&) = 0;
+		virtual void set_cursor_visibility(window_data&, bool is_visible) = 0;
+
+		// retrieve information from control
+		virtual uint32_t get_cursor() const = 0;
+		virtual uint32_t get_selection_anchor() const = 0;
+		virtual uint32_t get_text_length() const = 0;
+		virtual std::wstring get_text() const = 0;
+		virtual screen_space_rect get_cursor_location(window_data&) const = 0;
+		virtual screen_space_rect get_edit_bounds(window_data&) const = 0;
+		virtual screen_space_rect get_character_bounds(window_data&, uint32_t position) const = 0;
+		virtual layout_interface* get_layout_interface() = 0;
+
+		// notify control of event
+		virtual void on_finalize(window_data&) = 0;
+	};
+
 	struct wrapped_text_instance {
 		text::text_parameter stored_params[10] = {};
 		uint16_t text_id = uint16_t(-1);
@@ -955,6 +1030,116 @@ namespace printui {
 			return uint16_t(-1);
 		}
 		virtual std::wstring get_name(window_data const&);
+	};
+
+	struct simple_editable_text : public render_interface, public edit_interface {
+		struct selection_run {
+			int32_t start = 0;
+			int32_t end = 0;
+		};
+	protected:
+		std::vector<selection_run> cached_selection_region;
+		accessibility_object_ptr acc_obj;
+		text_analysis_ptr analysis_obj;
+		IDWriteTextLayout* formatted_text = nullptr;
+
+		std::wstring text;
+		
+		int32_t anchor_position = 0;
+		int32_t cursor_position = 0;
+		int32_t temp_text_position = 0;
+		int32_t temp_text_length = 0;
+		int32_t cached_cursor_postion = 0;
+
+		uint16_t alt_text;
+
+		uint8_t minimum_layout_space;
+		content_alignment text_alignment;
+		
+
+		bool disabled = false;
+		bool changes_made = false;
+		bool cursor_visible = false;
+		bool analysis_out_of_date = false;
+		bool selection_out_of_date = false;
+
+		void prepare_selection_regions(window_data const& win);
+		void prepare_analysis(window_data const& win);
+		void internal_on_text_changed(window_data&);
+		void internal_on_selection_changed(window_data&);
+	public:
+		interactable_state saved_state;
+
+		simple_editable_text(content_alignment text_alignment, uint16_t alt_text, uint8_t minimum_layout_space);
+		virtual ~simple_editable_text();
+
+		// render_interface
+		virtual layout_node_type get_node_type() {
+			return layout_node_type::control;
+		}
+		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
+		virtual simple_layout_specification get_specification(window_data&) override;
+		virtual void render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) override;
+		virtual void render_foreground(ui_rectangle const& rect, window_data& win) override;
+		virtual void on_click(window_data&, uint32_t, uint32_t) final override;
+		virtual void on_right_click(window_data&, uint32_t, uint32_t) final override;
+		virtual accessibility_object* get_accessibility_interface(window_data&) override;
+
+		virtual void set_interactable(int32_t, interactable_state v) override {
+			saved_state = v;
+		}
+		virtual int32_t interactable_count(window_data const&) override {
+			if(!disabled)
+				return 1;
+			else
+				return 0;
+		}
+		
+		//edit_interface
+		// commands sent to control
+		virtual void insert_codepoint(window_data&, uint32_t codepoint) override;
+		virtual void clear(window_data&) override;
+		virtual void move_cursor(window_data&, uint32_t position, bool extend_selection) override;
+		virtual bool move_cursor_by_screen_pt(window_data&, screen_space_point pt, bool extend_selection) override; // returns if cursor was captured;
+		virtual void command(window_data&, edit_command cmd, bool extend_selection) override;
+		virtual void insert_temporary_codepoint(window_data&, uint32_t codepoint) override;
+		virtual void clear_temporary_contents(window_data&) override;
+		virtual void set_cursor_visibility(window_data&, bool is_visible) override;
+
+		// retrieve information from control
+		virtual uint32_t get_cursor() const override;
+		virtual uint32_t get_selection_anchor() const override;
+		virtual uint32_t get_text_length() const override;
+		virtual std::wstring get_text() const override;
+		virtual screen_space_rect get_cursor_location(window_data&) const override;
+		virtual screen_space_rect get_edit_bounds(window_data&) const override;
+		virtual screen_space_rect get_character_bounds(window_data&, uint32_t position) const override;
+		virtual layout_interface* get_layout_interface() override {
+			return this;
+		}
+
+		// notify control of event
+		virtual void on_finalize(window_data&) override;
+
+		// exposed properties
+		void set_disabled(window_data& win, bool v);
+		void set_alt_text(window_data& win, uint16_t alt);
+		void set_text(window_data& win, std::wstring const&);
+		uint16_t get_alt_text() const;
+		bool is_disabled() const {
+			return disabled;
+		}
+
+		// for rendering
+		void prepare_text(window_data const& win);
+		void relayout_text(window_data const& win, screen_space_point sz);
+		void draw_text(window_data const& win, int32_t x, int32_t y) const;
+		void invalidate();
+
+		// for implementations
+		virtual void on_text_changed(window_data&, std::wstring const&) { }
+		virtual void on_edit_finished(window_data&, std::wstring const&) { }
+
 	};
 
 	struct vertical_2x2_max_icon : public icon_button_base {
@@ -1708,7 +1893,7 @@ namespace printui {
 			replaceable_instance instantiate(text_data_storage const& tm, replaceable_instance const* start, replaceable_instance const* end) const;
 		};
 
-		
+
 		constexpr attribute_type zero = 0;
 		constexpr attribute_type one = 1;
 		constexpr attribute_type two = 2;
@@ -1724,7 +1909,7 @@ namespace printui {
 		constexpr attribute_type ord_other = 11;
 
 		constexpr attribute_type last_predefined = 11;
-		
+
 
 		using cardinal_plural_fn = attribute_type(*)(int64_t, int64_t, int32_t);
 		using ordinal_plural_fn = attribute_type(*)(int64_t);
@@ -1747,6 +1932,8 @@ namespace printui {
 			void consume_text_file(std::string_view body, std::unordered_map<std::string, uint32_t, string_hash, std::equal_to<>> const& font_name_to_index);
 		};
 
+		void update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm);
+
 		class text_manager {
 		private:
 			text_data_storage text_data;
@@ -1764,7 +1951,7 @@ namespace printui {
 			uint32_t  NegativeOrder;
 			uint32_t lcid;
 
-			
+
 			std::unordered_map<std::wstring_view, cardinal_plural_fn> cardinal_functions;
 			std::unordered_map<std::wstring_view, ordinal_plural_fn> ordinal_functions;
 
@@ -1800,9 +1987,11 @@ namespace printui {
 			int64_t text_to_int(wchar_t* start, uint32_t count) const;
 			wchar_t const* locale_string() const;
 			bool is_current_locale(std::wstring const& lang, std::wstring const& region) const;
-			
+
 			replaceable_instance instantiate_text(uint16_t id, text_parameter const* s = nullptr, text_parameter const* e = nullptr) const;
 			replaceable_instance instantiate_text(std::string_view key, text_parameter const* s = nullptr, text_parameter const* e = nullptr) const;
+
+			friend void update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm);
 		};
 
 		void apply_default_vertical_options(IDWriteTypography* t);
@@ -1821,8 +2010,53 @@ namespace printui {
 			std::wstring display_name;
 		};
 		std::vector<language_description> ennumerate_languages(window_data const& win);
+
+		struct surrogate_pair {
+			uint16_t high = 0; // aka leading
+			uint16_t low = 0; // aka trailing
+		};
+
+		bool codepoint16_is_nonspacing(uint16_t c16) noexcept;
+		bool codepoint32_is_nonspacing(uint32_t c) noexcept;
+		uint32_t assemble_codepoint(uint16_t high, uint16_t low) noexcept;
+		surrogate_pair make_surrogate_pair(uint32_t val) noexcept;
+		int32_t num_logical_chars_in_range(std::wstring_view str);
+		bool cursor_ignorable16(uint16_t at_position, uint16_t trailing);
+
+		text_analysis_object* make_analysis_object();
+		
+		int32_t number_of_cursor_positions_in_range(text_analysis_object* ptr, std::wstring const& str, int32_t start, int32_t count);
+		int32_t get_previous_cursor_position(text_analysis_object* ptr, std::wstring const& str, int32_t position);
+		int32_t get_next_cursor_position(text_analysis_object* ptr, std::wstring const& str, int32_t position);
+		int32_t get_previous_word_position(text_analysis_object* ptr, std::wstring const& str, int32_t position);
+		int32_t get_next_word_position(text_analysis_object* ptr, std::wstring const& str, int32_t position);
 	}
 	
+	struct undo_item {
+		edit_interface* from = nullptr;
+		std::wstring contents;
+		int32_t anchor = 0;
+		int32_t cursor = 0;
+
+		bool operator==(undo_item const& o) const noexcept {
+			return from == o.from && contents == o.contents;
+		}
+		bool operator!=(undo_item const& o) const noexcept {
+			return !(*this == o);
+		}
+	};
+
+	struct undo_buffer {
+		constexpr static int32_t total_size = 16;
+
+		undo_item interal_buffer[total_size] = {};
+		int32_t buffer_position = 0;
+
+		std::optional<undo_item> undo(undo_item current_state);
+		std::optional<undo_item> redo(undo_item current_state);
+		void push_state(undo_item state);
+	};
+
 	struct animation_status_struct {
 		animation_description description;
 
@@ -2016,6 +2250,12 @@ namespace printui {
 		uint32_t last_cursor_x_position = 0;
 		uint32_t last_cursor_y_position = 0;
 
+		edit_interface* keyboard_target = nullptr;
+		undo_buffer edit_undo_buffer;
+		bool selecting_edit_text = false;
+		int32_t double_click_ms = 5;
+		decltype(std::chrono::steady_clock::now()) last_double_click;
+
 		struct {
 			uint32_t val = 0;
 			constexpr static uint32_t button_y = 0x001;
@@ -2027,6 +2267,13 @@ namespace printui {
 			constexpr static uint32_t button_start = 0x040;
 			constexpr static uint32_t button_back = 0x080;
 		} controller_buttons;
+		struct {
+			decltype(std::chrono::steady_clock::now()) start_time;
+			bool running = false;
+			double current_x = 0.0;
+			double current_y = 0.0;
+			int32_t for_controller = 0;
+		} controller_mouse;
 		uint32_t controller_number_plugged_in = 0;
 
 		std::vector<stored_focus> focus_stack;
@@ -2055,6 +2302,9 @@ namespace printui {
 		bool is_suspended = false;
 		bool pending_right_click = false;
 
+		bool running_in_place_animation = false;
+		bool previous_frame_in_place_animation = false;
+		decltype(std::chrono::steady_clock::now()) in_place_animation_start;
 		animation_status_struct animation_status;
 		bool ui_animations_on = true;
 
@@ -2236,6 +2486,10 @@ namespace printui {
 		accessibility_object* get_last_child_accessibility_object(layout_reference r);
 
 		void immediate_add_child(layout_reference parent, layout_reference child);
+
+		void set_keyboard_focus(edit_interface* i);
+		void register_in_place_animation();
+		int64_t in_place_animation_running_ms() const;
 	};
 
 	
