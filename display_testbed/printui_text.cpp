@@ -2772,6 +2772,13 @@ namespace printui::text {
 		return surrogate_pair{uint16_t(h), uint16_t(l) };
 	}
 
+	bool is_low_surrogate(uint16_t char_code) noexcept {
+		return char_code >= 0xDC00 && char_code <= 0xDFFF;
+	}
+	bool is_high_surrogate(uint16_t char_code) noexcept {
+		return char_code >= 0xD800 && char_code <= 0xDBFF;
+	}
+
 	bool cursor_ignorable16(uint16_t at_position, uint16_t trailing) {
 		if(at_position >= 0xDC00 && at_position <= 0xDFFF) {
 			return false; // low surrogate
@@ -2843,11 +2850,7 @@ namespace printui::text {
 	}
 
 	struct text_analysis_object {
-		std::vector<SCRIPT_ITEM> processed_items;
-		int32_t item_count = 0;
-		text_analysis_object() {
-			processed_items.resize(8);
-		}
+		std::vector<SCRIPT_LOGATTR> char_attributes;
 	};
 
 	void release_text_analysis_object(text_analysis_object* ptr) {
@@ -2858,7 +2861,8 @@ namespace printui::text {
 	}
 	void update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm) {
 		int32_t items_got = 0;
-		int32_t current_size = int32_t(ptr->processed_items.size());
+		std::vector<SCRIPT_ITEM> processed_items(8);
+		int32_t current_size = 8;
 
 		SCRIPT_CONTROL control;
 		memset(&control, 0, sizeof(SCRIPT_CONTROL));
@@ -2875,220 +2879,79 @@ namespace printui::text {
 			current_size - 1,
 			&control,
 			&state,
-			ptr->processed_items.data(),
+			processed_items.data(),
 			&items_got) == E_OUTOFMEMORY) {
 			current_size *= 2;
-			ptr->processed_items.resize(current_size);
+			processed_items.resize(current_size);
 		}
 
-		ptr->item_count = items_got;
-	}
-	int32_t number_of_cursor_positions_in_range(text_analysis_object* ptr, std::wstring const& str, int32_t start, int32_t count) {
-
-		int32_t block_index = 0;
-		//find first block containing range
-
-		for(; block_index < ptr->item_count; ++block_index) {
-			if(start >= ptr->processed_items[block_index].iCharPos) {
-				break;
-			}
-		}
-		if(block_index < ptr->item_count) {
-			int32_t total = 0;
-			int32_t wchars_processed = 0;
-			//finish first block
-			{
-				auto sub_position = start - ptr->processed_items[block_index].iCharPos;
-				auto char_count = ptr->processed_items[block_index + 1].iCharPos - ptr->processed_items[block_index].iCharPos;
-
-				std::vector<SCRIPT_LOGATTR> logattr(char_count);
-				ScriptBreak(str.data() + ptr->processed_items[block_index].iCharPos,
-					char_count,
-					&(ptr->processed_items[block_index].a),
-					logattr.data());
-
-				for(; sub_position < char_count; ++sub_position) {
-					if(logattr[sub_position].fCharStop)
-						++total;
-					++wchars_processed;
-					if(wchars_processed >= count)
-						return total;
-				}
-			}
-			for(; block_index < ptr->item_count; ++block_index) {
-				auto char_count = ptr->processed_items[block_index + 1].iCharPos - ptr->processed_items[block_index].iCharPos;
-				std::vector<SCRIPT_LOGATTR> logattr(char_count);
-				ScriptBreak(str.data() + ptr->processed_items[block_index].iCharPos,
-					char_count,
-					&(ptr->processed_items[block_index].a),
-					logattr.data());
-
-				for(int32_t sub_position = 0; sub_position < char_count; ++sub_position) {
-					if(logattr[sub_position].fCharStop)
-						++total;
-					++wchars_processed;
-					if(wchars_processed >= count)
-						return total;
-				}
-			}
-			return total;
-		} else {
-			return 0;
+		ptr->char_attributes.resize(str.length());
+		memset(ptr->char_attributes.data(), int32_t(sizeof(SCRIPT_LOGATTR) * str.length()), 0);
+		for(int32_t i = 0; i < items_got; ++i) {
+			auto char_count = processed_items[i + 1].iCharPos - processed_items[i].iCharPos;
+			ScriptBreak(str.data() + processed_items[i].iCharPos,
+				char_count,
+				&(processed_items[i].a),
+				ptr->char_attributes.data() + processed_items[i].iCharPos);
 		}
 	}
-	int32_t get_previous_cursor_position(text_analysis_object* ptr, std::wstring const& str, int32_t position) {
-		if(position <= 0)
-			return 0;
+	int32_t number_of_cursor_positions_in_range(text_analysis_object* ptr, int32_t start, int32_t count) {
 
-		for(int32_t block_index = 0; block_index < ptr->item_count; ++block_index) {
-			if(position > ptr->processed_items[block_index].iCharPos
-				&& position <= ptr->processed_items[block_index + 1].iCharPos) {
-
-				auto char_count = ptr->processed_items[block_index + 1].iCharPos - ptr->processed_items[block_index].iCharPos;
-				std::vector<SCRIPT_LOGATTR> logattr(char_count);
-
-				ScriptBreak(str.data() + ptr->processed_items[block_index].iCharPos,
-					char_count,
-					&(ptr->processed_items[block_index].a),
-					logattr.data());
-
-				auto pos_in_block = (position - ptr->processed_items[block_index].iCharPos) - 1;
-				while(pos_in_block > 0) {
-					if(logattr[pos_in_block].fCharStop)
-						return ptr->processed_items[block_index].iCharPos + pos_in_block;
-					--pos_in_block;
-				}
-				return ptr->processed_items[block_index].iCharPos;
-			}
+		int32_t total = 0;
+		auto const array_size = ptr->char_attributes.size();
+		for(int32_t i = 0; i < count && start + i < array_size; ++i) {
+			if(ptr->char_attributes[start + i].fCharStop)
+				++total;
 		}
 
-		return position - 1;
+		return total;
 	}
-	int32_t get_next_cursor_position(text_analysis_object* ptr, std::wstring const& str, int32_t position) {
-		if(position == str.length())
-			return position;
+	int32_t get_previous_cursor_position(text_analysis_object* ptr, int32_t position) {
+		--position;
 
-		for(int32_t block_index = 0; block_index < ptr->item_count; ++block_index) {
-			if(position >= ptr->processed_items[block_index].iCharPos
-				&& position < ptr->processed_items[block_index + 1].iCharPos) {
+		if(position >= ptr->char_attributes.size())
+			position = int32_t(ptr->char_attributes.size() - 1);
 
-				auto char_count = ptr->processed_items[block_index + 1].iCharPos - ptr->processed_items[block_index].iCharPos;
-				std::vector<SCRIPT_LOGATTR> logattr(char_count);
-
-				ScriptBreak(str.data() + ptr->processed_items[block_index].iCharPos,
-					char_count,
-					&(ptr->processed_items[block_index].a),
-					logattr.data());
-
-				auto pos_in_block = (position - ptr->processed_items[block_index].iCharPos) + 1;
-				while(pos_in_block < char_count) {
-					if(logattr[pos_in_block].fCharStop)
-						return ptr->processed_items[block_index].iCharPos + pos_in_block;
-					++pos_in_block;
-				}
-				return ptr->processed_items[block_index + 1].iCharPos;
-			}
+		for(; position > 0; --position) {
+			if(ptr->char_attributes[position].fCharStop)
+				return position;
 		}
-
-		return position + 1;
-	}
-	int32_t get_previous_word_position(text_analysis_object* ptr, std::wstring const& str, int32_t position) {
-		if(position <= 0)
-			return 0;
-
-		for(int32_t block_index = 0; block_index < ptr->item_count; ++block_index) {
-			if(position > ptr->processed_items[block_index].iCharPos
-				&& position <= ptr->processed_items[block_index + 1].iCharPos) {
-
-				{
-					auto char_count = ptr->processed_items[block_index + 1].iCharPos - ptr->processed_items[block_index].iCharPos;
-					std::vector<SCRIPT_LOGATTR> logattr(char_count);
-
-					ScriptBreak(str.data() + ptr->processed_items[block_index].iCharPos,
-						char_count,
-						&(ptr->processed_items[block_index].a),
-						logattr.data());
-
-					auto pos_in_block = (position - ptr->processed_items[block_index].iCharPos) - 1;
-					while(pos_in_block >= 0) {
-						if(logattr[pos_in_block].fWordStop)
-							return ptr->processed_items[block_index].iCharPos + pos_in_block;
-						--pos_in_block;
-					}
-				}
-				--block_index;
-				while(block_index >= 0) {
-
-					auto char_count = ptr->processed_items[block_index + 1].iCharPos - ptr->processed_items[block_index].iCharPos;
-					std::vector<SCRIPT_LOGATTR> logattr(char_count);
-
-					ScriptBreak(str.data() + ptr->processed_items[block_index].iCharPos,
-						char_count,
-						&(ptr->processed_items[block_index].a),
-						logattr.data());
-
-					auto pos_in_block = char_count - 1;
-					while(pos_in_block >= 0) {
-						if(logattr[pos_in_block].fWordStop)
-							return ptr->processed_items[block_index].iCharPos + pos_in_block;
-						--pos_in_block;
-					}
-
-					--block_index;
-				}
-
-				return 0;
-			}
-		}
-
 		return 0;
 	}
-	int32_t get_next_word_position(text_analysis_object* ptr, std::wstring const& str, int32_t position) {
-		if(position == str.length())
-			return position;
+	int32_t get_next_cursor_position(text_analysis_object* ptr, int32_t position) {
+		++position;
 
-		for(int32_t block_index = 0; block_index < ptr->item_count; ++block_index) {
-			if(position >= ptr->processed_items[block_index].iCharPos
-				&& position < ptr->processed_items[block_index + 1].iCharPos) {
-					{
-						auto char_count = ptr->processed_items[block_index + 1].iCharPos - ptr->processed_items[block_index].iCharPos;
-						std::vector<SCRIPT_LOGATTR> logattr(char_count);
-
-						ScriptBreak(str.data() + ptr->processed_items[block_index].iCharPos,
-							char_count,
-							&(ptr->processed_items[block_index].a),
-							logattr.data());
-
-						auto pos_in_block = (position - ptr->processed_items[block_index].iCharPos) + 1;
-						while(pos_in_block < char_count) {
-							if(logattr[pos_in_block].fWordStop)
-								return ptr->processed_items[block_index].iCharPos + pos_in_block;
-							++pos_in_block;
-						}
-					}
-					++block_index;
-					while(block_index < ptr->item_count) {
-						auto char_count = ptr->processed_items[block_index + 1].iCharPos - ptr->processed_items[block_index].iCharPos;
-						std::vector<SCRIPT_LOGATTR> logattr(char_count);
-
-						ScriptBreak(str.data() + ptr->processed_items[block_index].iCharPos,
-							char_count,
-							&(ptr->processed_items[block_index].a),
-							logattr.data());
-
-						auto pos_in_block = 0;
-						while(pos_in_block < char_count) {
-							if(logattr[pos_in_block].fWordStop)
-								return ptr->processed_items[block_index].iCharPos + pos_in_block;
-							++pos_in_block;
-						}
-
-						++block_index;
-					}
-					return int32_t(str.length());
-			}
+		if(position < 0)
+			position = 0;
+		auto const array_size = ptr->char_attributes.size();
+		for(; position < array_size; ++position) {
+			if(ptr->char_attributes[position].fCharStop)
+				return position;
 		}
+		return int32_t(array_size);
+	}
+	int32_t get_previous_word_position(text_analysis_object* ptr, int32_t position) {
+		--position;
 
-		return int32_t(str.length());
+		if(position >= ptr->char_attributes.size())
+			position = int32_t(ptr->char_attributes.size() - 1);
+
+		for(; position > 0; --position) {
+			if(ptr->char_attributes[position].fWordStop)
+				return position;
+		}
+		return 0;
+	}
+	int32_t get_next_word_position(text_analysis_object* ptr, int32_t position) {
+		++position;
+
+		if(position < 0)
+			position = 0;
+		auto const array_size = ptr->char_attributes.size();
+		for(; position < array_size; ++position) {
+			if(ptr->char_attributes[position].fWordStop)
+				return position;
+		}
+		return int32_t(array_size);
 	}
 }

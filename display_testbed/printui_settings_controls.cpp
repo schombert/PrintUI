@@ -168,7 +168,7 @@ namespace printui {
 		}
 	}
 
-	common_printui_settings::common_printui_settings() : language_label(text_id::language_label, content_alignment::leading), orientation_label(text_id::orientation_label, content_alignment::leading), input_mode_label(text_id::input_mode_label, content_alignment::leading), toggle_animations_label(text_id::ui_animations_label, content_alignment::leading) {
+	common_printui_settings::common_printui_settings() : language_label(text_id::language_label, content_alignment::leading), orientation_label(text_id::orientation_label, content_alignment::leading), input_mode_label(text_id::input_mode_label, content_alignment::leading), toggle_animations_label(text_id::ui_animations_label, content_alignment::leading), test_box(content_alignment::trailing, uint16_t(-1), 8) {
 
 		lang_menu.open_button.set_text_alignment(content_alignment::trailing);
 		lang_menu.page_size = 1;
@@ -200,6 +200,8 @@ namespace printui {
 		content_description.push_back(page_content{ &input_mode_list, column_break_behavior::normal, item_type::item_end });
 		content_description.push_back(page_content{ &toggle_animations_label, column_break_behavior::dont_break_after, item_type::item_start });
 		content_description.push_back(page_content{ &toggle_animations, column_break_behavior::normal, item_type::item_end });
+		//test_box
+		content_description.push_back(page_content{ &test_box, column_break_behavior::normal, item_type::normal });
 	}
 
 	accessibility_object* common_printui_settings::get_accessibility_interface(window_data& win) {

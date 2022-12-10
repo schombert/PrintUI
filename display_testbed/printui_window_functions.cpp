@@ -101,8 +101,58 @@ namespace printui {
 		return GetKeyState(MapVirtualKey(scan_code, MAPVK_VSC_TO_VK)) & ~1;
 	}
 
+	bool os_win32_wrapper::is_shift_held_down() const {
+		return (GetKeyState(VK_SHIFT) & 0x80) != 0;
+		
+	}
+	bool os_win32_wrapper::is_ctrl_held_down() const {
+		return (GetKeyState(VK_CONTROL) & 0x80) != 0;
+	}
+
 	uint32_t os_win32_wrapper::get_window_dpi() const {
 		return GetDpiForWindow((HWND)(m_hwnd));
+	}
+
+	void os_win32_wrapper::text_to_clipboard(std::wstring_view txt) {
+		if(OpenClipboard(m_hwnd)) {
+			if(EmptyClipboard()) {
+				size_t byteSize = sizeof(wchar_t) * (txt.length() + 1);
+				HGLOBAL hClipboardData = GlobalAlloc(GMEM_DDESHARE | GMEM_MOVEABLE | GMEM_ZEROINIT, byteSize);
+
+				if(hClipboardData != nullptr) {
+					void* memory = GlobalLock(hClipboardData);  // [byteSize] in bytes
+
+					if(memory != nullptr) {
+						memcpy(memory, txt.data(), byteSize);
+						GlobalUnlock(hClipboardData);
+
+						if(SetClipboardData(CF_UNICODETEXT, hClipboardData) != nullptr) {
+							hClipboardData = nullptr; // system now owns the clipboard, so don't touch it.
+						}
+					}
+					GlobalFree(hClipboardData); // free if failed
+				}
+			}
+			CloseClipboard();
+		}
+	}
+	std::wstring os_win32_wrapper::text_from_clipboard() {
+		std::wstring return_value;
+		if(OpenClipboard(m_hwnd)) {
+			HGLOBAL hClipboardData = GetClipboardData(CF_UNICODETEXT);
+
+			if(hClipboardData != NULL) {
+				size_t byteSize = GlobalSize(hClipboardData);
+				void* memory = GlobalLock(hClipboardData);
+				if(memory != NULL) {
+					const wchar_t* text = reinterpret_cast<const wchar_t*>(memory);
+					return_value = std::wstring(text, text + byteSize / sizeof(wchar_t));
+					GlobalUnlock(hClipboardData);
+				}
+			}
+			CloseClipboard();
+		}
+		return return_value;
 	}
 
 	LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -689,6 +739,7 @@ namespace printui {
 					keyboard_target->command(*this, edit_command::redo, false);
 				}
 			}
+			return true;
 		}
 
 		if(scan_code == primary_right_click_modifier_sc || scan_code == secondary_right_click_modifier_sc) {
@@ -1040,7 +1091,7 @@ namespace printui {
 					}
 					case WM_KEYDOWN:
 					{
-						if((HIWORD(lParam) & KF_REPEAT) != 0)
+						if((HIWORD(lParam) & KF_REPEAT) != 0 && app->keyboard_target == nullptr)
 							return 0;
 
 						// IF text box has focus, process only secondary escape, else ...
@@ -1065,7 +1116,7 @@ namespace printui {
 					{
 						// only route to text box, if it has focus
 						if(app->keyboard_target && wParam >= 0x20) {
-							app->keyboard_target->insert_codepoint(*app, wParam);
+							app->keyboard_target->insert_codepoint(*app, uint32_t(wParam));
 						}
 						return 0;
 					}
@@ -1652,11 +1703,16 @@ namespace printui {
 	}
 
 	void window_data::set_keyboard_focus(edit_interface* i) {
+		if(keyboard_target == i)
+			return;
+
 		if(keyboard_target != nullptr) {
 			keyboard_target->on_finalize(*this);
 			selecting_edit_text = false;
 		}
-
 		keyboard_target = i;
+		if(i) {
+			i->on_initialize(*this);
+		}
 	}
 }

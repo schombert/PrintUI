@@ -815,7 +815,7 @@ namespace printui {
 	};
 
 	enum class edit_command : uint8_t {
-		new_line, backspace, delete_char, backspace_word, delete_word, tab, cursor_down, cursor_up, cursor_left, cursor_right, cursor_left_word, cursor_right_word, to_line_start, to_line_end, to_text_start, to_text_end, cut, copy, paste, select_all, undo, redo, select_current_word, select_current_section
+		new_line, backspace, delete_char, backspace_word, delete_word, tab, cursor_down, cursor_up, cursor_left, cursor_right, cursor_left_word, cursor_right_word, to_line_start, to_line_end, to_text_start, to_text_end, cut, copy, paste, select_all, undo, redo, select_current_word, select_current_section, delete_selection
 	};
 
 	struct edit_interface {
@@ -843,6 +843,7 @@ namespace printui {
 
 		// notify control of event
 		virtual void on_finalize(window_data&) = 0;
+		virtual void on_initialize(window_data&) = 0;
 	};
 
 	struct wrapped_text_instance {
@@ -1067,6 +1068,7 @@ namespace printui {
 		void prepare_analysis(window_data const& win);
 		void internal_on_text_changed(window_data&);
 		void internal_on_selection_changed(window_data&);
+		void internal_move_cursor_to_point(window_data&, int32_t x, int32_t y, bool extend_selection);
 	public:
 		interactable_state saved_state;
 
@@ -1120,6 +1122,7 @@ namespace printui {
 
 		// notify control of event
 		virtual void on_finalize(window_data&) override;
+		virtual void on_initialize(window_data&) override;
 
 		// exposed properties
 		void set_disabled(window_data& win, bool v);
@@ -1134,7 +1137,6 @@ namespace printui {
 		void prepare_text(window_data const& win);
 		void relayout_text(window_data const& win, screen_space_point sz);
 		void draw_text(window_data const& win, int32_t x, int32_t y) const;
-		void invalidate();
 
 		// for implementations
 		virtual void on_text_changed(window_data&, std::wstring const&) { }
@@ -1699,6 +1701,8 @@ namespace printui {
 		label_control toggle_animations_label;
 		ui_animation_toggle_button toggle_animations;
 
+		simple_editable_text test_box;
+
 		accessibility_object_ptr acc_obj;
 
 		std::vector<page_content> content_description;
@@ -2020,16 +2024,18 @@ namespace printui {
 		bool codepoint32_is_nonspacing(uint32_t c) noexcept;
 		uint32_t assemble_codepoint(uint16_t high, uint16_t low) noexcept;
 		surrogate_pair make_surrogate_pair(uint32_t val) noexcept;
+		bool is_low_surrogate(uint16_t char_code) noexcept;
+		bool is_high_surrogate(uint16_t char_code) noexcept;
 		int32_t num_logical_chars_in_range(std::wstring_view str);
 		bool cursor_ignorable16(uint16_t at_position, uint16_t trailing);
 
 		text_analysis_object* make_analysis_object();
 		
-		int32_t number_of_cursor_positions_in_range(text_analysis_object* ptr, std::wstring const& str, int32_t start, int32_t count);
-		int32_t get_previous_cursor_position(text_analysis_object* ptr, std::wstring const& str, int32_t position);
-		int32_t get_next_cursor_position(text_analysis_object* ptr, std::wstring const& str, int32_t position);
-		int32_t get_previous_word_position(text_analysis_object* ptr, std::wstring const& str, int32_t position);
-		int32_t get_next_word_position(text_analysis_object* ptr, std::wstring const& str, int32_t position);
+		int32_t number_of_cursor_positions_in_range(text_analysis_object* ptr, int32_t start, int32_t count);
+		int32_t get_previous_cursor_position(text_analysis_object* ptr, int32_t position);
+		int32_t get_next_cursor_position(text_analysis_object* ptr, int32_t position);
+		int32_t get_previous_word_position(text_analysis_object* ptr, int32_t position);
+		int32_t get_next_word_position(text_analysis_object* ptr, int32_t position);
 	}
 	
 	struct undo_item {
@@ -2086,6 +2092,8 @@ namespace printui {
 		virtual bool is_mouse_cursor_visible() const = 0;
 		virtual void reshow_mouse_cursor() = 0;
 		virtual int32_t get_key_state(uint32_t scan_code) const = 0;
+		virtual bool is_shift_held_down() const = 0;
+		virtual bool is_ctrl_held_down() const = 0;
 		virtual void move_window(screen_space_rect r) = 0;
 		virtual uint32_t get_window_dpi() const = 0;
 		virtual bool create_window(window_data& wd) = 0;
@@ -2101,6 +2109,8 @@ namespace printui {
 		virtual void set_window_title(wchar_t const* t) = 0;
 		virtual bool window_has_focus() const = 0;
 		virtual os_direct_access_base* get_os_access(os_handle_type) = 0;
+		virtual void text_to_clipboard(std::wstring_view txt) = 0;
+		virtual std::wstring text_from_clipboard() = 0;
 	};
 
 	enum class resize_type : uint8_t {

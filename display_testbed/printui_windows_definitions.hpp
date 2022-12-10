@@ -32,6 +32,8 @@ namespace printui {
 		virtual bool is_mouse_cursor_visible() const override;
 		virtual void reshow_mouse_cursor() override;
 		virtual int32_t get_key_state(uint32_t scan_code) const override;
+		virtual bool is_shift_held_down() const override;
+		virtual bool is_ctrl_held_down() const override;
 		virtual void move_window(screen_space_rect r) override;
 		virtual uint32_t get_window_dpi() const override;
 		virtual bool create_window(window_data& wd) override;
@@ -47,6 +49,8 @@ namespace printui {
 		virtual void set_window_title(wchar_t const* t) override;
 		virtual bool window_has_focus() const override;
 		virtual os_direct_access_base* get_os_access(os_handle_type) override;
+		virtual void text_to_clipboard(std::wstring_view txt) override;
+		virtual std::wstring text_from_clipboard() override;
 	};
 
 	
