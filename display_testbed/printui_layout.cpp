@@ -1251,8 +1251,7 @@ namespace printui {
 	bool window_data::is_visible(layout_reference r) const {
 		if(r == layout_reference_none)
 			return false;
-		auto vr = get_node(r).visible_rect;
-		return vr < get_ui_rects().size();
+		return !get_node(r).ignore() && get_node(r).visible_rect < get_ui_rects().size();
 	}
 
 	struct acc_visible_children_it {

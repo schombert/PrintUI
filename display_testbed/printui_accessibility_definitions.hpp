@@ -93,6 +93,7 @@ namespace printui {
         virtual accessibility_object* make_open_list_control_accessibility_interface(window_data& w, open_list_control& b) override;
         virtual accessibility_object* make_container_accessibility_interface(window_data& w, layout_interface* b, uint16_t name) override;
         virtual accessibility_object* make_plain_text_accessibility_interface(window_data& w, layout_interface* b, stored_text* t, bool is_content) override;
+        virtual accessibility_object* make_simple_text_accessibility_interface(window_data& w, simple_editable_text& control) override;
         virtual accessibility_object* make_expandable_selection_list(window_data& win, generic_expandable* control, generic_selection_container* sc, uint16_t name, uint16_t alt_text) override;
         virtual accessibility_object* make_expandable_container(window_data& win, generic_expandable* control, uint16_t name, uint16_t alt_text) override;
         virtual void on_invoke(accessibility_object* b) override;
@@ -105,6 +106,14 @@ namespace printui {
         virtual void on_contents_changed(accessibility_object* b) override;
         virtual void on_expand_collapse(accessibility_object* b, bool expanded) override;
         virtual void on_window_layout_changed() override;
+        virtual void on_text_content_changed(accessibility_object* b) override;
+        virtual void on_text_value_changed(accessibility_object* b) override;
+        virtual void on_text_selection_changed(accessibility_object* b) override;
+        virtual void on_conversion_target_changed(accessibility_object* b) override;
+        virtual void on_composition_change(accessibility_object* b, std::wstring_view comp) override;
+        virtual void on_composition_result(accessibility_object* b, std::wstring_view result) override;
+        virtual void on_focus_change(accessibility_object* b) override;
+        virtual void on_focus_returned_to_root() override;
     };
 
     class root_window_provider : public IRawElementProviderSimple,
@@ -584,5 +593,117 @@ namespace printui {
 
         // Ref counter for this COM object.
         ULONG m_refCount;
+    };
+
+    class simple_edit_provider;
+
+    interface __declspec(uuid("A401D798-DCFD-42F2-8A00-140282D987D1"))
+    IRawRangeValues : public IUnknown {
+    public:
+        virtual int32_t get_start() = 0;
+        virtual int32_t get_end() = 0;
+    };
+
+    class simple_edit_range_provider :
+        public ITextRangeProvider, public IRawRangeValues {
+
+        simple_edit_range_provider(simple_edit_provider* parent, int32_t start, int32_t end);
+
+        // IUnknown methods
+        IFACEMETHODIMP_(ULONG) AddRef();
+        IFACEMETHODIMP_(ULONG) Release();
+        IFACEMETHODIMP QueryInterface(REFIID riid, void** ppInterface);
+
+        //ITextRangeProvider
+        IFACEMETHODIMP Clone(__RPC__deref_out_opt ITextRangeProvider** pRetVal);
+        IFACEMETHODIMP Compare(__RPC__in_opt ITextRangeProvider* range, __RPC__out BOOL* pRetVal);
+        IFACEMETHODIMP CompareEndpoints(enum TextPatternRangeEndpoint endpoint, __RPC__in_opt ITextRangeProvider* targetRange, enum TextPatternRangeEndpoint targetEndpoint, __RPC__out int* pRetVal);
+        IFACEMETHODIMP ExpandToEnclosingUnit(enum TextUnit unit);
+        IFACEMETHODIMP FindAttribute(TEXTATTRIBUTEID attributeId, VARIANT val, BOOL backward, __RPC__deref_out_opt ITextRangeProvider** pRetVal);
+        IFACEMETHODIMP FindText(__RPC__in BSTR text, BOOL backward, BOOL ignoreCase, __RPC__deref_out_opt ITextRangeProvider** pRetVal);
+        IFACEMETHODIMP GetAttributeValue(TEXTATTRIBUTEID attributeId, __RPC__out VARIANT* pRetVal);
+        IFACEMETHODIMP GetBoundingRectangles(__RPC__deref_out_opt SAFEARRAY** pRetVal);
+        IFACEMETHODIMP GetEnclosingElement(__RPC__deref_out_opt IRawElementProviderSimple** pRetVal);
+        IFACEMETHODIMP GetText(int maxLength, __RPC__deref_out_opt BSTR* pRetVal);
+        IFACEMETHODIMP Move(enum TextUnit unit, int count, __RPC__out int* pRetVal);
+        IFACEMETHODIMP MoveEndpointByUnit(enum TextPatternRangeEndpoint endpoint, enum TextUnit unit, int count, __RPC__out int* pRetVal);
+        IFACEMETHODIMP MoveEndpointByRange(enum TextPatternRangeEndpoint endpoint, __RPC__in_opt ITextRangeProvider* targetRange, enum TextPatternRangeEndpoint targetEndpoint);
+        IFACEMETHODIMP Select();
+        IFACEMETHODIMP AddToSelection();
+        IFACEMETHODIMP RemoveFromSelection();
+        IFACEMETHODIMP ScrollIntoView(BOOL alignToTop);
+        IFACEMETHODIMP GetChildren(__RPC__deref_out_opt SAFEARRAY** pRetVal);
+
+        // IRawRangeValues methods
+        int32_t get_start();
+        int32_t get_end();
+
+        virtual ~simple_edit_range_provider();
+    private:
+        simple_edit_provider* parent = nullptr;
+        int32_t start = 0;
+        int32_t end = 0;
+
+        // Ref counter for this COM object.
+        ULONG m_refCount;
+
+        friend class simple_edit_provider;
+    };
+
+    class simple_edit_provider : public disconnectable,
+        public IRawElementProviderSimple,
+        public IRawElementProviderFragment,
+        public ITextEditProvider,
+        public IValueProvider {
+    public:
+
+        simple_edit_provider(window_data& win, simple_editable_text& b);
+        void disconnect();
+
+        // IUnknown methods
+        IFACEMETHODIMP_(ULONG) AddRef();
+        IFACEMETHODIMP_(ULONG) Release();
+        IFACEMETHODIMP QueryInterface(REFIID riid, void** ppInterface);
+
+        // IRawElementProviderSimple methods
+        IFACEMETHODIMP get_ProviderOptions(ProviderOptions* pRetVal);
+        IFACEMETHODIMP GetPatternProvider(PATTERNID iid, IUnknown** pRetVal);
+        IFACEMETHODIMP GetPropertyValue(PROPERTYID idProp, VARIANT* pRetVal);
+        IFACEMETHODIMP get_HostRawElementProvider(IRawElementProviderSimple** pRetVal);
+
+        // IRawElementProviderFragment methods
+        IFACEMETHODIMP Navigate(NavigateDirection direction, IRawElementProviderFragment** pRetVal);
+        IFACEMETHODIMP GetRuntimeId(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP get_BoundingRectangle(UiaRect* pRetVal);
+        IFACEMETHODIMP GetEmbeddedFragmentRoots(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP SetFocus();
+        IFACEMETHODIMP get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal);
+
+        //ITextProvider
+        IFACEMETHODIMP GetSelection(__RPC__deref_out_opt SAFEARRAY** pRetVal);
+        IFACEMETHODIMP GetVisibleRanges(__RPC__deref_out_opt SAFEARRAY** pRetVal);
+        IFACEMETHODIMP RangeFromChild(__RPC__in_opt IRawElementProviderSimple* childElement, __RPC__deref_out_opt ITextRangeProvider** pRetVal);
+        IFACEMETHODIMP RangeFromPoint(UiaPoint point, __RPC__deref_out_opt ITextRangeProvider** pRetVal);
+        IFACEMETHODIMP get_DocumentRange(__RPC__deref_out_opt ITextRangeProvider** pRetVal);
+        IFACEMETHODIMP get_SupportedTextSelection(__RPC__out enum SupportedTextSelection* pRetVal);
+
+        //ITextEditProvider
+        IFACEMETHODIMP GetActiveComposition(__RPC__deref_out_opt ITextRangeProvider** pRetVal);
+        IFACEMETHODIMP GetConversionTarget(__RPC__deref_out_opt ITextRangeProvider** pRetVal);
+
+        //IValueProvider
+        IFACEMETHODIMP SetValue(__RPC__in LPCWSTR val);
+        IFACEMETHODIMP get_Value(__RPC__deref_out_opt BSTR* pRetVal);
+        IFACEMETHODIMP get_IsReadOnly(__RPC__out BOOL* pRetVal);
+
+        virtual ~simple_edit_provider();
+    private:
+        std::vector<simple_edit_range_provider*> child_ranges;
+        simple_editable_text* control = nullptr;
+
+        // Ref counter for this COM object.
+        ULONG m_refCount;
+
+        friend class simple_edit_range_provider;
     };
 }

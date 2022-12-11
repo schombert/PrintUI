@@ -825,10 +825,13 @@ namespace printui {
 		virtual void insert_codepoint(window_data&, uint32_t codepoint) = 0;
 		virtual void clear(window_data&) = 0;
 		virtual void move_cursor(window_data&, uint32_t position, bool extend_selection) = 0;
+		virtual void set_selection(window_data&, uint32_t start, uint32_t end) = 0;
 		virtual bool move_cursor_by_screen_pt(window_data&, screen_space_point pt, bool extend_selection) = 0; // returns if cursor was captured;
 		virtual void command(window_data&, edit_command cmd, bool extend_selection) = 0;
 		virtual void insert_temporary_codepoint(window_data&, uint32_t codepoint) = 0;
 		virtual void clear_temporary_contents(window_data&) = 0;
+		virtual void register_composition_result(window_data&, std::wstring_view result) = 0;
+		virtual void register_conversion_target_change(window_data&) = 0;
 		virtual void set_cursor_visibility(window_data&, bool is_visible) = 0;
 
 		// retrieve information from control
@@ -840,6 +843,7 @@ namespace printui {
 		virtual screen_space_rect get_edit_bounds(window_data&) const = 0;
 		virtual screen_space_rect get_character_bounds(window_data&, uint32_t position) const = 0;
 		virtual layout_interface* get_layout_interface() = 0;
+		virtual uint32_t get_position_from_screen_point(window_data&, screen_space_point pt) = 0;
 
 		// notify control of event
 		virtual void on_finalize(window_data&) = 0;
@@ -1052,6 +1056,7 @@ namespace printui {
 		int32_t temp_text_length = 0;
 		int32_t cached_cursor_postion = 0;
 
+		uint16_t name;
 		uint16_t alt_text;
 
 		uint8_t minimum_layout_space;
@@ -1072,7 +1077,7 @@ namespace printui {
 	public:
 		interactable_state saved_state;
 
-		simple_editable_text(content_alignment text_alignment, uint16_t alt_text, uint8_t minimum_layout_space);
+		simple_editable_text(content_alignment text_alignment, uint16_t name, uint16_t alt_text, uint8_t minimum_layout_space);
 		virtual ~simple_editable_text();
 
 		// render_interface
@@ -1102,10 +1107,13 @@ namespace printui {
 		virtual void insert_codepoint(window_data&, uint32_t codepoint) override;
 		virtual void clear(window_data&) override;
 		virtual void move_cursor(window_data&, uint32_t position, bool extend_selection) override;
+		virtual void set_selection(window_data&, uint32_t start, uint32_t end) override;
 		virtual bool move_cursor_by_screen_pt(window_data&, screen_space_point pt, bool extend_selection) override; // returns if cursor was captured;
 		virtual void command(window_data&, edit_command cmd, bool extend_selection) override;
 		virtual void insert_temporary_codepoint(window_data&, uint32_t codepoint) override;
 		virtual void clear_temporary_contents(window_data&) override;
+		virtual void register_composition_result(window_data&, std::wstring_view result) override;
+		virtual void register_conversion_target_change(window_data&) override;
 		virtual void set_cursor_visibility(window_data&, bool is_visible) override;
 
 		// retrieve information from control
@@ -1116,6 +1124,7 @@ namespace printui {
 		virtual screen_space_rect get_cursor_location(window_data&) const override;
 		virtual screen_space_rect get_edit_bounds(window_data&) const override;
 		virtual screen_space_rect get_character_bounds(window_data&, uint32_t position) const override;
+		virtual uint32_t get_position_from_screen_point(window_data&, screen_space_point pt) override;
 		virtual layout_interface* get_layout_interface() override {
 			return this;
 		}
@@ -1129,9 +1138,15 @@ namespace printui {
 		void set_alt_text(window_data& win, uint16_t alt);
 		void set_text(window_data& win, std::wstring const&);
 		uint16_t get_alt_text() const;
+		uint16_t get_name() const;
+		content_alignment get_alignment() const {
+			return text_alignment;
+		}
 		bool is_disabled() const {
 			return disabled;
 		}
+		
+		text::text_analysis_object* get_analysis(window_data const& win);
 
 		// for rendering
 		void prepare_text(window_data const& win);
@@ -1990,6 +2005,7 @@ namespace printui {
 			double text_to_double(wchar_t* start, uint32_t count) const;
 			int64_t text_to_int(wchar_t* start, uint32_t count) const;
 			wchar_t const* locale_string() const;
+			bool is_locale_default() const;
 			bool is_current_locale(std::wstring const& lang, std::wstring const& region) const;
 
 			replaceable_instance instantiate_text(uint16_t id, text_parameter const* s = nullptr, text_parameter const* e = nullptr) const;
@@ -2028,6 +2044,7 @@ namespace printui {
 		bool is_high_surrogate(uint16_t char_code) noexcept;
 		int32_t num_logical_chars_in_range(std::wstring_view str);
 		bool cursor_ignorable16(uint16_t at_position, uint16_t trailing);
+		bool is_space(uint32_t c) noexcept;
 
 		text_analysis_object* make_analysis_object();
 		
@@ -2036,6 +2053,9 @@ namespace printui {
 		int32_t get_next_cursor_position(text_analysis_object* ptr, int32_t position);
 		int32_t get_previous_word_position(text_analysis_object* ptr, int32_t position);
 		int32_t get_next_word_position(text_analysis_object* ptr, int32_t position);
+		bool is_cursor_position(text_analysis_object* ptr, int32_t position);
+		bool is_word_position(text_analysis_object* ptr, int32_t position);
+		bool position_is_ltr(text_analysis_object* ptr, int32_t position);
 	}
 	
 	struct undo_item {
@@ -2111,6 +2131,9 @@ namespace printui {
 		virtual os_direct_access_base* get_os_access(os_handle_type) = 0;
 		virtual void text_to_clipboard(std::wstring_view txt) = 0;
 		virtual std::wstring text_from_clipboard() = 0;
+		virtual void create_system_caret(int32_t width, int32_t height) = 0;
+		virtual void move_system_caret(int32_t x, int32_t y) = 0;
+		virtual void destroy_system_caret() = 0;
 	};
 
 	enum class resize_type : uint8_t {
@@ -2134,6 +2157,7 @@ namespace printui {
 		virtual accessibility_object* make_open_list_control_accessibility_interface(window_data& w, open_list_control& b) = 0;
 		virtual accessibility_object* make_container_accessibility_interface(window_data& w, layout_interface* b, uint16_t name) = 0;
 		virtual accessibility_object* make_plain_text_accessibility_interface(window_data& w, layout_interface* b, stored_text* t, bool is_content) = 0;
+		virtual accessibility_object* make_simple_text_accessibility_interface(window_data& w, simple_editable_text& control) = 0;
 		virtual accessibility_object* make_expandable_selection_list(window_data& win, generic_expandable* control, generic_selection_container* sc, uint16_t name, uint16_t alt_text) = 0;
 		virtual accessibility_object* make_expandable_container(window_data& win, generic_expandable* control, uint16_t name, uint16_t alt_text) = 0;
 		virtual void on_invoke(accessibility_object* b) = 0;
@@ -2146,6 +2170,14 @@ namespace printui {
 		virtual void on_contents_changed(accessibility_object* b) = 0;
 		virtual void on_expand_collapse(accessibility_object* b, bool expanded) = 0;
 		virtual void on_window_layout_changed() = 0;
+		virtual void on_text_content_changed(accessibility_object* b) = 0;
+		virtual void on_text_value_changed(accessibility_object* b) = 0;
+		virtual void on_text_selection_changed(accessibility_object* b) = 0;
+		virtual void on_conversion_target_changed(accessibility_object* b) = 0;
+		virtual void on_composition_change(accessibility_object* b, std::wstring_view comp) = 0;
+		virtual void on_composition_result(accessibility_object* b, std::wstring_view result) = 0;
+		virtual void on_focus_change(accessibility_object* b) = 0;
+		virtual void on_focus_returned_to_root() = 0;
 	};
 
 	struct window_data {

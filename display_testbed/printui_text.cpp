@@ -1872,6 +1872,10 @@ namespace printui::text {
 			return nullptr;
 	}
 
+	bool text_manager::is_locale_default() const {
+		return os_locale_is_default;
+	}
+
 	bool text_manager::is_current_locale(std::wstring const& lang, std::wstring const& region) const {
 		return app_lang == lang && app_region == region;
 	}
@@ -2849,6 +2853,25 @@ namespace printui::text {
 		return total;
 	}
 
+	/*
+	0009..000D    ; White_Space # Cc   [5] <control-0009>..<control-000D>
+	0020          ; White_Space # Zs       SPACE
+	0085          ; White_Space # Cc       <control-0085>
+	00A0          ; White_Space # Zs       NO-BREAK SPACE
+	1680          ; White_Space # Zs       OGHAM SPACE MARK
+	2000..200A    ; White_Space # Zs  [11] EN QUAD..HAIR SPACE
+	2028          ; White_Space # Zl       LINE SEPARATOR
+	2029          ; White_Space # Zp       PARAGRAPH SEPARATOR
+	202F          ; White_Space # Zs       NARROW NO-BREAK SPACE
+	205F          ; White_Space # Zs       MEDIUM MATHEMATICAL SPACE
+	3000          ; White_Space # Zs       IDEOGRAPHIC SPACE
+	*/
+
+	bool is_space(uint32_t c) noexcept {
+		return (c == 0x3000 || c == 0x205F || c == 0x202F || c == 0x2029 || c == 0x2028 || c == 0x1680 || c == 0x00A0
+			|| c == 0x0085 || c == 0x0020 || (0x0009 <= c && c <= 0x000D) || (0x2000 <= c && c <= 0x200A));
+	}
+
 	struct text_analysis_object {
 		std::vector<SCRIPT_LOGATTR> char_attributes;
 	};
@@ -2893,6 +2916,9 @@ namespace printui::text {
 				char_count,
 				&(processed_items[i].a),
 				ptr->char_attributes.data() + processed_items[i].iCharPos);
+			for(int32_t j = processed_items[i + 1].iCharPos; j < processed_items[i + 1].iCharPos; ++j) {
+				ptr->char_attributes[j].fReserved = (processed_items[i].a.s.uBidiLevel & 0x01);
+			}
 		}
 	}
 	int32_t number_of_cursor_positions_in_range(text_analysis_object* ptr, int32_t start, int32_t count) {
@@ -2909,9 +2935,6 @@ namespace printui::text {
 	int32_t get_previous_cursor_position(text_analysis_object* ptr, int32_t position) {
 		--position;
 
-		if(position >= ptr->char_attributes.size())
-			position = int32_t(ptr->char_attributes.size() - 1);
-
 		for(; position > 0; --position) {
 			if(ptr->char_attributes[position].fCharStop)
 				return position;
@@ -2921,8 +2944,6 @@ namespace printui::text {
 	int32_t get_next_cursor_position(text_analysis_object* ptr, int32_t position) {
 		++position;
 
-		if(position < 0)
-			position = 0;
 		auto const array_size = ptr->char_attributes.size();
 		for(; position < array_size; ++position) {
 			if(ptr->char_attributes[position].fCharStop)
@@ -2933,9 +2954,6 @@ namespace printui::text {
 	int32_t get_previous_word_position(text_analysis_object* ptr, int32_t position) {
 		--position;
 
-		if(position >= ptr->char_attributes.size())
-			position = int32_t(ptr->char_attributes.size() - 1);
-
 		for(; position > 0; --position) {
 			if(ptr->char_attributes[position].fWordStop)
 				return position;
@@ -2945,13 +2963,21 @@ namespace printui::text {
 	int32_t get_next_word_position(text_analysis_object* ptr, int32_t position) {
 		++position;
 
-		if(position < 0)
-			position = 0;
 		auto const array_size = ptr->char_attributes.size();
 		for(; position < array_size; ++position) {
 			if(ptr->char_attributes[position].fWordStop)
 				return position;
 		}
 		return int32_t(array_size);
+	}
+	bool position_is_ltr(text_analysis_object* ptr, int32_t position) {
+		return ptr->char_attributes[position].fReserved == 0;
+	}
+
+	bool is_cursor_position(text_analysis_object* ptr, int32_t position) {
+		return ptr->char_attributes[position].fCharStop != 0;
+	}
+	bool is_word_position(text_analysis_object* ptr, int32_t position) {
+		return ptr->char_attributes[position].fWordStop != 0;
 	}
 }

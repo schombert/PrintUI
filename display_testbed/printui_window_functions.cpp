@@ -74,6 +74,16 @@ namespace printui {
 	}
 
 
+	void os_win32_wrapper::create_system_caret(int32_t width, int32_t height) {
+		CreateCaret(m_hwnd, nullptr,  width, height);
+	}
+	void os_win32_wrapper::move_system_caret(int32_t x, int32_t y) {
+		SetCaretPos(x, y);
+	}
+	void os_win32_wrapper::destroy_system_caret() {
+		DestroyCaret();
+	}
+
 	void os_win32_wrapper::hide_mouse_cursor() {
 		SetCursor(nullptr);
 		cursor_visible = false;
@@ -1608,7 +1618,8 @@ namespace printui {
 		MSG msg;
 
 		while(GetMessage(&msg, NULL, 0, 0)) {
-			TranslateMessage(&msg);
+			if(keyboard_target)
+				TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
 	}
@@ -1713,6 +1724,8 @@ namespace printui {
 		keyboard_target = i;
 		if(i) {
 			i->on_initialize(*this);
+		} else {
+			accessibility_interface->on_focus_returned_to_root();
 		}
 	}
 }

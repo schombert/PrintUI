@@ -51,6 +51,9 @@ namespace printui {
 		virtual os_direct_access_base* get_os_access(os_handle_type) override;
 		virtual void text_to_clipboard(std::wstring_view txt) override;
 		virtual std::wstring text_from_clipboard() override;
+		virtual void create_system_caret(int32_t width, int32_t height) override;
+		virtual void move_system_caret(int32_t x, int32_t y) override;
+		virtual void destroy_system_caret() override;
 	};
 
 	
