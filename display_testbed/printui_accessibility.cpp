@@ -164,19 +164,6 @@ namespace printui {
 			return E_INVALIDARG;
 		}
 		*pRetVal = nullptr;
-		/*
-		size_t ptr_value = reinterpret_cast<size_t>(hwnd);
-		int rId[] = { UiaAppendRuntimeId, int32_t(ptr_value & 0xFFFFFFFF), int32_t(ptr_value >> 32) };
-		SAFEARRAY* psa = SafeArrayCreateVector(VT_I4, 0, 3);
-		if(psa == NULL) {
-			return E_OUTOFMEMORY;
-		}
-		for(LONG i = 0; i < 3; i++) {
-			SafeArrayPutElement(psa, &i, (void*)&(rId[i]));
-		}
-
-		*pRetVal = psa;
-		* */
 		return S_OK;
 	}
 	IFACEMETHODIMP root_window_provider::get_BoundingRectangle(UiaRect* pRetVal) {
@@ -229,13 +216,17 @@ namespace printui {
 	}
 
 	IFACEMETHODIMP root_window_provider::Move(double x, double y) {
-		if(!win.window_interface->is_maximized() && hwnd) {
+		if(!hwnd)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		if(!win.window_interface->is_maximized()) {
 			win.window_interface->move_window(screen_space_rect{ int32_t(x), int32_t(y), int32_t(win.ui_width), int32_t(win.ui_height) });
 		}
 		return S_OK;
 	}
 	IFACEMETHODIMP root_window_provider::Resize(double width, double height) {
-		if(!win.window_interface->is_maximized() && hwnd) {
+		if(!hwnd)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		if(!win.window_interface->is_maximized()) {
 			auto window_rect = win.window_interface->get_window_location();
 			win.window_interface->move_window(screen_space_rect{ window_rect.x, window_rect.y, int32_t(std::max(uint32_t(width), win.minimum_ui_width)), int32_t(std::max(uint32_t(height), win.minimum_ui_height)) });
 		}
@@ -258,7 +249,7 @@ namespace printui {
 	}
 	IFACEMETHODIMP root_window_provider::SetVisualState(WindowVisualState state) {
 		if(!hwnd)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 
 		switch(state) {
 			case WindowVisualState_Normal:
@@ -462,6 +453,9 @@ namespace printui {
 
 	IFACEMETHODIMP text_button_provider::GetPropertyValue(PROPERTYID propertyId, VARIANT* pRetVal) {
 		VariantInit(pRetVal);
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+
 		switch(propertyId) {
 			case UIA_ControlTypePropertyId:
 				pRetVal->vt = VT_I4;
@@ -488,38 +482,38 @@ namespace printui {
 				pRetVal->boolVal = (button && button->is_disabled()) ? VARIANT_FALSE : VARIANT_TRUE;
 				break;
 			case UIA_NamePropertyId:
-				if(button) {
-					auto resolved_text = button->get_raw_text(win);
-					pRetVal->vt = VT_BSTR;
-					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
-				}
+			{
+				auto resolved_text = button->get_raw_text(win);
+				pRetVal->vt = VT_BSTR;
+				pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
+			}
 				break;
 			case UIA_HelpTextPropertyId:
-				if(button) {
-					auto resolved_text = win.text_data.instantiate_text(button->get_alt_text()).text_content.text;
-					pRetVal->vt = VT_BSTR;
-					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
-				}
+			{
+				auto resolved_text = win.text_data.instantiate_text(button->get_alt_text()).text_content.text;
+				pRetVal->vt = VT_BSTR;
+				pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
+			}
 				break;
 			case UIA_BoundingRectanglePropertyId:
-				if(button) {
-					pRetVal->vt = VT_R8 | VT_ARRAY;
-					SAFEARRAY* psa = SafeArrayCreateVector(VT_R8, 0, 4);
-					pRetVal->parray = psa;
+			{
+				pRetVal->vt = VT_R8 | VT_ARRAY;
+				SAFEARRAY* psa = SafeArrayCreateVector(VT_R8, 0, 4);
+				pRetVal->parray = psa;
 
-					if(psa == nullptr) {
-						return E_OUTOFMEMORY;
-					}
-					auto window_rect = win.window_interface->get_window_location();
-					auto client_rect = button->l_id != layout_reference_none ?
-						win.get_current_location(button->l_id) :
-						screen_space_rect{0,0,0,0};
-					double uiarect[] = { double(window_rect.x + client_rect.x), double(window_rect.y + client_rect.y), double(client_rect.width), double(client_rect.height) };
-					for(LONG i = 0; i < 4; i++) {
-						SafeArrayPutElement(psa, &i, (void*)&(uiarect[i]));
-					}
+				if(psa == nullptr) {
+					return E_OUTOFMEMORY;
+				}
+				auto window_rect = win.window_interface->get_window_location();
+				auto client_rect = button->l_id != layout_reference_none ?
+					win.get_current_location(button->l_id) :
+					screen_space_rect{ 0,0,0,0 };
+				double uiarect[] = { double(window_rect.x + client_rect.x), double(window_rect.y + client_rect.y), double(client_rect.width), double(client_rect.height) };
+				for(LONG i = 0; i < 4; i++) {
+					SafeArrayPutElement(psa, &i, (void*)&(uiarect[i]));
 				}
 				break;
+			}
 			case UIA_HasKeyboardFocusPropertyId:
 				pRetVal->vt = VT_BOOL;
 				pRetVal->boolVal = VARIANT_FALSE;
@@ -532,7 +526,7 @@ namespace printui {
 		*pRetVal = nullptr;
 
 		if(!button)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 
 		return generic_navigate(direction, pRetVal, win, button->l_id);
 	}
@@ -554,6 +548,9 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP text_button_provider::get_BoundingRectangle(UiaRect* pRetVal) {
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+
 		auto window_rect = win.window_interface->get_window_location();
 		auto client_rect = (button && button->l_id != layout_reference_none) ?
 			win.get_current_location(button->l_id) :
@@ -581,8 +578,9 @@ namespace printui {
 		}
 	}
 	IFACEMETHODIMP text_button_provider::Invoke() {
-		if(button)
-			button->on_click(win, 0, 0);
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		button->on_click(win, 0, 0);
 		return S_OK;
 	}
 	void text_button_provider::disconnect() {
@@ -648,6 +646,9 @@ namespace printui {
 
 	IFACEMETHODIMP text_list_button_provider::GetPropertyValue(PROPERTYID propertyId, VARIANT* pRetVal) {
 		VariantInit(pRetVal);
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+
 		switch(propertyId) {
 			case UIA_ControlTypePropertyId:
 				pRetVal->vt = VT_I4;
@@ -685,18 +686,18 @@ namespace printui {
 				break;
 			*/
 			case UIA_NamePropertyId:
-				if(button) {
-					auto resolved_text = button->get_raw_text(win);
-					pRetVal->vt = VT_BSTR;
-					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
-				}
+			{
+				auto resolved_text = button->get_raw_text(win);
+				pRetVal->vt = VT_BSTR;
+				pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
+			}
 				break;
 			case UIA_HelpTextPropertyId:
-				if(button) {
-					auto resolved_text = win.text_data.instantiate_text(button->get_alt_text()).text_content.text;
-					pRetVal->vt = VT_BSTR;
-					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
-				}
+			{
+				auto resolved_text = win.text_data.instantiate_text(button->get_alt_text()).text_content.text;
+				pRetVal->vt = VT_BSTR;
+				pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
+			}
 				break;
 			case UIA_BoundingRectanglePropertyId:
 			{
@@ -729,7 +730,7 @@ namespace printui {
 		*pRetVal = nullptr;
 
 		if(!button)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 
 		return generic_navigate(direction, pRetVal, win, button->l_id);
 	}
@@ -751,6 +752,9 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP text_list_button_provider::get_BoundingRectangle(UiaRect* pRetVal) {
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+
 		auto window_rect = win.window_interface->get_window_location();
 		auto client_rect = button && button->l_id != layout_reference_none ?
 			win.get_current_location(button->l_id) :
@@ -778,30 +782,41 @@ namespace printui {
 		}
 	}
 	IFACEMETHODIMP text_list_button_provider::Select() {
-		if(button && !button->is_selected())
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		if(!button->is_selected())
 			button->on_click(win, 0, 0);
 		return S_OK;
 	}
 	IFACEMETHODIMP text_list_button_provider::AddToSelection() {
-		if(button && !button->is_selected())
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		if(!button->is_selected())
 			button->on_click(win, 0, 0);
 		return S_OK;
 	}
 	IFACEMETHODIMP text_list_button_provider::RemoveFromSelection() {
-		if(button && button->is_selected())
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		if(button->is_selected())
 			button->on_click(win, 0, 0);
 		return S_OK;
 	}
 	IFACEMETHODIMP STDMETHODCALLTYPE text_list_button_provider::get_IsSelected(__RPC__out BOOL* pRetVal) {
-		*pRetVal = button && button->is_selected() ? TRUE : FALSE;
+		*pRetVal = FALSE;
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		*pRetVal = button->is_selected() ? TRUE : FALSE;
 		return S_OK;
 	}
 	IFACEMETHODIMP STDMETHODCALLTYPE text_list_button_provider::get_SelectionContainer(__RPC__deref_out_opt IRawElementProviderSimple** pRetVal) {
 		auto parent_ptr = button ? accessibility_object_to_iunk(win.get_parent_accessibility_object(button->l_id)) : nullptr;
-		if(parent_ptr)
+		if(parent_ptr) {
 			return parent_ptr->QueryInterface(IID_PPV_ARGS(pRetVal));
-		else
-			return S_OK;
+		} else {
+			*pRetVal = nullptr;
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		}
 	}
 	void text_list_button_provider::disconnect() {
 		button = nullptr;
@@ -866,6 +881,8 @@ namespace printui {
 
 	IFACEMETHODIMP text_toggle_button_provider::GetPropertyValue(PROPERTYID propertyId, VARIANT* pRetVal) {
 		VariantInit(pRetVal);
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		switch(propertyId) {
 			case UIA_ControlTypePropertyId:
 				pRetVal->vt = VT_I4;
@@ -896,19 +913,19 @@ namespace printui {
 				pRetVal->lVal = button && button->toggle_is_on ? ToggleState::ToggleState_On : ToggleState::ToggleState_Off;
 				break;
 			case UIA_NamePropertyId:
-				if(button) {
-					auto resolved_text = button->get_raw_text(win);
-					pRetVal->vt = VT_BSTR;
-					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
-				}
+			{
+				auto resolved_text = button->get_raw_text(win);
+				pRetVal->vt = VT_BSTR;
+				pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
 				break;
+			}
 			case UIA_HelpTextPropertyId:
-				if(button) {
-					auto resolved_text = win.text_data.instantiate_text(button->get_alt_text()).text_content.text;
-					pRetVal->vt = VT_BSTR;
-					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
-				}
+			{
+				auto resolved_text = win.text_data.instantiate_text(button->get_alt_text()).text_content.text;
+				pRetVal->vt = VT_BSTR;
+				pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
 				break;
+			}
 			case UIA_BoundingRectanglePropertyId:
 			{
 				pRetVal->vt = VT_R8 | VT_ARRAY;
@@ -940,7 +957,7 @@ namespace printui {
 		*pRetVal = nullptr;
 
 		if(!button)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 
 		return generic_navigate(direction, pRetVal, win, button->l_id);
 	}
@@ -962,6 +979,9 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP text_toggle_button_provider::get_BoundingRectangle(UiaRect* pRetVal) {
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+
 		auto window_rect = win.window_interface->get_window_location();
 		auto client_rect = button && button->l_id != layout_reference_none ?
 			win.get_current_location(button->l_id) :
@@ -989,12 +1009,15 @@ namespace printui {
 		}
 	}
 	IFACEMETHODIMP text_toggle_button_provider::Toggle() {
-		if(button)
-			button->on_click(win, 0, 0);
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		button->on_click(win, 0, 0);
 		return S_OK;
 	}
 	IFACEMETHODIMP text_toggle_button_provider::get_ToggleState(__RPC__out enum ToggleState* pRetVal) {
 		*pRetVal = button && button->toggle_is_on ? ToggleState::ToggleState_On : ToggleState::ToggleState_Off;
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		return S_OK;
 	}
 	void text_toggle_button_provider::disconnect() {
@@ -1061,6 +1084,8 @@ namespace printui {
 
 	IFACEMETHODIMP icon_button_provider::GetPropertyValue(PROPERTYID propertyId, VARIANT* pRetVal) {
 		VariantInit(pRetVal);
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		switch(propertyId) {
 			case UIA_ControlTypePropertyId:
 				pRetVal->vt = VT_I4;
@@ -1087,21 +1112,21 @@ namespace printui {
 				pRetVal->boolVal = (button && button->is_disabled(win)) ? VARIANT_FALSE : VARIANT_TRUE;
 				break;
 			case UIA_NamePropertyId:
-				if(button) {
+				{
 					auto resolved_text = button->get_name(win);
 					pRetVal->vt = VT_BSTR;
 					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
 				}
 				break;
 			case UIA_HelpTextPropertyId:
-				if(button) {
+				{
 					auto resolved_text = win.text_data.instantiate_text(button->get_alt_text()).text_content.text;
 					pRetVal->vt = VT_BSTR;
 					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
 				}
 				break;
 			case UIA_BoundingRectanglePropertyId:
-				if(button) {
+				{
 					pRetVal->vt = VT_R8 | VT_ARRAY;
 					SAFEARRAY* psa = SafeArrayCreateVector(VT_R8, 0, 4);
 					pRetVal->parray = psa;
@@ -1131,7 +1156,7 @@ namespace printui {
 		*pRetVal = nullptr;
 
 		if(!button)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 
 		return generic_navigate(direction, pRetVal, win, button->l_id);
 	}
@@ -1153,6 +1178,9 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP icon_button_provider::get_BoundingRectangle(UiaRect* pRetVal) {
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+
 		auto window_rect = win.window_interface->get_window_location();
 		auto client_rect = (button && button->l_id != layout_reference_none) ?
 			win.get_current_location(button->l_id) :
@@ -1180,8 +1208,9 @@ namespace printui {
 		}
 	}
 	IFACEMETHODIMP icon_button_provider::Invoke() {
-		if(button)
-			button->on_click(win, 0, 0);
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		button->on_click(win, 0, 0);
 		return S_OK;
 	}
 	void icon_button_provider::disconnect() {
@@ -1247,6 +1276,8 @@ namespace printui {
 
 	IFACEMETHODIMP icon_toggle_button_provider::GetPropertyValue(PROPERTYID propertyId, VARIANT* pRetVal) {
 		VariantInit(pRetVal);
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		switch(propertyId) {
 			case UIA_ControlTypePropertyId:
 				pRetVal->vt = VT_I4;
@@ -1277,21 +1308,21 @@ namespace printui {
 				pRetVal->lVal = button && button->is_toggled() ? ToggleState::ToggleState_On : ToggleState::ToggleState_Off;
 				break;
 			case UIA_NamePropertyId:
-				if(button) {
+				{
 					auto resolved_text = button->get_name(win);
 					pRetVal->vt = VT_BSTR;
 					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
 				}
 				break;
 			case UIA_HelpTextPropertyId:
-				if(button) {
+				{
 					auto resolved_text = win.text_data.instantiate_text(button->get_alt_text()).text_content.text;
 					pRetVal->vt = VT_BSTR;
 					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
 				}
 				break;
 			case UIA_BoundingRectanglePropertyId:
-				if(button) {
+				{
 					pRetVal->vt = VT_R8 | VT_ARRAY;
 					SAFEARRAY* psa = SafeArrayCreateVector(VT_R8, 0, 4);
 					pRetVal->parray = psa;
@@ -1321,7 +1352,7 @@ namespace printui {
 		*pRetVal = nullptr;
 
 		if(!button)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 
 		return generic_navigate(direction, pRetVal, win, button->l_id);
 	}
@@ -1343,6 +1374,8 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP icon_toggle_button_provider::get_BoundingRectangle(UiaRect* pRetVal) {
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		auto window_rect = win.window_interface->get_window_location();
 		auto client_rect = (button && button->l_id != layout_reference_none) ?
 			win.get_current_location(button->l_id) :
@@ -1370,12 +1403,15 @@ namespace printui {
 		}
 	}
 	IFACEMETHODIMP icon_toggle_button_provider::Toggle() {
-		if(button)
-			button->on_click(win, 0, 0);
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		button->on_click(win, 0, 0);
 		return S_OK;
 	}
 	IFACEMETHODIMP icon_toggle_button_provider::get_ToggleState(__RPC__out enum ToggleState* pRetVal) {
 		*pRetVal = button && button->is_toggled() ? ToggleState::ToggleState_On : ToggleState::ToggleState_Off;
+		if(!button)
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		return S_OK;
 	}
 	void icon_toggle_button_provider::disconnect() {
@@ -1441,6 +1477,8 @@ namespace printui {
 
 	IFACEMETHODIMP open_list_control_provider::GetPropertyValue(PROPERTYID propertyId, VARIANT* pRetVal) {
 		VariantInit(pRetVal);
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		switch(propertyId) {
 			case UIA_ControlTypePropertyId:
 				pRetVal->vt = VT_I4;
@@ -1475,7 +1513,7 @@ namespace printui {
 				pRetVal->boolVal = VARIANT_TRUE;
 				break;
 			case UIA_SelectionSelectionPropertyId:
-				if(control) {
+				{
 					pRetVal->vt = VT_UNKNOWN | VT_ARRAY;
 					SAFEARRAY* psa = SafeArrayCreateVector(VT_UNKNOWN, 0, 1);
 					if(psa == nullptr) {
@@ -1498,14 +1536,14 @@ namespace printui {
 				}
 				break;
 			case UIA_NamePropertyId:
-				if(control) {
+				{
 					auto resolved_text = win.text_data.instantiate_text(control->name_id).text_content.text;
 					pRetVal->vt = VT_BSTR;
 					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
 				}
 				break;
 			case UIA_BoundingRectanglePropertyId:
-				if(control) {
+				{
 					pRetVal->vt = VT_R8 | VT_ARRAY;
 					SAFEARRAY* psa = SafeArrayCreateVector(VT_R8, 0, 4);
 					pRetVal->parray = psa;
@@ -1535,7 +1573,7 @@ namespace printui {
 		*pRetVal = nullptr;
 
 		if(!control)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 
 		return generic_navigate(direction, pRetVal, win, control->l_id);
 	}
@@ -1557,6 +1595,9 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP open_list_control_provider::get_BoundingRectangle(UiaRect* pRetVal) {
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+
 		auto window_rect = win.window_interface->get_window_location();
 		auto client_rect = (control && control->l_id != layout_reference_none) ?
 			win.get_current_location(control->l_id) :
@@ -1585,6 +1626,10 @@ namespace printui {
 	}
 	IFACEMETHODIMP open_list_control_provider::GetSelection(__RPC__deref_out_opt SAFEARRAY** pRetVal) {
 		*pRetVal = nullptr;
+
+		if(!control) {
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		}
 
 		SAFEARRAY* psa = SafeArrayCreateVector(VT_UNKNOWN, 0, 1);
 		if(psa == nullptr) {
@@ -1674,6 +1719,9 @@ namespace printui {
 
 	IFACEMETHODIMP container_provider::GetPropertyValue(PROPERTYID propertyId, VARIANT* pRetVal) {
 		VariantInit(pRetVal);
+		if(!li)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		
 		switch(propertyId) {
 			case UIA_ControlTypePropertyId:
 				pRetVal->vt = VT_I4;
@@ -1696,14 +1744,14 @@ namespace printui {
 				pRetVal->boolVal = VARIANT_TRUE;
 				break;
 			case UIA_NamePropertyId:
-				if(li && name != uint16_t(-1)) {
+				if(name != uint16_t(-1)) {
 					auto resolved_text = win.text_data.instantiate_text(name).text_content.text;
 					pRetVal->vt = VT_BSTR;
 					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
 				}
 				break;
 			case UIA_BoundingRectanglePropertyId:
-				if(li) {
+				{
 					pRetVal->vt = VT_R8 | VT_ARRAY;
 					SAFEARRAY* psa = SafeArrayCreateVector(VT_R8, 0, 4);
 					pRetVal->parray = psa;
@@ -1733,7 +1781,7 @@ namespace printui {
 		*pRetVal = nullptr;
 
 		if(!li)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 
 		return generic_navigate(direction, pRetVal, win, li->l_id);
 	}
@@ -1757,6 +1805,9 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP container_provider::get_BoundingRectangle(UiaRect* pRetVal) {
+		if(!li)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+
 		auto window_rect = win.window_interface->get_window_location();
 		auto client_rect = (li && li->l_id != layout_reference_none) ?
 			win.get_current_location(li->l_id) :
@@ -1840,6 +1891,8 @@ namespace printui {
 
 	IFACEMETHODIMP plain_text_provider::GetPropertyValue(PROPERTYID propertyId, VARIANT* pRetVal) {
 		VariantInit(pRetVal);
+		if(!li || !txt)
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		switch(propertyId) {
 			case UIA_ControlTypePropertyId:
 				pRetVal->vt = VT_I4;
@@ -1862,14 +1915,14 @@ namespace printui {
 				pRetVal->boolVal = VARIANT_TRUE;
 				break;
 			case UIA_NamePropertyId:
-				if(li && txt) {
+				{
 					auto resolved_text = txt->get_raw_text(win);
 					pRetVal->vt = VT_BSTR;
 					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
 				}
 				break;
 			case UIA_BoundingRectanglePropertyId:
-				if(li) {
+				{
 					pRetVal->vt = VT_R8 | VT_ARRAY;
 					SAFEARRAY* psa = SafeArrayCreateVector(VT_R8, 0, 4);
 					pRetVal->parray = psa;
@@ -1899,7 +1952,7 @@ namespace printui {
 		*pRetVal = nullptr;
 
 		if(!li)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 
 		return generic_navigate(direction, pRetVal, win, li->l_id);
 	}
@@ -1923,6 +1976,9 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP plain_text_provider::get_BoundingRectangle(UiaRect* pRetVal) {
+		if(!li)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+
 		auto window_rect = win.window_interface->get_window_location();
 		auto client_rect = (li && li->l_id != layout_reference_none) ?
 			win.get_current_location(li->l_id) :
@@ -2018,6 +2074,8 @@ namespace printui {
 
 	IFACEMETHODIMP expandable_selection_provider::GetPropertyValue(PROPERTYID propertyId, VARIANT* pRetVal) {
 		VariantInit(pRetVal);
+		if(!control || !sc)
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		switch(propertyId) {
 			case UIA_ControlTypePropertyId:
 				pRetVal->vt = VT_I4;
@@ -2067,7 +2125,7 @@ namespace printui {
 				pRetVal->lVal = control && control->is_open() ? ExpandCollapseState_Expanded : ExpandCollapseState_PartiallyExpanded;
 				break;
 			case UIA_SelectionSelectionPropertyId:
-				if(sc) {
+				{
 					pRetVal->vt = VT_UNKNOWN | VT_ARRAY;
 					SAFEARRAY* psa = SafeArrayCreateVector(VT_UNKNOWN, 0, 1);
 					if(psa == nullptr) {
@@ -2084,21 +2142,21 @@ namespace printui {
 				}
 				break;
 			case UIA_NamePropertyId:
-				if(control && name != uint16_t(-1)) {
+				if(name != uint16_t(-1)) {
 					auto resolved_text = win.text_data.instantiate_text(name).text_content.text;
 					pRetVal->vt = VT_BSTR;
 					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
 				}
 				break;
 			case UIA_HelpTextPropertyId:
-				if(control && alt_text != uint16_t(-1)) {
+				if(alt_text != uint16_t(-1)) {
 					auto resolved_text = win.text_data.instantiate_text(alt_text).text_content.text;
 					pRetVal->vt = VT_BSTR;
 					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
 				}
 				break;
 			case UIA_BoundingRectanglePropertyId:
-				if(control) {
+				{
 					pRetVal->vt = VT_R8 | VT_ARRAY;
 					SAFEARRAY* psa = SafeArrayCreateVector(VT_R8, 0, 4);
 					pRetVal->parray = psa;
@@ -2128,7 +2186,7 @@ namespace printui {
 		*pRetVal = nullptr;
 
 		if(!control)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 
 		return generic_navigate(direction, pRetVal, win, control->l_id);
 	}
@@ -2150,6 +2208,9 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP expandable_selection_provider::get_BoundingRectangle(UiaRect* pRetVal) {
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+
 		auto window_rect = win.window_interface->get_window_location();
 		auto client_rect = (control && control->l_id != layout_reference_none) ?
 			win.get_current_location(control->l_id) :
@@ -2179,6 +2240,9 @@ namespace printui {
 	IFACEMETHODIMP expandable_selection_provider::GetSelection(__RPC__deref_out_opt SAFEARRAY** pRetVal) {
 		*pRetVal = nullptr;
 
+		if(!sc)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+
 		SAFEARRAY* psa = SafeArrayCreateVector(VT_UNKNOWN, 0, 1);
 		if(psa == nullptr) {
 			return E_OUTOFMEMORY;
@@ -2205,18 +2269,22 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP expandable_selection_provider::Expand() {
-		if(control)
-			control->open(win, true);
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		control->open(win, true);
 		return S_OK;
 	}
 	IFACEMETHODIMP expandable_selection_provider::Collapse() {
-		if(control)
-			control->close(win, true);
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		control->close(win, true);
 		return S_OK;
 
 	}
 	IFACEMETHODIMP expandable_selection_provider::get_ExpandCollapseState(__RPC__out enum ExpandCollapseState* pRetVal) {
 		*pRetVal = control && control->is_open() ? ExpandCollapseState_Expanded : ExpandCollapseState_PartiallyExpanded;
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		return S_OK;
 	}
 	void expandable_selection_provider::disconnect() {
@@ -2285,6 +2353,8 @@ namespace printui {
 
 	IFACEMETHODIMP expandable_container::GetPropertyValue(PROPERTYID propertyId, VARIANT* pRetVal) {
 		VariantInit(pRetVal);
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		switch(propertyId) {
 			case UIA_ControlTypePropertyId:
 				pRetVal->vt = VT_I4;
@@ -2322,21 +2392,21 @@ namespace printui {
 				pRetVal->lVal = control && control->is_open() ? ExpandCollapseState_Expanded : ExpandCollapseState_PartiallyExpanded;
 				break;
 			case UIA_NamePropertyId:
-				if(control && name != uint16_t(-1)) {
+				if(name != uint16_t(-1)) {
 					auto resolved_text = win.text_data.instantiate_text(name).text_content.text;
 					pRetVal->vt = VT_BSTR;
 					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
 				}
 				break;
 			case UIA_HelpTextPropertyId:
-				if(control && alt_text != uint16_t(-1)) {
+				if(alt_text != uint16_t(-1)) {
 					auto resolved_text = win.text_data.instantiate_text(alt_text).text_content.text;
 					pRetVal->vt = VT_BSTR;
 					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
 				}
 				break;
 			case UIA_BoundingRectanglePropertyId:
-				if(control) {
+				{
 					pRetVal->vt = VT_R8 | VT_ARRAY;
 					SAFEARRAY* psa = SafeArrayCreateVector(VT_R8, 0, 4);
 					pRetVal->parray = psa;
@@ -2366,7 +2436,7 @@ namespace printui {
 		*pRetVal = nullptr;
 
 		if(!control)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 
 		return generic_navigate(direction, pRetVal, win, control->l_id);
 	}
@@ -2388,6 +2458,9 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP expandable_container::get_BoundingRectangle(UiaRect* pRetVal) {
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+
 		auto window_rect = win.window_interface->get_window_location();
 		auto client_rect = (control && control->l_id != layout_reference_none) ?
 			win.get_current_location(control->l_id) :
@@ -2415,17 +2488,23 @@ namespace printui {
 		}
 	}
 	IFACEMETHODIMP expandable_container::Expand() {
-		if(control)
-			control->open(win, true);
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+
+		control->open(win, true);
 		return S_OK;
 	}
 	IFACEMETHODIMP expandable_container::Collapse() {
-		if(control)
-			control->close(win, true);
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		
+		control->close(win, true);
 		return S_OK;
 	}
 	IFACEMETHODIMP expandable_container::get_ExpandCollapseState(__RPC__out enum ExpandCollapseState* pRetVal) {
 		*pRetVal = control && control->is_open() ? ExpandCollapseState_Expanded : ExpandCollapseState_PartiallyExpanded;
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		return S_OK;
 	}
 	void expandable_container::disconnect() {
@@ -2512,18 +2591,18 @@ namespace printui {
 	}
 	IFACEMETHODIMP simple_edit_range_provider::ExpandToEnclosingUnit(enum TextUnit unit) {
 		if(!parent)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		auto control = parent->control;
 		if(!control)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		auto analysis = control->get_analysis(parent->win);
 
 		if(end < start)
 			std::swap(start, end);
 
+		auto const max_end = int32_t(control->get_text_length());
 		start = std::max(start, 0);
-		start = std::min(start, int32_t(control->get_text_length()) - 1);
-		start = std::max(start, 0);
+		start = std::min(start, max_end);
 
 		if(unit == TextUnit_Character) {
 			if(!text::is_cursor_position(analysis, start)) {
@@ -2537,20 +2616,19 @@ namespace printui {
 			end = text::get_next_word_position(analysis, start);
 		} else {
 			start = 0;
-			end = int32_t(control->get_text_length()) - 1;
-			end = std::max(end, 0);
+			end = max_end;
 		}
 
 		return S_OK;
 	}
-	IFACEMETHODIMP simple_edit_range_provider::FindAttribute(TEXTATTRIBUTEID attributeId, VARIANT val, BOOL backward, __RPC__deref_out_opt ITextRangeProvider** pRetVal) {
+	IFACEMETHODIMP simple_edit_range_provider::FindAttribute(TEXTATTRIBUTEID attributeId, VARIANT val, BOOL /*backward*/ , __RPC__deref_out_opt ITextRangeProvider** pRetVal) {
 		*pRetVal = nullptr;
 
 		if(!parent)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		auto control = parent->control;
 		if(!control)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 
 		switch(attributeId) {
 			case UIA_AfterParagraphSpacingAttributeId:
@@ -2710,19 +2788,19 @@ namespace printui {
 	IFACEMETHODIMP simple_edit_range_provider::FindText(__RPC__in BSTR text, BOOL backward, BOOL ignoreCase, __RPC__deref_out_opt ITextRangeProvider** pRetVal) {
 		*pRetVal = nullptr;
 		if(!parent)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		auto control = parent->control;
 		if(!control)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 
 		auto first = std::min(start, end);
-		auto length = std::max(start, end) - first;
+		auto length = (std::max(start, end) - first);
 		auto base_text = control->get_text();
 
 		int32_t found_length = 0;
 
 		if(first >= base_text.length())
-			return S_OK;
+			return E_FAIL;
 
 		int32_t found_position = FindNLSStringEx(
 			parent->win.text_data.is_locale_default() ? LOCALE_NAME_USER_DEFAULT : parent->win.text_data.locale_string(),
@@ -2730,12 +2808,14 @@ namespace printui {
 			base_text.c_str() + first,
 			length,
 			text,
-			wcslen(text),
+			int32_t(wcslen(text)),
 			&found_position,
 			nullptr, nullptr, 0);
 
 		if(found_position >= 0) {
 			*pRetVal = new simple_edit_range_provider(parent, found_position, found_length);
+		} else {
+			return E_FAIL;
 		}
 
 		return S_OK;
@@ -2744,10 +2824,10 @@ namespace printui {
 		VariantInit(pRetVal);
 
 		if(!parent)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		auto control = parent->control;
 		if(!control)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		auto analysis = control->get_analysis(parent->win);
 
 		auto tstart = std::max(std::min(start, end), 0);
@@ -2833,38 +2913,38 @@ namespace printui {
 			case UIA_IsActiveAttributeId:
 				pRetVal->vt = VT_BOOL;
 				if(parent->win.keyboard_target == control)
-					pRetVal->boolVal == VARIANT_TRUE;
+					pRetVal->boolVal = VARIANT_TRUE;
 				else
-					pRetVal->boolVal == VARIANT_FALSE;
+					pRetVal->boolVal = VARIANT_FALSE;
 				break;
 			case UIA_IsHiddenAttributeId:
 				pRetVal->vt = VT_BOOL;
 				if(parent->win.is_visible(control->l_id))
-					pRetVal->boolVal == VARIANT_FALSE;
+					pRetVal->boolVal = VARIANT_FALSE;
 				else
-					pRetVal->boolVal == VARIANT_TRUE;
+					pRetVal->boolVal = VARIANT_TRUE;
 				break;
 			case UIA_IsItalicAttributeId:
 				pRetVal->vt = VT_BOOL;
 				if(parent->win.dynamic_settings.primary_font.is_oblique == true)
-					pRetVal->boolVal == VARIANT_TRUE;
+					pRetVal->boolVal = VARIANT_TRUE;
 				else
-					pRetVal->boolVal == VARIANT_FALSE;
+					pRetVal->boolVal = VARIANT_FALSE;
 				break;
 			case UIA_IsReadOnlyAttributeId:
 				pRetVal->vt = VT_BOOL;
 				if(control->is_disabled() == true)
-					pRetVal->boolVal == VARIANT_TRUE;
+					pRetVal->boolVal = VARIANT_TRUE;
 				else
-					pRetVal->boolVal == VARIANT_FALSE;
+					pRetVal->boolVal = VARIANT_FALSE;
 				break;
 			case UIA_IsSubscriptAttributeId:
 				pRetVal->vt = VT_BOOL;
-				pRetVal->boolVal == VARIANT_FALSE;
+				pRetVal->boolVal = VARIANT_FALSE;
 				break;
 			case UIA_IsSuperscriptAttributeId:
 				pRetVal->vt = VT_BOOL;
-				pRetVal->boolVal == VARIANT_FALSE;
+				pRetVal->boolVal = VARIANT_FALSE;
 				break;
 			case UIA_LineSpacingAttributeId:
 				break;
@@ -2890,9 +2970,9 @@ namespace printui {
 				break;
 			case UIA_SelectionActiveEndAttributeId:
 				pRetVal->vt = VT_I4;
-				if(control->get_cursor() == start)
+				if(int32_t(control->get_cursor()) == start)
 					pRetVal->lVal = ActiveEnd_Start;
-				else if(control->get_cursor() == end)
+				else if(int32_t(control->get_cursor()) == end)
 					pRetVal->lVal = ActiveEnd_End;
 				else
 					pRetVal->lVal = ActiveEnd_None;
@@ -2925,26 +3005,55 @@ namespace printui {
 	}
 	IFACEMETHODIMP simple_edit_range_provider::GetBoundingRectangles(__RPC__deref_out_opt SAFEARRAY** pRetVal) {
 		*pRetVal = nullptr;
-		return E_NOTIMPL;
+		if(!parent)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		auto control = parent->control;
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+
+		auto first = std::min(start, end);
+		auto length = std::max(start, end) - first;
+
+		std::vector<screen_space_rect> selection_rects;
+		control->get_range_bounds(parent->win, uint32_t(first), uint32_t(first + length), selection_rects);
+
+		*pRetVal = SafeArrayCreateVector(VT_R8, 0, uint32_t(selection_rects.size() * 4));
+		if(*pRetVal != nullptr) {
+			for(int32_t i = 0; i < selection_rects.size(); i++) {
+				double data[4];
+				data[0] = selection_rects[i].x;
+				data[1] = selection_rects[i].y;
+				data[2] = selection_rects[i].width;
+				data[3] = selection_rects[i].height;
+
+				for(int j = 0; j < 4; j++) {
+					long index = i*4 + j;
+					SafeArrayPutElement(*pRetVal, &index, (void*)&(data[j]));
+				}
+			}
+		} else {
+			return E_OUTOFMEMORY;
+		}
+
+		return S_OK;
 	}
 	IFACEMETHODIMP simple_edit_range_provider::GetEnclosingElement(__RPC__deref_out_opt IRawElementProviderSimple** pRetVal) {
 		*pRetVal = nullptr;
 		if(!parent)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		return parent->QueryInterface(IID_PPV_ARGS(pRetVal));
 	}
 	IFACEMETHODIMP simple_edit_range_provider::GetText(int maxLength, __RPC__deref_out_opt BSTR* pRetVal) {
 		*pRetVal = nullptr;
 
 		if(!parent)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		auto control = parent->control;
 		if(!control)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 
 		auto tstart = std::max(std::min(start, end), 0);
-		tstart = std::min(tstart, int32_t(control->get_text_length()) - 1);
-		tstart = std::max(tstart, 0);
+		tstart = std::min(tstart, int32_t(control->get_text_length()));
 		auto len = std::max(start, end) - tstart;
 		len = std::min(int32_t(control->get_text_length()) - tstart, len);
 		if(maxLength >= 0)
@@ -2957,10 +3066,10 @@ namespace printui {
 	}
 	IFACEMETHODIMP simple_edit_range_provider::Move(enum TextUnit unit, int count, __RPC__out int* pRetVal) {
 		if(!parent)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		auto control = parent->control;
 		if(!control)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		auto analysis = control->get_analysis(parent->win);
 
 		if(end < start)
@@ -2969,7 +3078,7 @@ namespace printui {
 		bool degenerate = (start == end);
 
 		start = std::max(start, 0);
-		start = std::min(start, int32_t(control->get_text_length()) - 1);
+		start = std::min(start, int32_t(control->get_text_length()));
 		start = std::max(start, 0);
 
 		*pRetVal = 0;
@@ -3033,18 +3142,17 @@ namespace printui {
 				end = start;
 		} else {
 			start = 0;
-			end = int32_t(control->get_text_length()) - 1;
-			end = std::max(end, 0);
+			end = int32_t(control->get_text_length());
 		}
 
 		return S_OK;
 	}
 	IFACEMETHODIMP simple_edit_range_provider::MoveEndpointByUnit(enum TextPatternRangeEndpoint endpoint, enum TextUnit unit, int count, __RPC__out int* pRetVal) {
 		if(!parent)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		auto control = parent->control;
 		if(!control)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		auto analysis = control->get_analysis(parent->win);
 
 		if(end < start)
@@ -3053,8 +3161,7 @@ namespace printui {
 		int32_t& to_move = (endpoint == TextPatternRangeEndpoint_Start) ? start : end;
 
 		to_move = std::max(to_move, 0);
-		to_move = std::min(to_move, int32_t(control->get_text_length()) - 1);
-		to_move = std::max(to_move, 0);
+		to_move = std::min(to_move, int32_t(control->get_text_length()));
 
 		*pRetVal = 0;
 
@@ -3147,26 +3254,26 @@ namespace printui {
 	}
 	IFACEMETHODIMP simple_edit_range_provider::Select() {
 		if(!parent)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		auto control = parent->control;
 		if(!control)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		control->set_selection(parent->win, uint32_t(start), uint32_t(end));
 		return S_OK;
 	}
 	IFACEMETHODIMP simple_edit_range_provider::AddToSelection() {
 		if(!parent)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		auto control = parent->control;
 		if(!control)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		control->set_selection(parent->win, uint32_t(start), uint32_t(end));
 		return S_OK;
 	}
 	IFACEMETHODIMP simple_edit_range_provider::RemoveFromSelection() {
 		return S_OK;
 	}
-	IFACEMETHODIMP simple_edit_range_provider::ScrollIntoView(BOOL alignToTop) {
+	IFACEMETHODIMP simple_edit_range_provider::ScrollIntoView(BOOL ) {
 		return S_OK;
 	}
 	IFACEMETHODIMP simple_edit_range_provider::GetChildren(__RPC__deref_out_opt SAFEARRAY** pRetVal) {
@@ -3211,7 +3318,9 @@ namespace printui {
 		else if(riid == __uuidof(IValueProvider))
 			*ppInterface = static_cast<IValueProvider*>(this);
 		else if(riid == __uuidof(ITextProvider))
-			*ppInterface = static_cast<ITextProvider*>(this);
+			*ppInterface = static_cast<ITextProvider2*>(this);
+		else if(riid == __uuidof(ITextProvider2))
+			*ppInterface = static_cast<ITextProvider2*>(this);
 		else {
 			*ppInterface = NULL;
 			return E_NOINTERFACE;
@@ -3236,7 +3345,10 @@ namespace printui {
 			*pRetVal = static_cast<ITextEditProvider*>(this);
 			AddRef();
 		} else if(iid == UIA_TextPatternId) {
-			*pRetVal = static_cast<ITextProvider*>(this);
+			*pRetVal = static_cast<ITextProvider2*>(this);
+			AddRef();
+		} else if(iid == UIA_TextPattern2Id) {
+			*pRetVal = static_cast<ITextProvider2*>(this);
 			AddRef();
 		} else if(iid == UIA_ValuePatternId) {
 			*pRetVal = static_cast<IValueProvider*>(this);
@@ -3247,6 +3359,8 @@ namespace printui {
 
 	IFACEMETHODIMP simple_edit_provider::GetPropertyValue(PROPERTYID propertyId, VARIANT* pRetVal) {
 		VariantInit(pRetVal);
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		switch(propertyId) {
 			case UIA_ControlTypePropertyId:
 				pRetVal->vt = VT_I4;
@@ -3266,6 +3380,7 @@ namespace printui {
 				break;
 			case UIA_IsValuePatternAvailablePropertyId:
 			case UIA_IsTextPatternAvailablePropertyId:
+			case UIA_IsTextPattern2AvailablePropertyId:
 			case UIA_IsTextEditPatternAvailablePropertyId:
 				pRetVal->vt = VT_BOOL;
 				pRetVal->boolVal = VARIANT_TRUE;
@@ -3275,21 +3390,21 @@ namespace printui {
 				pRetVal->boolVal = (control && control->is_disabled()) ? VARIANT_FALSE : VARIANT_TRUE;
 				break;
 			case UIA_NamePropertyId:
-				if(control && control->get_name() != uint16_t(-1)) {
+				if(control->get_name() != uint16_t(-1)) {
 					auto resolved_text = win.text_data.instantiate_text(control->get_name()).text_content.text;
 					pRetVal->vt = VT_BSTR;
 					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
 				}
 				break;
 			case UIA_HelpTextPropertyId:
-				if(control && control->get_name() != uint16_t(-1)) {
+				if(control->get_name() != uint16_t(-1)) {
 					auto resolved_text = win.text_data.instantiate_text(control->get_alt_text()).text_content.text;
 					pRetVal->vt = VT_BSTR;
 					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
 				}
 				break;
 			case UIA_BoundingRectanglePropertyId:
-				if(control) {
+				{
 					pRetVal->vt = VT_R8 | VT_ARRAY;
 					SAFEARRAY* psa = SafeArrayCreateVector(VT_R8, 0, 4);
 					pRetVal->parray = psa;
@@ -3319,7 +3434,7 @@ namespace printui {
 		*pRetVal = nullptr;
 
 		if(!control)
-			return S_OK;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 
 		return generic_navigate(direction, pRetVal, win, control->l_id);
 	}
@@ -3341,6 +3456,8 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP simple_edit_provider::get_BoundingRectangle(UiaRect* pRetVal) {
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		auto window_rect = win.window_interface->get_window_location();
 		auto client_rect = (control && control->l_id != layout_reference_none) ?
 			win.get_current_location(control->l_id) :
@@ -3357,10 +3474,14 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP simple_edit_provider::SetFocus() {
-		if(control && !control->is_disabled()) {
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		if(!control->is_disabled()) {
 			win.set_keyboard_focus(control);
+			return S_OK;
+		} else {
+			return E_FAIL;
 		}
-		return S_OK;
 	}
 	IFACEMETHODIMP simple_edit_provider::get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal) {
 		if(auto root = win.accessibility_interface->peek_root_window_provider(); root) {
@@ -3375,32 +3496,31 @@ namespace printui {
 	}
 
 	IFACEMETHODIMP simple_edit_provider::SetValue(__RPC__in LPCWSTR val) {
-		if(control) {
-			control->set_text(win, val);
-		}
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		control->set_text(win, val);
 		return S_OK;
 	}
 	IFACEMETHODIMP simple_edit_provider::get_Value(__RPC__deref_out_opt BSTR* pRetVal) {
 		*pRetVal = nullptr;
-		if(control) {
-			auto temp_text = control->get_text();
-			*pRetVal = SysAllocString(temp_text.c_str());
-		}
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		
+		auto temp_text = control->get_text();
+		*pRetVal = SysAllocString(temp_text.c_str());
 		return S_OK;
 	}
 	IFACEMETHODIMP simple_edit_provider::get_IsReadOnly(__RPC__out BOOL* pRetVal) {
-		if(control && !control->is_disabled()) {
-			*pRetVal = FALSE;
-		} else {
-			*pRetVal = TRUE;
-		}
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		*pRetVal = control->is_disabled() ? TRUE : FALSE;
 		return S_OK;
 	}
 
 	IFACEMETHODIMP simple_edit_provider::GetSelection(__RPC__deref_out_opt SAFEARRAY** pRetVal) {
 		if(!control) {
 			*pRetVal = nullptr;
-			return E_FAIL;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		}
 		SAFEARRAY* psa = SafeArrayCreateVector(VT_UNKNOWN, 0, 1);
 		*pRetVal = psa;
@@ -3418,7 +3538,7 @@ namespace printui {
 	IFACEMETHODIMP simple_edit_provider::GetVisibleRanges(__RPC__deref_out_opt SAFEARRAY** pRetVal) {
 		if(!control) {
 			*pRetVal = nullptr;
-			return E_FAIL;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		}
 		SAFEARRAY* psa = SafeArrayCreateVector(VT_UNKNOWN, 0, 1);
 		*pRetVal = psa;
@@ -3426,44 +3546,81 @@ namespace printui {
 		if(!psa) {
 			return E_FAIL;
 		}
-		auto cur = control->get_cursor();
-		auto anch = control->get_selection_anchor();
+
 		LONG index = 0;
 		SafeArrayPutElement(psa, &index,
-			new simple_edit_range_provider(this, 0, std::max(int32_t(control->get_text_length()) - 1, 0)));
+			new simple_edit_range_provider(this, 0, int32_t(control->get_text_length())));
 		return S_OK;
 	}
-	IFACEMETHODIMP simple_edit_provider::RangeFromChild(__RPC__in_opt IRawElementProviderSimple* childElement, __RPC__deref_out_opt ITextRangeProvider** pRetVal) {
+	IFACEMETHODIMP simple_edit_provider::RangeFromChild(__RPC__in_opt IRawElementProviderSimple* , __RPC__deref_out_opt ITextRangeProvider** pRetVal) {
 		if(!control) {
 			*pRetVal = nullptr;
-			return E_FAIL;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		}
-		auto cur = control->get_cursor();
-		auto anch = control->get_selection_anchor();
-		*pRetVal = new simple_edit_range_provider(this, 0, std::max(int32_t(control->get_text_length()) - 1, 0));
+
+		*pRetVal = new simple_edit_range_provider(this, 0, int32_t(control->get_text_length()));
 		return S_OK;
 	}
 	IFACEMETHODIMP simple_edit_provider::RangeFromPoint(UiaPoint point, __RPC__deref_out_opt ITextRangeProvider** pRetVal) {
 		if(!control) {
 			*pRetVal = nullptr;
-			return E_FAIL;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		}
 		auto from_point = control->get_position_from_screen_point(win, screen_space_point{ int32_t(point.x), int32_t(point.y) });
-		*pRetVal = new simple_edit_range_provider(this, int32_t(from_point), int32_t(from_point), 0));
+		*pRetVal = new simple_edit_range_provider(this, int32_t(from_point), int32_t(from_point));
 		return S_OK;
 	}
 	IFACEMETHODIMP simple_edit_provider::get_DocumentRange(__RPC__deref_out_opt ITextRangeProvider** pRetVal) {
 		if(!control) {
 			*pRetVal = nullptr;
-			return E_FAIL;
+			return UIA_E_ELEMENTNOTAVAILABLE;
 		}
-		auto cur = control->get_cursor();
-		auto anch = control->get_selection_anchor();
-		*pRetVal = new simple_edit_range_provider(this, 0, std::max(int32_t(control->get_text_length()) - 1, 0));
+
+		*pRetVal = new simple_edit_range_provider(this, 0, int32_t(control->get_text_length()));
 		return S_OK;
 	}
 	IFACEMETHODIMP simple_edit_provider::get_SupportedTextSelection(__RPC__out enum SupportedTextSelection* pRetVal) {
 		*pRetVal = SupportedTextSelection_Single;
+		return S_OK;
+	}
+
+	IFACEMETHODIMP simple_edit_provider::GetActiveComposition(__RPC__deref_out_opt ITextRangeProvider** pRetVal) {
+		if(!control) {
+			*pRetVal = nullptr;
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		}
+		if(auto tl = control->get_temporary_length(); tl != 0) {
+			auto ts = control->get_temporary_position();
+			*pRetVal = new simple_edit_range_provider(this, int32_t(ts), int32_t(ts + tl));
+			return S_OK;
+		} else {
+			*pRetVal = nullptr;
+			return E_FAIL;
+		}
+		
+	}
+	IFACEMETHODIMP simple_edit_provider::GetConversionTarget(__RPC__deref_out_opt ITextRangeProvider** pRetVal) {
+		if(!control) {
+			*pRetVal = nullptr;
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		}
+		*pRetVal = nullptr;
+		return UIA_E_NOTSUPPORTED;
+	}
+
+	IFACEMETHODIMP simple_edit_provider::RangeFromAnnotation(__RPC__in_opt IRawElementProviderSimple* , __RPC__deref_out_opt ITextRangeProvider** pRetVal) {
+		*pRetVal = nullptr;
+		return E_FAIL;
+	}
+	IFACEMETHODIMP simple_edit_provider::GetCaretRange(__RPC__out BOOL* isActive, __RPC__deref_out_opt ITextRangeProvider** pRetVal) {
+		if(!control) {
+			*isActive = FALSE;
+			*pRetVal = nullptr;
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		}
+
+		*isActive = win.keyboard_target == control ? TRUE : FALSE;
+		*pRetVal = new simple_edit_range_provider(this, int32_t(control->get_cursor()), int32_t(control->get_cursor()));
 		return S_OK;
 	}
 
@@ -3611,7 +3768,8 @@ namespace printui {
 		return (accessibility_object*)iunk;
 	}
 	accessibility_object* win32_accessibility::make_simple_text_accessibility_interface(window_data& w, simple_editable_text& control) {
-		return nullptr;
+		auto iunk = static_cast<disconnectable*>(new simple_edit_provider(w, control));
+		return (accessibility_object*)iunk;
 	}
 
 

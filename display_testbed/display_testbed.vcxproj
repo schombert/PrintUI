@@ -150,6 +150,7 @@
   <ItemGroup>
     <ClInclude Include="display_testbed.hpp" />
     <ClInclude Include="printui_accessibility_definitions.hpp" />
+    <ClInclude Include="printui_text_definitions.hpp" />
     <ClInclude Include="printui_utility.hpp" />
     <ClInclude Include="printui_windows_definitions.hpp" />
     <ClInclude Include="unordered_dense.h" />

@@ -114,6 +114,9 @@ namespace printui {
 	namespace text {
 		struct text_analysis_object;
 		void release_text_analysis_object(text_analysis_object* ptr);
+
+		struct text_services_object;
+		void release_text_services_object(text_services_object* ptr);
 	}
 
 	class text_analysis_ptr {
@@ -150,6 +153,44 @@ namespace printui {
 			return ptr != nullptr;
 		}
 		operator text::text_analysis_object* () const noexcept {
+			return ptr;
+		}
+	};
+
+	class text_services_ptr {
+		text::text_services_object* ptr = nullptr;
+	public:
+		text_services_ptr() noexcept {
+		}
+		text_services_ptr(text::text_services_object* ptr) noexcept : ptr(ptr) {
+		}
+		text_services_ptr(text_services_ptr&& o) noexcept {
+			ptr = o.ptr;
+			o.ptr = nullptr;
+		}
+		~text_services_ptr() {
+			if(ptr)
+				text::release_text_services_object(ptr);
+			ptr = nullptr;
+		}
+		text_services_ptr& operator=(text_services_ptr const& o) = delete;
+		text_services_ptr& operator=(text_services_ptr&& o) noexcept {
+			if(ptr)
+				text::release_text_services_object(ptr);
+			ptr = o.ptr;
+			o.ptr = nullptr;
+			return *this;
+		}
+		text_services_ptr& operator=(text::text_services_object* o) noexcept {
+			if(ptr)
+				text::release_text_services_object(ptr);
+			ptr = o;
+			return *this;
+		}
+		operator bool() const noexcept {
+			return ptr != nullptr;
+		}
+		operator text::text_services_object* () const noexcept {
 			return ptr;
 		}
 	};
@@ -842,8 +883,13 @@ namespace printui {
 		virtual screen_space_rect get_cursor_location(window_data&) const = 0;
 		virtual screen_space_rect get_edit_bounds(window_data&) const = 0;
 		virtual screen_space_rect get_character_bounds(window_data&, uint32_t position) const = 0;
+		virtual uint32_t get_temporary_position() const = 0;
+		virtual uint32_t get_temporary_length() const = 0;
 		virtual layout_interface* get_layout_interface() = 0;
 		virtual uint32_t get_position_from_screen_point(window_data&, screen_space_point pt) = 0;
+		virtual void populate_selection_rectangles(window_data&, std::vector<screen_space_rect>& rects) = 0;
+		virtual void get_range_bounds(window_data&, uint32_t position_start, uint32_t position_end, std::vector<screen_space_rect>& rects) = 0;
+		virtual bool is_read_only() const = 0;
 
 		// notify control of event
 		virtual void on_finalize(window_data&) = 0;
@@ -1120,11 +1166,15 @@ namespace printui {
 		virtual uint32_t get_cursor() const override;
 		virtual uint32_t get_selection_anchor() const override;
 		virtual uint32_t get_text_length() const override;
+		virtual uint32_t get_temporary_position() const override;
+		virtual uint32_t get_temporary_length() const override;
 		virtual std::wstring get_text() const override;
 		virtual screen_space_rect get_cursor_location(window_data&) const override;
 		virtual screen_space_rect get_edit_bounds(window_data&) const override;
 		virtual screen_space_rect get_character_bounds(window_data&, uint32_t position) const override;
 		virtual uint32_t get_position_from_screen_point(window_data&, screen_space_point pt) override;
+		virtual void populate_selection_rectangles(window_data&, std::vector<screen_space_rect>& rects) override;
+		virtual void get_range_bounds(window_data&, uint32_t position_start, uint32_t position_end, std::vector<screen_space_rect>& rects) override;
 		virtual layout_interface* get_layout_interface() override {
 			return this;
 		}
@@ -1143,6 +1193,9 @@ namespace printui {
 			return text_alignment;
 		}
 		bool is_disabled() const {
+			return disabled;
+		}
+		bool is_read_only() const override {
 			return disabled;
 		}
 		
@@ -2056,6 +2109,13 @@ namespace printui {
 		bool is_cursor_position(text_analysis_object* ptr, int32_t position);
 		bool is_word_position(text_analysis_object* ptr, int32_t position);
 		bool position_is_ltr(text_analysis_object* ptr, int32_t position);
+
+		struct text_services_wrapper {
+			virtual ~text_services_wrapper() { }
+			virtual void start_text_services() = 0;
+			virtual void end_text_services() = 0;
+			virtual text_services_object* create_text_service_object(window_data&, edit_interface& ei) = 0;
+		};
 	}
 	
 	struct undo_item {

@@ -308,6 +308,40 @@ namespace printui {
 		safe_release(formatted_text);
 	}
 
+	void simple_editable_text::get_range_bounds(window_data& win, uint32_t position_start, uint32_t position_end, std::vector<screen_space_rect>& rects) {
+
+		if(position_start == position_end)
+			return;
+
+		auto selection_start = std::min(position_start, position_end);
+		auto selection_end = std::max(position_start, position_end);
+
+		uint32_t metrics_size = 0;
+		formatted_text->HitTestTextRange(selection_start, selection_end - selection_start, 0, 0, nullptr, 0, &metrics_size);
+
+		std::vector<DWRITE_HIT_TEST_METRICS> mstorage(metrics_size);
+		formatted_text->HitTestTextRange(selection_start, selection_end - selection_start, 0, 0, mstorage.data(), metrics_size, &metrics_size);
+
+		auto& node = win.get_node(l_id);
+		auto location = win.get_current_location(l_id);
+		ui_rectangle temp;
+		temp.x_position = uint16_t(location.x);
+		temp.y_position = uint16_t(location.y);
+		temp.width = uint16_t(location.width);
+		temp.height = uint16_t(location.height);
+
+		auto new_content_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin() + node.right_margin()), 1, temp);
+
+		auto window_rect = win.window_interface->get_window_location();
+
+		for(auto& r : mstorage) {
+			if(horizontal(win.orientation)) {
+				rects.push_back(screen_space_rect{ int32_t(std::round(r.left)) + window_rect.x + new_content_rect.x, window_rect.y + new_content_rect.y, int32_t(std::round(r.width)), win.layout_size });
+			} else {
+				rects.push_back(screen_space_rect{ window_rect.x + new_content_rect.x, int32_t(std::round(r.top)) + window_rect.y + new_content_rect.y, win.layout_size, int32_t(std::round(r.height)) });
+			}
+		}
+	}
 	void simple_editable_text::prepare_selection_regions(window_data const& win) {
 		if(selection_out_of_date) {
 			cached_selection_region.clear();
@@ -318,6 +352,7 @@ namespace printui {
 				auto selection_start = std::min(anchor_position, cursor_position);
 				auto selection_end = std::max(anchor_position, cursor_position);
 				bool have_seen_end = false;
+				bool have_seen_start = false;
 
 				uint32_t metrics_size = 0;
 				formatted_text->HitTestTextRange(selection_start, selection_end - selection_start, 0, 0, nullptr, 0, &metrics_size);
@@ -369,6 +404,8 @@ namespace printui {
 
 					if(int32_t(r.textPosition) <= selection_end && selection_end < +int32_t(r.textPosition + r.length))
 						have_seen_end = true;
+					if(int32_t(r.textPosition) <= selection_start && selection_start < +int32_t(r.textPosition + r.length))
+						have_seen_start = true;
 
 					cached_selection_region.push_back(selection_run{ selection_start_coord, selection_end_coord });
 				} // end loop through ea. selection region
@@ -382,6 +419,40 @@ namespace printui {
 					bool left_to_right_section = (curmetrics.bidiLevel % 2) == 0;
 					int32_t num_positions_in_metrics = std::max(text::number_of_cursor_positions_in_range(analysis_obj, curmetrics.textPosition, curmetrics.length), 1);
 					int32_t num_positions_after_cursor = text::number_of_cursor_positions_in_range(analysis_obj, selection_end, (curmetrics.textPosition + curmetrics.length) - selection_end);
+					float percentage_through_region = float(num_positions_in_metrics - num_positions_after_cursor) / float(num_positions_in_metrics);
+
+					if(horizontal(win.orientation)) {
+						if(left_to_right_section) {
+							cached_selection_region.push_back(selection_run{
+								int32_t(std::round(curmetrics.left)),
+								int32_t(std::round(curmetrics.left + percentage_through_region * curmetrics.width)) });
+						} else {
+							cached_selection_region.push_back(selection_run{
+								int32_t(std::round(curmetrics.left + (1.0f - percentage_through_region) * curmetrics.width)),
+								int32_t(std::round(curmetrics.left + curmetrics.width)) });
+						}
+					} else {
+						if(left_to_right_section) {
+							cached_selection_region.push_back(selection_run{
+								int32_t(std::round(curmetrics.top)),
+								int32_t(std::round(curmetrics.top + percentage_through_region * curmetrics.height)) });
+						} else {
+							cached_selection_region.push_back(selection_run{
+								int32_t(std::round(curmetrics.top + (1.0f - percentage_through_region) * curmetrics.height)),
+								int32_t(std::round(curmetrics.top + curmetrics.height)) });
+						}
+					}
+				}
+
+				if(!have_seen_start) { // missing end of the selection, (why isn't it in the hittest region???)
+					DWRITE_HIT_TEST_METRICS curmetrics{};
+					float xout = 0;
+					float yout = 0;
+					formatted_text->HitTestTextPosition(selection_start, FALSE, &xout, &yout, &curmetrics);
+
+					bool left_to_right_section = (curmetrics.bidiLevel % 2) == 0;
+					int32_t num_positions_in_metrics = std::max(text::number_of_cursor_positions_in_range(analysis_obj, curmetrics.textPosition, curmetrics.length), 1);
+					int32_t num_positions_after_cursor = text::number_of_cursor_positions_in_range(analysis_obj, selection_start, (curmetrics.textPosition + curmetrics.length) - selection_start);
 					float percentage_through_region = float(num_positions_in_metrics - num_positions_after_cursor) / float(num_positions_in_metrics);
 
 					if(horizontal(win.orientation)) {
@@ -595,6 +666,30 @@ namespace printui {
 		return spec;
 	}
 
+	void simple_editable_text::populate_selection_rectangles(window_data& win, std::vector<screen_space_rect>& rects)  {
+		if(formatted_text && anchor_position != cursor_position) {
+			auto& node = win.get_node(l_id);
+			auto location = win.get_current_location(l_id);
+			ui_rectangle temp;
+			temp.x_position = uint16_t(location.x);
+			temp.y_position = uint16_t(location.y);
+			temp.width = uint16_t(location.width);
+			temp.height = uint16_t(location.height);
+
+			auto new_content_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin() + node.right_margin()), 1, temp);
+
+			auto window_rect = win.window_interface->get_window_location();
+
+			for(auto& rng : cached_selection_region) {
+				if(horizontal(win.orientation)) {
+					rects.push_back(screen_space_rect{ rng.start + window_rect.x + new_content_rect .x, window_rect.y + new_content_rect.y, rng.end - rng.start, win.layout_size});
+				} else {
+					rects.push_back(screen_space_rect{  window_rect.x + new_content_rect.x, rng.start + window_rect.y + new_content_rect.y, win.layout_size, rng.end - rng.start });
+
+				}
+			}
+		}
+	}
 
 	void simple_editable_text::render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) {
 		D2D1_RECT_F content_rect{
@@ -741,22 +836,22 @@ namespace printui {
 					float section_size = 1.0f / float(num_positions_in_metrics);
 					float running_total = section_size / 2.0f;
 
-					auto temp = curmetrics.textPosition;
+					auto temp_text_pos = curmetrics.textPosition;
 					[&]() {
 						if(percentage_in_region <= running_total) {
 							return;
 						}
-						temp = text::get_next_cursor_position(analysis_obj, temp);
+						temp_text_pos = text::get_next_cursor_position(analysis_obj, temp_text_pos);
 						for(int32_t i = 0; i < num_positions_in_metrics; ++i) {
 							running_total += section_size;
 							if(percentage_in_region <= running_total) {
 								return;
 							}
-							temp = text::get_next_cursor_position(analysis_obj, temp);
+							temp_text_pos = text::get_next_cursor_position(analysis_obj, temp_text_pos);
 						}
-						temp = int32_t(std::min(curmetrics.textPosition + curmetrics.length, uint32_t(text.length())));
+						temp_text_pos = int32_t(std::min(curmetrics.textPosition + curmetrics.length, uint32_t(text.length())));
 					}();
-					return temp;
+					return temp_text_pos;
 				}
 			}
 		}
@@ -1258,6 +1353,12 @@ namespace printui {
 	}
 	uint32_t simple_editable_text::get_text_length() const {
 		return uint32_t(text.length());
+	}
+	uint32_t simple_editable_text::get_temporary_position() const {
+		return uint32_t(temp_text_position);
+	}
+	uint32_t simple_editable_text::get_temporary_length() const {
+		return uint32_t(temp_text_length);
 	}
 	std::wstring simple_editable_text::get_text() const {
 		return text;

@@ -13,6 +13,9 @@
 #include <Shlobj.h>
 #include <wchar.h>
 #include <usp10.h>
+#include <inputscope.h>
+
+#include "printui_text_definitions.hpp"
 
 #pragma comment(lib, "Usp10.lib")
 
@@ -2979,5 +2982,280 @@ namespace printui::text {
 	}
 	bool is_word_position(text_analysis_object* ptr, int32_t position) {
 		return ptr->char_attributes[position].fWordStop != 0;
+	}
+
+	enum class lock_state : uint8_t {
+		unlocked, exclusive
+	};
+	struct text_services_object : public ITextStoreACP, public ITextStoreACP2, public ITfInputScope {
+		//IUnknown
+		window_data& win;
+		edit_interface* ei = nullptr;
+		ITfDocumentMgr* document = nullptr;
+		ITfContext* primary_context = nullptr;
+		TfEditCookie content_identifier = 0;
+		ITextStoreACPSink* advise_sink = nullptr;
+		SRWLOCK document_lock;
+		lock_state document_lock_state = lock_state::unlocked;
+		bool interim_caret = false;
+
+		ULONG m_refCount;
+
+		virtual HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, _COM_Outptr_ void __RPC_FAR* __RPC_FAR* ppvObject) {
+			if(riid == __uuidof(IUnknown))
+				*ppvObject = static_cast<ITextStoreACP2*>(this);
+			else if(riid == __uuidof(ITextStoreACP))
+				*ppvObject = static_cast<ITextStoreACP*>(this);
+			else if(riid == __uuidof(ITextStoreACP2))
+				*ppvObject = static_cast<ITextStoreACP2*>(this);
+			else if(riid == __uuidof(ITfInputScope))
+				*ppvObject = static_cast<ITfInputScope*>(this);
+			else {
+				*ppvObject = NULL;
+				return E_NOINTERFACE;
+			}
+			(static_cast<IUnknown*>(*ppvObject))->AddRef();
+			return S_OK;
+		}
+		virtual ULONG STDMETHODCALLTYPE AddRef() {
+			return InterlockedIncrement(&m_refCount);
+		}
+		virtual ULONG STDMETHODCALLTYPE Release() {
+			long val = InterlockedDecrement(&m_refCount);
+			if(val == 0) {
+				delete this;
+			}
+			return val;
+		}
+
+		// ITextStoreACP / ITextStoreACP2
+		virtual HRESULT STDMETHODCALLTYPE AdviseSink(__RPC__in REFIID riid, __RPC__in_opt IUnknown* punk, DWORD dwMask) {
+			if(!IsEqualGUID(riid, IID_ITextStoreACPSink)) {
+				return TS_E_NOOBJECT;
+			}
+			if(FAILED(punk->QueryInterface(IID_ITextStoreACPSink, (void**)&advise_sink))) {
+				return E_NOINTERFACE;
+			}
+			return S_OK;
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE UnadviseSink(__RPC__in_opt IUnknown* punk) {
+			safe_release(advise_sink);
+			return S_OK;
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE RequestLock(DWORD dwLockFlags, __RPC__out HRESULT* phrSession) {
+			if(!advise_sink) {
+				return E_UNEXPECTED;
+			}
+			if((TS_LF_READ & dwLockFlags) != 0) {
+				if((dwLockFlags & TS_LF_SYNC) != 0) {
+					if(TryAcquireSRWLockShared(&document_lock)) {
+						*phrSession = advise_sink->OnLockGranted(dwLockFlags);
+						ReleaseSRWLockShared(&document_lock);
+						return S_OK;
+					} else {
+						*phrSession = TS_E_SYNCHRONOUS;
+						return S_OK;
+					}
+				} else {
+					if(TryAcquireSRWLockShared(&document_lock)) {
+						*phrSession = advise_sink->OnLockGranted(dwLockFlags);
+						ReleaseSRWLockShared(&document_lock);
+						return S_OK;
+					} else {
+						*phrSession = TS_S_ASYNC;
+
+						advise_sink->AddRef();
+						this->AddRef();
+						std::thread queued([a_s = advise_sink, t = this, dwLockFlags]() {
+							AcquireSRWLockShared(&t->document_lock);
+							a_s->OnLockGranted(dwLockFlags);
+							ReleaseSRWLockShared(&t->document_lock);
+							a_s->Release();
+							t->Release();
+						});
+						queued.detach();
+
+						return S_OK;
+					}
+				}
+			} else if((TS_LF_READWRITE & dwLockFlags) != 0) {
+				if((dwLockFlags & TS_LF_SYNC) != 0) {
+					if(TryAcquireSRWLockExclusive(&document_lock)) {
+						document_lock_state = lock_state::exclusive;
+						*phrSession = advise_sink->OnLockGranted(dwLockFlags);
+						document_lock_state = lock_state::unlocked;
+						ReleaseSRWLockExclusive(&document_lock);
+						return S_OK;
+					} else {
+						*phrSession = TS_E_SYNCHRONOUS;
+						return S_OK;
+					}
+				} else {
+					if(TryAcquireSRWLockExclusive(&document_lock)) {
+						document_lock_state = lock_state::exclusive;
+						*phrSession = advise_sink->OnLockGranted(dwLockFlags);
+						document_lock_state = lock_state::unlocked;
+						ReleaseSRWLockExclusive(&document_lock);
+						return S_OK;
+					} else {
+						*phrSession = TS_S_ASYNC;
+
+						advise_sink->AddRef();
+						this->AddRef();
+						std::thread queued([a_s = advise_sink, t = this, dwLockFlags]() {
+							AcquireSRWLockExclusive(&t->document_lock);
+							t->document_lock_state = lock_state::exclusive;
+							a_s->OnLockGranted(dwLockFlags);
+							t->document_lock_state = lock_state::unlocked;
+							ReleaseSRWLockExclusive(&t->document_lock);
+							a_s->Release();
+							t->Release();
+						});
+						queued.detach();
+						return S_OK;
+					}
+				}
+			}
+			return S_OK;
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE GetStatus(__RPC__out TS_STATUS* pdcs) {
+			pdcs->dwStaticFlags = TS_SS_NOHIDDENTEXT;
+			pdcs->dwDynamicFlags = TS_SD_UIINTEGRATIONENABLE | (ei && ei->is_read_only() ? TS_SD_READONLY : 0);
+			return S_OK;
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE QueryInsert(LONG acpTestStart, LONG acpTestEnd, ULONG /*cch*/, __RPC__out LONG* pacpResultStart, __RPC__out LONG* pacpResultEnd) {
+			*pacpResultStart = acpTestStart;
+			*pacpResultEnd = acpTestEnd;
+			return S_OK;
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE GetSelection(ULONG ulIndex, ULONG ulCount, __RPC__out_ecount_part(ulCount, *pcFetched) TS_SELECTION_ACP* pSelection, __RPC__out ULONG* pcFetched) {
+			if(ei && ulCount > 0 && (ulIndex == 0 || ulIndex == TF_DEFAULT_SELECTION)) {
+				auto start = ei->get_cursor();
+				auto end = ei->get_selection_anchor();
+				pSelection[0].acpStart = int32_t(std::min(start, end));
+				pSelection[0].acpEnd = int32_t(std::max(start, end));
+				pSelection[0].style.ase = start < end ? TS_AE_START : TS_AE_END;
+				pSelection[0].style.fInterimChar = interim_caret ? TRUE : FALSE;
+				*pcFetched = 1;
+			} else {
+				*pcFetched = 0;
+			}
+			return S_OK;
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE SetSelection(ULONG ulCount, __RPC__in_ecount_full(ulCount) const TS_SELECTION_ACP* pSelection) {
+
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE GetText(LONG acpStart, LONG acpEnd, __RPC__out_ecount_part(cchPlainReq, *pcchPlainRet) WCHAR* pchPlain, ULONG cchPlainReq, __RPC__out ULONG* pcchPlainRet, __RPC__out_ecount_part(cRunInfoReq, *pcRunInfoRet) TS_RUNINFO* prgRunInfo, ULONG cRunInfoReq, __RPC__out ULONG* pcRunInfoRet, __RPC__out LONG* pacpNext) {
+
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE SetText(DWORD dwFlags, LONG acpStart, LONG acpEnd, __RPC__in_ecount_full(cch) const WCHAR* pchText, ULONG cch, __RPC__out TS_TEXTCHANGE* pChange) {
+
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE GetFormattedText(LONG acpStart, LONG acpEnd, __RPC__deref_out_opt IDataObject** ppDataObject) {
+
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE GetEmbedded(LONG acpPos, __RPC__in REFGUID rguidService, __RPC__in REFIID riid, __RPC__deref_out_opt IUnknown** ppunk) {
+
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE QueryInsertEmbedded(__RPC__in const GUID* pguidService, __RPC__in const FORMATETC* pFormatEtc, __RPC__out BOOL* pfInsertable) {
+
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE InsertEmbedded(DWORD dwFlags, LONG acpStart, LONG acpEnd, __RPC__in_opt IDataObject* pDataObject, __RPC__out TS_TEXTCHANGE* pChange) {
+
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE InsertTextAtSelection(DWORD dwFlags, __RPC__in_ecount_full(cch) const WCHAR* pchText, ULONG cch, __RPC__out LONG* pacpStart, __RPC__out LONG* pacpEnd, __RPC__out TS_TEXTCHANGE* pChange) {
+
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE InsertEmbeddedAtSelection(DWORD dwFlags, __RPC__in_opt IDataObject* pDataObject, __RPC__out LONG* pacpStart, __RPC__out LONG* pacpEnd, __RPC__out TS_TEXTCHANGE* pChange) {
+
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE RequestSupportedAttrs(DWORD dwFlags, ULONG cFilterAttrs, __RPC__in_ecount_full_opt(cFilterAttrs) const TS_ATTRID* paFilterAttrs) {
+
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE RequestAttrsAtPosition(LONG acpPos, ULONG cFilterAttrs, __RPC__in_ecount_full_opt(cFilterAttrs) const TS_ATTRID* paFilterAttrs, DWORD dwFlags) {
+
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE RequestAttrsTransitioningAtPosition(LONG acpPos, ULONG cFilterAttrs, __RPC__in_ecount_full_opt(cFilterAttrs) const TS_ATTRID* paFilterAttrs, DWORD dwFlags) {
+
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE FindNextAttrTransition(LONG acpStart, LONG acpHalt, ULONG cFilterAttrs, __RPC__in_ecount_full_opt(cFilterAttrs) const TS_ATTRID* paFilterAttrs, DWORD dwFlags, __RPC__out LONG* pacpNext, __RPC__out BOOL* pfFound, __RPC__out LONG* plFoundOffset) {
+
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE RetrieveRequestedAttrs(ULONG ulCount, __RPC__out_ecount_part(ulCount, *pcFetched) TS_ATTRVAL* paAttrVals, __RPC__out ULONG* pcFetched) {
+
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE GetEndACP(__RPC__out LONG* pacp) {
+
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE GetActiveView(__RPC__out TsViewCookie* pvcView) {
+
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE GetACPFromPoint(TsViewCookie vcView, __RPC__in const POINT* ptScreen, DWORD dwFlags, __RPC__out LONG* pacp) {
+
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE GetTextExt(TsViewCookie vcView, LONG acpStart, LONG acpEnd, __RPC__out RECT* prc, __RPC__out BOOL* pfClipped) {
+
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE GetScreenExt(TsViewCookie vcView, __RPC__out RECT* prc) {
+
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE GetWnd(TsViewCookie vcView, __RPC__deref_out_opt HWND* phwnd) {
+
+		}
+
+		text_services_object(ITfThreadMgr* manager_ptr, TfClientId owner, window_data& win, edit_interface* ei) : win(win), ei(ei), m_refCount(1) {
+			InitializeSRWLock(&document_lock);
+			manager_ptr->CreateDocumentMgr(&document);
+			document->CreateContext(owner, 0, static_cast<ITextStoreACP*>(this), &primary_context, &content_identifier);
+			document->Push(primary_context);
+		}
+		~text_services_object() {
+
+		}
+	};
+
+	void release_text_services_object(text_services_object* ptr) {
+		ptr->ei = nullptr;
+		ptr->Release();
+		safe_release(ptr->primary_context);
+		safe_release(ptr->document);
+	}
+
+	void win32_text_services::start_text_services() {
+		CoCreateInstance(CLSID_TF_ThreadMgr, NULL, CLSCTX_INPROC_SERVER,
+			IID_ITfThreadMgr2, (void**)&manager_ptr);
+		manager_ptr->Activate(&client_id);
+	}
+	void win32_text_services::end_text_services() {
+		manager_ptr->Deactivate();
+		safe_release(manager_ptr);
+	}
+	text_services_object* win32_text_services::create_text_service_object(window_data&, edit_interface& ei) {
+
 	}
 }

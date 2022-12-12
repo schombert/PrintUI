@@ -654,6 +654,7 @@ namespace printui {
         public IRawElementProviderSimple,
         public IRawElementProviderFragment,
         public ITextEditProvider,
+        public ITextProvider2,
         public IValueProvider {
     public:
 
@@ -690,6 +691,10 @@ namespace printui {
         //ITextEditProvider
         IFACEMETHODIMP GetActiveComposition(__RPC__deref_out_opt ITextRangeProvider** pRetVal);
         IFACEMETHODIMP GetConversionTarget(__RPC__deref_out_opt ITextRangeProvider** pRetVal);
+
+        //ITextProvider2
+        IFACEMETHODIMP RangeFromAnnotation(__RPC__in_opt IRawElementProviderSimple* annotationElement, __RPC__deref_out_opt ITextRangeProvider** pRetVal);
+        IFACEMETHODIMP GetCaretRange( __RPC__out BOOL* isActive, __RPC__deref_out_opt ITextRangeProvider** pRetVal);
 
         //IValueProvider
         IFACEMETHODIMP SetValue(__RPC__in LPCWSTR val);
