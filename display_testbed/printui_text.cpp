@@ -13,9 +13,13 @@
 #include <Shlobj.h>
 #include <wchar.h>
 #include <usp10.h>
+#include <initguid.h>
 #include <inputscope.h>
+#include <Textstor.h>
+#include <tsattrs.h>
 
 #include "printui_text_definitions.hpp"
+#include "printui_windows_definitions.hpp"
 
 #pragma comment(lib, "Usp10.lib")
 
@@ -2885,7 +2889,7 @@ namespace printui::text {
 	text_analysis_object* make_analysis_object() {
 		return new text_analysis_object();
 	}
-	void update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm) {
+	void impl_update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm) {
 		int32_t items_got = 0;
 		std::vector<SCRIPT_ITEM> processed_items(8);
 		int32_t current_size = 8;
@@ -2924,92 +2928,120 @@ namespace printui::text {
 			}
 		}
 	}
-	int32_t number_of_cursor_positions_in_range(text_analysis_object* ptr, int32_t start, int32_t count) {
+	void update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm) {
+		impl_update_analyzed_text(ptr, str, ltr, tm);
+	}
 
+	int32_t number_of_cursor_positions_in_range(text_analysis_object* ptr, int32_t start, int32_t count) {
 		int32_t total = 0;
 		auto const array_size = ptr->char_attributes.size();
 		for(int32_t i = 0; i < count && start + i < array_size; ++i) {
 			if(ptr->char_attributes[start + i].fCharStop)
 				++total;
 		}
-
 		return total;
 	}
 	int32_t get_previous_cursor_position(text_analysis_object* ptr, int32_t position) {
 		--position;
-
-		for(; position > 0; --position) {
-			if(ptr->char_attributes[position].fCharStop)
-				return position;
+		if(position < ptr->char_attributes.size()) {
+			for(; position > 0; --position) {
+				if(ptr->char_attributes[position].fCharStop) {
+					return position;
+				}
+			}
 		}
 		return 0;
 	}
 	int32_t get_next_cursor_position(text_analysis_object* ptr, int32_t position) {
 		++position;
-
 		auto const array_size = ptr->char_attributes.size();
 		for(; position < array_size; ++position) {
-			if(ptr->char_attributes[position].fCharStop)
+			if(ptr->char_attributes[position].fCharStop) {
 				return position;
+			}
 		}
 		return int32_t(array_size);
 	}
 	int32_t get_previous_word_position(text_analysis_object* ptr, int32_t position) {
 		--position;
-
-		for(; position > 0; --position) {
-			if(ptr->char_attributes[position].fWordStop)
-				return position;
+		if(position < ptr->char_attributes.size()) {
+			for(; position > 0; --position) {
+				if(ptr->char_attributes[position].fWordStop) {
+					return position;
+				}
+			}
 		}
 		return 0;
 	}
 	int32_t get_next_word_position(text_analysis_object* ptr, int32_t position) {
 		++position;
-
 		auto const array_size = ptr->char_attributes.size();
 		for(; position < array_size; ++position) {
-			if(ptr->char_attributes[position].fWordStop)
+			if(ptr->char_attributes[position].fWordStop) {
 				return position;
+			}
 		}
 		return int32_t(array_size);
 	}
 	bool position_is_ltr(text_analysis_object* ptr, int32_t position) {
-		return ptr->char_attributes[position].fReserved == 0;
+		bool result = false;
+		if(position < ptr->char_attributes.size()) {
+			result = ptr->char_attributes[position].fReserved == 0;
+		}
+		return result;
 	}
 
 	bool is_cursor_position(text_analysis_object* ptr, int32_t position) {
-		return ptr->char_attributes[position].fCharStop != 0;
+		bool result = false;
+		if(position < ptr->char_attributes.size()) {
+			result = ptr->char_attributes[position].fCharStop != 0;
+		}
+		return result;
 	}
 	bool is_word_position(text_analysis_object* ptr, int32_t position) {
-		return ptr->char_attributes[position].fWordStop != 0;
+		bool result = false;
+		if(position < ptr->char_attributes.size()) {
+			result = ptr->char_attributes[position].fWordStop != 0;
+		}
+		return result;
 	}
 
 	enum class lock_state : uint8_t {
-		unlocked, exclusive
+		unlocked, locked_read, locked_readwrite
 	};
-	struct text_services_object : public ITextStoreACP, public ITextStoreACP2, public ITfInputScope {
-		//IUnknown
+
+	struct text_services_object : public ITextStoreACP2, public ITfInputScope, public ITfContextOwnerCompositionSink {
+		
+		std::vector<TS_ATTRVAL> gathered_attributes;
 		window_data& win;
 		edit_interface* ei = nullptr;
 		ITfDocumentMgr* document = nullptr;
 		ITfContext* primary_context = nullptr;
 		TfEditCookie content_identifier = 0;
 		ITextStoreACPSink* advise_sink = nullptr;
-		SRWLOCK document_lock;
 		lock_state document_lock_state = lock_state::unlocked;
 		bool interim_caret = false;
+		bool notify_on_text_change = false;
+		bool notify_on_selection_change = false;
 
 		ULONG m_refCount;
+
+		void free_gathered_attributes() {
+			for(auto& i : gathered_attributes) {
+				VariantClear(&(i.varValue));
+			}
+			gathered_attributes.clear();
+		}
 
 		virtual HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, _COM_Outptr_ void __RPC_FAR* __RPC_FAR* ppvObject) {
 			if(riid == __uuidof(IUnknown))
 				*ppvObject = static_cast<ITextStoreACP2*>(this);
-			else if(riid == __uuidof(ITextStoreACP))
-				*ppvObject = static_cast<ITextStoreACP*>(this);
 			else if(riid == __uuidof(ITextStoreACP2))
 				*ppvObject = static_cast<ITextStoreACP2*>(this);
 			else if(riid == __uuidof(ITfInputScope))
 				*ppvObject = static_cast<ITfInputScope*>(this);
+			else if(riid == __uuidof(ITfContextOwnerCompositionSink))
+				*ppvObject = static_cast<ITfContextOwnerCompositionSink*>(this);
 			else {
 				*ppvObject = NULL;
 				return E_NOINTERFACE;
@@ -3028,7 +3060,46 @@ namespace printui::text {
 			return val;
 		}
 
-		// ITextStoreACP / ITextStoreACP2
+		//ITfContextOwnerCompositionSink
+		virtual HRESULT STDMETHODCALLTYPE OnStartComposition(__RPC__in_opt ITfCompositionView* /*pComposition*/, __RPC__out BOOL* pfOk) {
+			*pfOk = TRUE;
+			return S_OK;
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE OnUpdateComposition(__RPC__in_opt ITfCompositionView* pComposition, __RPC__in_opt ITfRange* pRangeNew) {
+
+			if(pRangeNew) {
+				WCHAR temp_text[256];
+				ULONG text_gotten = 0;
+				auto hr = pRangeNew->GetText(content_identifier, 0, temp_text, 256, &text_gotten);
+
+				if(ei) {
+					//ei->clear_temporary_contents(win);
+					//ei->set_temporary_text(win, std::wstring_view(temp_text, text_gotten));
+				}
+			}
+
+			return S_OK;
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE OnEndComposition(__RPC__in_opt ITfCompositionView* pComposition) {
+			ITfRange* comp_range = nullptr;
+			pComposition->GetRange(&comp_range);
+			if(comp_range) {
+				WCHAR temp_text[256];
+				ULONG text_gotten = 0;
+				comp_range->GetText(content_identifier, 0, temp_text, 256, &text_gotten);
+				safe_release(comp_range);
+
+				if(ei) {
+					//ei->clear_temporary_contents(win);
+					//ei->insert_text(win, ei->get_cursor(), ei->get_cursor(), std::wstring_view(temp_text, text_gotten));
+				}
+			}
+			return S_OK;
+		}
+
+		// ITextStoreACP2
 		virtual HRESULT STDMETHODCALLTYPE AdviseSink(__RPC__in REFIID riid, __RPC__in_opt IUnknown* punk, DWORD dwMask) {
 			if(!IsEqualGUID(riid, IID_ITextStoreACPSink)) {
 				return TS_E_NOOBJECT;
@@ -3036,94 +3107,60 @@ namespace printui::text {
 			if(FAILED(punk->QueryInterface(IID_ITextStoreACPSink, (void**)&advise_sink))) {
 				return E_NOINTERFACE;
 			}
+			notify_on_text_change = (TS_AS_TEXT_CHANGE & dwMask) != 0;
+			notify_on_selection_change = (TS_AS_SEL_CHANGE & dwMask) != 0;
 			return S_OK;
 		}
 
-		virtual HRESULT STDMETHODCALLTYPE UnadviseSink(__RPC__in_opt IUnknown* punk) {
+		virtual HRESULT STDMETHODCALLTYPE UnadviseSink(__RPC__in_opt IUnknown* /*punk*/) {
 			safe_release(advise_sink);
 			return S_OK;
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE RequestLock(DWORD dwLockFlags, __RPC__out HRESULT* phrSession) {
 			if(!advise_sink) {
+				*phrSession = E_FAIL;
 				return E_UNEXPECTED;
 			}
-			if((TS_LF_READ & dwLockFlags) != 0) {
-				if((dwLockFlags & TS_LF_SYNC) != 0) {
-					if(TryAcquireSRWLockShared(&document_lock)) {
-						*phrSession = advise_sink->OnLockGranted(dwLockFlags);
-						ReleaseSRWLockShared(&document_lock);
-						return S_OK;
-					} else {
-						*phrSession = TS_E_SYNCHRONOUS;
-						return S_OK;
-					}
+			
+			static bool relock_pending = false;
+
+			if(document_lock_state != lock_state::unlocked) {
+				if(dwLockFlags & TS_LF_SYNC) {
+					*phrSession = TS_E_SYNCHRONOUS;
+					return S_OK;
 				} else {
-					if(TryAcquireSRWLockShared(&document_lock)) {
-						*phrSession = advise_sink->OnLockGranted(dwLockFlags);
-						ReleaseSRWLockShared(&document_lock);
-						return S_OK;
-					} else {
+					if(document_lock_state == lock_state::locked_read && (dwLockFlags & TS_LF_READWRITE) == TS_LF_READWRITE) {
+						relock_pending = true;
 						*phrSession = TS_S_ASYNC;
-
-						advise_sink->AddRef();
-						this->AddRef();
-						std::thread queued([a_s = advise_sink, t = this, dwLockFlags]() {
-							AcquireSRWLockShared(&t->document_lock);
-							a_s->OnLockGranted(dwLockFlags);
-							ReleaseSRWLockShared(&t->document_lock);
-							a_s->Release();
-							t->Release();
-						});
-						queued.detach();
-
 						return S_OK;
 					}
 				}
-			} else if((TS_LF_READWRITE & dwLockFlags) != 0) {
-				if((dwLockFlags & TS_LF_SYNC) != 0) {
-					if(TryAcquireSRWLockExclusive(&document_lock)) {
-						document_lock_state = lock_state::exclusive;
-						*phrSession = advise_sink->OnLockGranted(dwLockFlags);
-						document_lock_state = lock_state::unlocked;
-						ReleaseSRWLockExclusive(&document_lock);
-						return S_OK;
-					} else {
-						*phrSession = TS_E_SYNCHRONOUS;
-						return S_OK;
-					}
-				} else {
-					if(TryAcquireSRWLockExclusive(&document_lock)) {
-						document_lock_state = lock_state::exclusive;
-						*phrSession = advise_sink->OnLockGranted(dwLockFlags);
-						document_lock_state = lock_state::unlocked;
-						ReleaseSRWLockExclusive(&document_lock);
-						return S_OK;
-					} else {
-						*phrSession = TS_S_ASYNC;
-
-						advise_sink->AddRef();
-						this->AddRef();
-						std::thread queued([a_s = advise_sink, t = this, dwLockFlags]() {
-							AcquireSRWLockExclusive(&t->document_lock);
-							t->document_lock_state = lock_state::exclusive;
-							a_s->OnLockGranted(dwLockFlags);
-							t->document_lock_state = lock_state::unlocked;
-							ReleaseSRWLockExclusive(&t->document_lock);
-							a_s->Release();
-							t->Release();
-						});
-						queued.detach();
-						return S_OK;
-					}
-				}
+				return E_FAIL;
 			}
+
+			if((TS_LF_READ & dwLockFlags) != 0) {
+				document_lock_state = lock_state::locked_read;
+			}
+			if((TS_LF_READWRITE & dwLockFlags) != 0) {
+				document_lock_state = lock_state::locked_readwrite;
+			}
+
+			*phrSession = advise_sink->OnLockGranted(dwLockFlags);
+			document_lock_state = lock_state::unlocked;
+
+			if(relock_pending) {
+				relock_pending = false;
+				HRESULT hr = S_OK;
+				RequestLock(TS_LF_READWRITE, &hr);
+			}
+
 			return S_OK;
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE GetStatus(__RPC__out TS_STATUS* pdcs) {
 			pdcs->dwStaticFlags = TS_SS_NOHIDDENTEXT;
-			pdcs->dwDynamicFlags = TS_SD_UIINTEGRATIONENABLE | (ei && ei->is_read_only() ? TS_SD_READONLY : 0);
+			pdcs->dwDynamicFlags = (ei && ei->is_read_only() ? TS_SD_READONLY : 0);
 			return S_OK;
 		}
 
@@ -3149,113 +3186,652 @@ namespace printui::text {
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE SetSelection(ULONG ulCount, __RPC__in_ecount_full(ulCount) const TS_SELECTION_ACP* pSelection) {
-
+			if(document_lock_state != lock_state::locked_readwrite)
+				return TF_E_NOLOCK;
+			if(!ei)
+				return TF_E_DISCONNECTED;
+			if(ulCount > 0) {
+				auto start = pSelection->style.ase == TS_AE_START ? pSelection->acpEnd : pSelection->acpStart;
+				auto end = pSelection->style.ase == TS_AE_START ? pSelection->acpStart : pSelection->acpEnd;
+				interim_caret = pSelection->style.fInterimChar == TRUE;
+				ei->set_selection(win, start, end);
+			}
+			return S_OK;
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE GetText(LONG acpStart, LONG acpEnd, __RPC__out_ecount_part(cchPlainReq, *pcchPlainRet) WCHAR* pchPlain, ULONG cchPlainReq, __RPC__out ULONG* pcchPlainRet, __RPC__out_ecount_part(cRunInfoReq, *pcRunInfoRet) TS_RUNINFO* prgRunInfo, ULONG cRunInfoReq, __RPC__out ULONG* pcRunInfoRet, __RPC__out LONG* pacpNext) {
 
+			*pcchPlainRet = 0;
+
+			if(!ei)
+				return TF_E_DISCONNECTED;
+
+			if((cchPlainReq == 0) && (cRunInfoReq == 0)) {
+				return S_OK;
+			}
+			auto len = LONG(ei->get_text_length());
+			acpEnd = std::min(acpEnd, len);
+			if(acpEnd == -1)
+				acpEnd = len;
+
+			acpEnd = std::min(acpEnd, acpStart + LONG(cchPlainReq));
+			if(acpStart != acpEnd) {
+				auto text = ei->get_text();
+				std::copy(text.c_str(), text.c_str() + (acpEnd - acpStart), pchPlain);
+				*pcchPlainRet = (acpEnd - acpStart);
+			}
+			if(*pcchPlainRet < cchPlainReq) {
+				*(pchPlain + *pcchPlainRet) = 0;
+			}
+			if(cRunInfoReq != 0) {
+				prgRunInfo[0].uCount = acpEnd - acpStart;
+				prgRunInfo[0].type = TS_RT_PLAIN;
+				*pcRunInfoRet = 1;
+			} else {
+				*pcRunInfoRet = 0;
+			}
+
+			*pacpNext = acpEnd;
+
+			return S_OK;
 		}
 
-		virtual HRESULT STDMETHODCALLTYPE SetText(DWORD dwFlags, LONG acpStart, LONG acpEnd, __RPC__in_ecount_full(cch) const WCHAR* pchText, ULONG cch, __RPC__out TS_TEXTCHANGE* pChange) {
+		virtual HRESULT STDMETHODCALLTYPE SetText(DWORD /*dwFlags*/, LONG acpStart, LONG acpEnd, __RPC__in_ecount_full(cch) const WCHAR* pchText, ULONG cch, __RPC__out TS_TEXTCHANGE* pChange) {
+			if(document_lock_state != lock_state::locked_readwrite)
+				return TF_E_NOLOCK;
+			if(!ei)
+				return TF_E_DISCONNECTED;
 
+
+			auto len = LONG(ei->get_text_length());
+
+			if(acpStart > len)
+				return E_INVALIDARG;
+
+			LONG acpRemovingEnd = acpEnd >= acpStart ? std::min(acpEnd, len) : acpStart;
+
+
+			win32_text_services* ts = static_cast<win32_text_services*>(win.text_services_interface.get());
+			if(ts) {
+				ts->send_notifications = false;
+				ei->insert_text(win, uint32_t(acpStart), uint32_t(acpRemovingEnd), std::wstring_view(pchText, cch));
+				ts->send_notifications = true;
+			}
+
+			pChange->acpStart = acpStart;
+			pChange->acpOldEnd = acpEnd;
+			pChange->acpNewEnd = acpStart + cch;
+
+			return S_OK;
 		}
 
-		virtual HRESULT STDMETHODCALLTYPE GetFormattedText(LONG acpStart, LONG acpEnd, __RPC__deref_out_opt IDataObject** ppDataObject) {
-
+		virtual HRESULT STDMETHODCALLTYPE GetFormattedText(LONG /*acpStart*/, LONG /*acpEnd*/, __RPC__deref_out_opt IDataObject** /*ppDataObject*/) {
+			return E_NOTIMPL;
 		}
 
-		virtual HRESULT STDMETHODCALLTYPE GetEmbedded(LONG acpPos, __RPC__in REFGUID rguidService, __RPC__in REFIID riid, __RPC__deref_out_opt IUnknown** ppunk) {
-
+		virtual HRESULT STDMETHODCALLTYPE GetEmbedded(LONG /*acpPos*/, __RPC__in REFGUID /*rguidService*/, __RPC__in REFIID /*riid*/, __RPC__deref_out_opt IUnknown** /*ppunk*/) {
+			return E_NOTIMPL;
 		}
 
-		virtual HRESULT STDMETHODCALLTYPE QueryInsertEmbedded(__RPC__in const GUID* pguidService, __RPC__in const FORMATETC* pFormatEtc, __RPC__out BOOL* pfInsertable) {
-
+		virtual HRESULT STDMETHODCALLTYPE QueryInsertEmbedded(__RPC__in const GUID* /*pguidService*/, __RPC__in const FORMATETC* /*pFormatEtc*/, __RPC__out BOOL* /*pfInsertable*/) {
+			return E_NOTIMPL;
 		}
 
-		virtual HRESULT STDMETHODCALLTYPE InsertEmbedded(DWORD dwFlags, LONG acpStart, LONG acpEnd, __RPC__in_opt IDataObject* pDataObject, __RPC__out TS_TEXTCHANGE* pChange) {
-
+		virtual HRESULT STDMETHODCALLTYPE InsertEmbedded(DWORD /*dwFlags*/, LONG /*acpStart*/, LONG /*acpEnd*/, __RPC__in_opt IDataObject* /*pDataObject*/, __RPC__out TS_TEXTCHANGE* /*pChange*/) {
+			return E_NOTIMPL;
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE InsertTextAtSelection(DWORD dwFlags, __RPC__in_ecount_full(cch) const WCHAR* pchText, ULONG cch, __RPC__out LONG* pacpStart, __RPC__out LONG* pacpEnd, __RPC__out TS_TEXTCHANGE* pChange) {
 
+			
+			if(!ei)
+				return TF_E_DISCONNECTED;
+
+			LONG acpStart = std::min(ei->get_cursor(), ei->get_selection_anchor());
+			LONG acpEnd = std::max(ei->get_cursor(), ei->get_selection_anchor());
+
+			if((dwFlags & TS_IAS_QUERYONLY) != 0) {
+				*pacpStart = acpStart;
+				*pacpEnd = acpStart + cch;
+				return S_OK;
+			}
+
+			if(document_lock_state != lock_state::locked_readwrite)
+				return TF_E_NOLOCK;
+
+			if(!pchText)
+				return E_INVALIDARG;
+
+			win32_text_services* ts = static_cast<win32_text_services*>(win.text_services_interface.get());
+			if(ts) {
+				ts->send_notifications = false;
+				ei->insert_text(win, uint32_t(acpStart), uint32_t(acpEnd), std::wstring_view(pchText, cch));
+				ts->send_notifications = true;
+			}
+			if(pacpStart)
+				*pacpStart = acpStart;
+			if(pacpEnd)
+				*pacpEnd = acpStart + cch;
+
+			if(pChange) {
+				pChange->acpStart = acpStart;
+				pChange->acpOldEnd = acpEnd;
+				pChange->acpNewEnd = acpStart + cch;
+			}
+
+			return S_OK;
 		}
 
-		virtual HRESULT STDMETHODCALLTYPE InsertEmbeddedAtSelection(DWORD dwFlags, __RPC__in_opt IDataObject* pDataObject, __RPC__out LONG* pacpStart, __RPC__out LONG* pacpEnd, __RPC__out TS_TEXTCHANGE* pChange) {
+		virtual HRESULT STDMETHODCALLTYPE InsertEmbeddedAtSelection(DWORD /*dwFlags*/, __RPC__in_opt IDataObject* /*pDataObject*/, __RPC__out LONG* /*pacpStart*/, __RPC__out LONG* /*pacpEnd*/, __RPC__out TS_TEXTCHANGE* /*pChange*/) {
 
+			return E_NOTIMPL;
+		}
+
+		void fill_gathered_attributes(ULONG cFilterAttrs, __RPC__in_ecount_full_opt(cFilterAttrs) const TS_ATTRID* paFilterAttrs, bool fill_variants, int32_t position) {
+			free_gathered_attributes();
+
+			for(uint32_t i = 0; i < cFilterAttrs; ++i) {
+				if(IsEqualGUID(paFilterAttrs[i], GUID_PROP_INPUTSCOPE)) {
+					gathered_attributes.emplace_back();
+					gathered_attributes.back().idAttr = paFilterAttrs[i];
+					gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+					if(fill_variants) {
+						gathered_attributes.back().varValue.vt = VT_UNKNOWN;
+						ITfInputScope* is = nullptr;
+						this->QueryInterface(IID_PPV_ARGS(&is));
+						gathered_attributes.back().varValue.punkVal = is;
+					}
+				} else if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Font_FaceName)) {
+					gathered_attributes.emplace_back();
+					gathered_attributes.back().idAttr = paFilterAttrs[i];
+					gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+					if(fill_variants) {
+						gathered_attributes.back().varValue.vt = VT_BSTR;
+						gathered_attributes.back().varValue.bstrVal = SysAllocString(win.dynamic_settings.primary_font.name.c_str());
+					}
+				} else if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Font_SizePts)) {
+					gathered_attributes.emplace_back();
+					gathered_attributes.back().idAttr = paFilterAttrs[i];
+					gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+					if(fill_variants) {
+						gathered_attributes.back().varValue.vt = VT_I4;
+						gathered_attributes.back().varValue.lVal = int32_t(win.dynamic_settings.primary_font.font_size * 96.0f / win.dpi);
+					}
+				} else if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Font_Style_Bold)) {
+					gathered_attributes.emplace_back();
+					gathered_attributes.back().idAttr = paFilterAttrs[i];
+					gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+					if(fill_variants) {
+						gathered_attributes.back().varValue.vt = VT_BOOL;
+						gathered_attributes.back().varValue.boolVal = win.dynamic_settings.primary_font.is_bold ? VARIANT_TRUE : VARIANT_FALSE;
+					}
+				} else if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Font_Style_Height)) {
+					gathered_attributes.emplace_back();
+					gathered_attributes.back().idAttr = paFilterAttrs[i];
+					gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+					if(fill_variants) {
+						gathered_attributes.back().varValue.vt = VT_I4;
+						gathered_attributes.back().varValue.lVal = int32_t(win.dynamic_settings.primary_font.font_size);
+					}
+				} else if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Font_Style_Hidden)) {
+					gathered_attributes.emplace_back();
+					gathered_attributes.back().idAttr = paFilterAttrs[i];
+					gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+					if(fill_variants) {
+						gathered_attributes.back().varValue.vt = VT_BOOL;
+						gathered_attributes.back().varValue.boolVal = VARIANT_FALSE;
+					}
+				} else if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Font_Style_Italic)) {
+					gathered_attributes.emplace_back();
+					gathered_attributes.back().idAttr = paFilterAttrs[i];
+					gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+					if(fill_variants) {
+						gathered_attributes.back().varValue.vt = VT_BOOL;
+						gathered_attributes.back().varValue.boolVal = win.dynamic_settings.primary_font.is_oblique ? VARIANT_TRUE : VARIANT_FALSE;
+					}
+				} else if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Font_Style_Weight)) {
+					gathered_attributes.emplace_back();
+					gathered_attributes.back().idAttr = paFilterAttrs[i];
+					gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+					if(fill_variants) {
+						gathered_attributes.back().varValue.vt = VT_I4;
+						gathered_attributes.back().varValue.lVal = int32_t(to_font_weight(win.dynamic_settings.primary_font.is_bold));
+					}
+				} else if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Text_Alignment_Center)) {
+					gathered_attributes.emplace_back();
+					gathered_attributes.back().idAttr = paFilterAttrs[i];
+					gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+					if(fill_variants) {
+						gathered_attributes.back().varValue.vt = VT_BOOL;
+						gathered_attributes.back().varValue.boolVal = ei && ei->get_alignment() == content_alignment::centered ? VARIANT_TRUE : VARIANT_FALSE;
+					}
+				} else if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Text_Alignment_Justify)) {
+					gathered_attributes.emplace_back();
+					gathered_attributes.back().idAttr = paFilterAttrs[i];
+					gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+					if(fill_variants) {
+						gathered_attributes.back().varValue.vt = VT_BOOL;
+						gathered_attributes.back().varValue.boolVal = ei && ei->get_alignment() == content_alignment::justified ? VARIANT_TRUE : VARIANT_FALSE;
+					}
+				} else if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Text_Alignment_Left)) {
+					gathered_attributes.emplace_back();
+					gathered_attributes.back().idAttr = paFilterAttrs[i];
+					gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+					if(fill_variants) {
+						gathered_attributes.back().varValue.vt = VT_BOOL;
+						gathered_attributes.back().varValue.boolVal = ei && ei->get_alignment() == content_alignment::leading ? VARIANT_TRUE : VARIANT_FALSE;
+					}
+				} else if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Text_Alignment_Right)) {
+					gathered_attributes.emplace_back();
+					gathered_attributes.back().idAttr = paFilterAttrs[i];
+					gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+					if(fill_variants) {
+						gathered_attributes.back().varValue.vt = VT_BOOL;
+						gathered_attributes.back().varValue.boolVal = ei && ei->get_alignment() == content_alignment::trailing ? VARIANT_TRUE : VARIANT_FALSE;
+					}
+				} else if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Text_Orientation)) {
+					gathered_attributes.emplace_back();
+					gathered_attributes.back().idAttr = paFilterAttrs[i];
+					gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+					if(fill_variants) {
+						gathered_attributes.back().varValue.vt = VT_I4;
+						gathered_attributes.back().varValue.lVal = 0;
+					}
+				} else if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Text_ReadOnly)) {
+					gathered_attributes.emplace_back();
+					gathered_attributes.back().idAttr = paFilterAttrs[i];
+					gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+					if(fill_variants) {
+						gathered_attributes.back().varValue.vt = VT_BOOL;
+						gathered_attributes.back().varValue.boolVal = ei && ei->is_read_only() ? VARIANT_TRUE : VARIANT_FALSE;
+					}
+				} else if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Text_RightToLeft)) {
+					gathered_attributes.emplace_back();
+					gathered_attributes.back().idAttr = paFilterAttrs[i];
+					gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+					if(fill_variants) {
+						gathered_attributes.back().varValue.vt = VT_BOOL;
+						if(position >= 0) {
+							ei->update_analysis(win);
+							gathered_attributes.back().varValue.boolVal = ei && ei->position_is_ltr(position) ? VARIANT_FALSE : VARIANT_TRUE;
+						} else {
+							gathered_attributes.back().varValue.boolVal = win.orientation == layout_orientation::horizontal_right_to_left ? VARIANT_TRUE : VARIANT_FALSE;
+						}
+					}
+				} else if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Text_VerticalWriting)) {
+					if(!horizontal(win.orientation)) {
+						gathered_attributes.emplace_back();
+						gathered_attributes.back().idAttr = paFilterAttrs[i];
+						gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+						if(fill_variants) {
+							gathered_attributes.back().varValue.vt = VT_BOOL;
+							gathered_attributes.back().varValue.boolVal = VARIANT_TRUE;
+						}
+					}
+				} else if(IsEqualGUID(paFilterAttrs[i], GUID_PROP_COMPOSING)) {
+					gathered_attributes.emplace_back();
+					gathered_attributes.back().idAttr = paFilterAttrs[i];
+					gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+					if(fill_variants) {
+						gathered_attributes.back().varValue.vt = VT_BOOL;
+						if(position >= 0) {
+							gathered_attributes.back().varValue.boolVal = ei && (uint32_t(position) >= ei->get_temporary_position()) && (uint32_t(position) < ei->get_temporary_length() + ei->get_temporary_position()) ? VARIANT_TRUE : VARIANT_FALSE;
+						} else {
+							gathered_attributes.back().varValue.boolVal = VARIANT_FALSE;
+						}
+					}
+				} 
+			}
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE RequestSupportedAttrs(DWORD dwFlags, ULONG cFilterAttrs, __RPC__in_ecount_full_opt(cFilterAttrs) const TS_ATTRID* paFilterAttrs) {
 
+			if(!ei)
+				return TF_E_DISCONNECTED;
+
+			bool fill_variants = (TS_ATTR_FIND_WANT_VALUE & dwFlags) != 0;
+			fill_gathered_attributes(cFilterAttrs, paFilterAttrs, fill_variants, -1);
+			return S_OK;
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE RequestAttrsAtPosition(LONG acpPos, ULONG cFilterAttrs, __RPC__in_ecount_full_opt(cFilterAttrs) const TS_ATTRID* paFilterAttrs, DWORD dwFlags) {
 
+			if(!ei)
+				return TF_E_DISCONNECTED;
+
+			bool fill_variants = (TS_ATTR_FIND_WANT_VALUE & dwFlags) != 0;
+			fill_gathered_attributes(cFilterAttrs, paFilterAttrs, fill_variants, acpPos);
+			return S_OK;
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE RequestAttrsTransitioningAtPosition(LONG acpPos, ULONG cFilterAttrs, __RPC__in_ecount_full_opt(cFilterAttrs) const TS_ATTRID* paFilterAttrs, DWORD dwFlags) {
+			
+			if(!ei)
+				return TF_E_DISCONNECTED;
 
+			free_gathered_attributes();
+			bool fill_variants = (TS_ATTR_FIND_WANT_VALUE & dwFlags) != 0;
+			bool attributes_that_end = (TS_ATTR_FIND_WANT_END & dwFlags) != 0;
+			for(uint32_t i = 0; i < cFilterAttrs; ++i) {
+				if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Text_RightToLeft)) {
+					ei->update_analysis(win);
+					if(acpPos > 0 && ei && ei->position_is_ltr(uint32_t(acpPos - 1)) != ei->position_is_ltr(uint32_t(acpPos))) {
+
+						gathered_attributes.emplace_back();
+						gathered_attributes.back().idAttr = paFilterAttrs[i];
+						gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+						if(fill_variants) {
+							gathered_attributes.back().varValue.vt = VT_BOOL;
+
+							if(attributes_that_end)
+								gathered_attributes.back().varValue.boolVal = ei && ei->position_is_ltr(uint32_t(acpPos - 1)) ? VARIANT_FALSE : VARIANT_TRUE;
+							else
+								gathered_attributes.back().varValue.boolVal = ei && ei->position_is_ltr(uint32_t(acpPos)) ? VARIANT_FALSE : VARIANT_TRUE;
+						} 
+					}
+				} else if(IsEqualGUID(paFilterAttrs[i], GUID_PROP_COMPOSING)) {
+					if(acpPos > 0 && ei &&
+						(	((uint32_t(acpPos - 1) >= ei->get_temporary_position()) && (uint32_t(acpPos - 1) < ei->get_temporary_length() + ei->get_temporary_position())) 
+							!=
+							((uint32_t(acpPos) >= ei->get_temporary_position()) && (uint32_t(acpPos) < ei->get_temporary_length() + ei->get_temporary_position())))) {
+
+						gathered_attributes.emplace_back();
+						gathered_attributes.back().idAttr = paFilterAttrs[i];
+						gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+						if(fill_variants) {
+							gathered_attributes.back().varValue.vt = VT_BOOL;
+							if(attributes_that_end)
+								gathered_attributes.back().varValue.boolVal = ei && (uint32_t(acpPos - 1) >= ei->get_temporary_position()) && (uint32_t(acpPos - 1) < ei->get_temporary_length() + ei->get_temporary_position()) ? VARIANT_TRUE : VARIANT_FALSE;
+							else 
+								gathered_attributes.back().varValue.boolVal = ei && (uint32_t(acpPos) >= ei->get_temporary_position()) && (uint32_t(acpPos) < ei->get_temporary_length() + ei->get_temporary_position()) ? VARIANT_TRUE : VARIANT_FALSE;
+							
+						}
+					}
+				}
+			}
+			return S_OK;
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE FindNextAttrTransition(LONG acpStart, LONG acpHalt, ULONG cFilterAttrs, __RPC__in_ecount_full_opt(cFilterAttrs) const TS_ATTRID* paFilterAttrs, DWORD dwFlags, __RPC__out LONG* pacpNext, __RPC__out BOOL* pfFound, __RPC__out LONG* plFoundOffset) {
+			*pfFound = FALSE;
+			if(plFoundOffset)
+				*plFoundOffset = 0;
+			*pacpNext = acpStart;
 
+			if(!ei)
+				return TF_E_DISCONNECTED;
+
+			LONG initial_position = std::max(acpStart, LONG(1));
+			LONG end_position = std::min(acpHalt, LONG(ei->get_text_length() - 1));
+			end_position = std::max(initial_position, end_position);
+
+			if((TS_ATTR_FIND_BACKWARDS & dwFlags) != 0) {
+				std::swap(initial_position, end_position);
+			}
+			while(initial_position != end_position) {
+				for(uint32_t i = 0; i < cFilterAttrs; ++i) {
+					if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Text_RightToLeft)) {
+						ei->update_analysis(win);
+						if(ei->position_is_ltr(uint32_t(initial_position - 1)) != ei->position_is_ltr(uint32_t(initial_position))) {
+							*pfFound = TRUE;
+							if(plFoundOffset)
+								*plFoundOffset = initial_position;
+							*pacpNext = initial_position;
+							return S_OK;
+						}
+					} else if(IsEqualGUID(paFilterAttrs[i], GUID_PROP_COMPOSING)) {
+						if(((uint32_t(initial_position - 1) >= ei->get_temporary_position()) && (uint32_t(initial_position - 1) < ei->get_temporary_length() + ei->get_temporary_position()))
+							!=
+							((uint32_t(initial_position) >= ei->get_temporary_position()) && (uint32_t(initial_position) < ei->get_temporary_length() + ei->get_temporary_position()))) {
+							*pfFound = TRUE;
+							if(plFoundOffset)
+								*plFoundOffset = initial_position;
+							*pacpNext = initial_position;
+							return S_OK;
+						}
+					}
+				}
+				if((TS_ATTR_FIND_BACKWARDS & dwFlags) != 0) {
+					--initial_position;
+				} else {
+					++initial_position;
+				}
+			}
+			return S_OK;
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE RetrieveRequestedAttrs(ULONG ulCount, __RPC__out_ecount_part(ulCount, *pcFetched) TS_ATTRVAL* paAttrVals, __RPC__out ULONG* pcFetched) {
 
+			*pcFetched = 0;
+			uint32_t i = 0;
+			for(; i < ulCount && i < gathered_attributes.size(); ++i) {
+				paAttrVals[i] = gathered_attributes[i];
+				*pcFetched++;
+			}
+			for(; i < gathered_attributes.size(); ++i) {
+				VariantClear(&(gathered_attributes[i].varValue));
+			}
+			gathered_attributes.clear();
+			return S_OK;
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE GetEndACP(__RPC__out LONG* pacp) {
-
+			*pacp = 0;
+			if(!ei)
+				return TF_E_DISCONNECTED;
+			*pacp = LONG(ei->get_text_length());
+			return S_OK;
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE GetActiveView(__RPC__out TsViewCookie* pvcView) {
-
+			*pvcView = 0;
+			return S_OK;
 		}
 
-		virtual HRESULT STDMETHODCALLTYPE GetACPFromPoint(TsViewCookie vcView, __RPC__in const POINT* ptScreen, DWORD dwFlags, __RPC__out LONG* pacp) {
+		virtual HRESULT STDMETHODCALLTYPE GetACPFromPoint(TsViewCookie /*vcView*/, __RPC__in const POINT* ptScreen, DWORD dwFlags, __RPC__out LONG* pacp) {
 
+			*pacp = 0;
+			if(!ei)
+				return TF_E_DISCONNECTED;
+
+			if((GXFPF_NEAREST & dwFlags) == 0) {
+				auto control = ei->get_layout_interface();
+				if(!control)
+					return TF_E_DISCONNECTED;
+
+				auto window_rect = win.window_interface->get_window_location();
+				auto client_rect = control->l_id != layout_reference_none ?
+					win.get_current_location(control->l_id) :
+					screen_space_rect{ 0,0,0,0 };
+				if(ptScreen->x < window_rect.x + client_rect.x || ptScreen->y < window_rect.y + client_rect.y
+					|| ptScreen->x > window_rect.x + client_rect.x + client_rect.width || ptScreen->y > window_rect.y + client_rect.y + client_rect.height) {
+					return TS_E_INVALIDPOINT;
+				}
+			}
+
+			auto from_point = ei->get_position_from_screen_point(win, screen_space_point{ int32_t(ptScreen->x), int32_t(ptScreen->y) });
+			*pacp = from_point;
+			return S_OK;
 		}
 
-		virtual HRESULT STDMETHODCALLTYPE GetTextExt(TsViewCookie vcView, LONG acpStart, LONG acpEnd, __RPC__out RECT* prc, __RPC__out BOOL* pfClipped) {
+		virtual HRESULT STDMETHODCALLTYPE GetTextExt(TsViewCookie /*vcView*/, LONG acpStart, LONG acpEnd, __RPC__out RECT* prc, __RPC__out BOOL* pfClipped) {
+			*pfClipped = FALSE;
+			*prc = RECT{ 0,0,0,0 };
 
+			if(win.window_interface->is_minimized()) {
+				*pfClipped = TRUE;
+				return S_OK;
+			}
+			if(!ei)
+				return TF_E_DISCONNECTED;
+
+			std::vector<screen_space_rect> selection_rects;
+			ei->get_range_bounds(win, uint32_t(acpStart), uint32_t(acpEnd), selection_rects);
+			if(selection_rects.size() > 0) {
+				prc->left = selection_rects[0].x;
+				prc->top = selection_rects[0].y;
+				prc->right = selection_rects[0].x + selection_rects[0].width;
+				prc->bottom = selection_rects[0].y + selection_rects[0].height;
+			}
+			for(uint32_t i = 1; i < selection_rects.size(); ++i) {
+				prc->left = std::min(LONG(selection_rects[i].x), prc->left);
+				prc->top = std::min(LONG(selection_rects[i].y), prc->top);
+				prc->right = std::max(LONG(selection_rects[i].x + selection_rects[i].width), prc->right);
+				prc->bottom = std::max(LONG(selection_rects[i].y + selection_rects[i].height), prc->bottom);
+			}
+			
+			return S_OK;
 		}
 
-		virtual HRESULT STDMETHODCALLTYPE GetScreenExt(TsViewCookie vcView, __RPC__out RECT* prc) {
+		virtual HRESULT STDMETHODCALLTYPE GetScreenExt(TsViewCookie /*vcView*/, __RPC__out RECT* prc) {
+			*prc = RECT{ 0,0,0,0 };
 
+			if(!ei)
+				return TF_E_DISCONNECTED;
+			auto control = ei->get_layout_interface();
+			if(!control)
+				return TF_E_DISCONNECTED;
+			if(win.window_interface->is_minimized())
+				return S_OK;
+
+			auto& node = win.get_node(control->l_id);
+			auto location = win.get_current_location(control->l_id);
+			ui_rectangle temp;
+			temp.x_position = uint16_t(location.x);
+			temp.y_position = uint16_t(location.y);
+			temp.width = uint16_t(location.width);
+			temp.height = uint16_t(location.height);
+
+			auto new_content_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, node.width - (node.left_margin() + node.right_margin()), 1, temp);
+
+			auto window_rect = win.window_interface->get_window_location();
+
+			prc->left = window_rect.x + new_content_rect.x;
+			prc->top = window_rect.y + new_content_rect.y;
+			prc->right = window_rect.x + new_content_rect.x + new_content_rect.width;
+			prc->bottom = window_rect.y + new_content_rect.y + new_content_rect.height;
+
+			return S_OK;
 		}
 
-		virtual HRESULT STDMETHODCALLTYPE GetWnd(TsViewCookie vcView, __RPC__deref_out_opt HWND* phwnd) {
+		virtual HRESULT STDMETHODCALLTYPE GetInputScopes(__RPC__deref_out_ecount_full_opt(*pcCount) InputScope** pprgInputScopes, __RPC__out UINT* pcCount) {
+			*pprgInputScopes = (InputScope*)CoTaskMemAlloc(sizeof(InputScope));
+			if(ei) {
+				switch(ei->get_type()) {
+					case edit_contents::generic_text:
+						*(*pprgInputScopes) = IS_TEXT;
+						break;
+					case edit_contents::number:
+						*(*pprgInputScopes) = IS_NUMBER;
+						break;
+					case edit_contents::single_char:
+						*(*pprgInputScopes) = IS_ONECHAR;
+						break;
+					case edit_contents::email:
+						*(*pprgInputScopes) = IS_EMAIL_SMTPEMAILADDRESS;
+						break;
+					case edit_contents::date:
+						*(*pprgInputScopes) = IS_DATE_FULLDATE;
+						break;
+					case edit_contents::time:
+						*(*pprgInputScopes) = IS_TIME_FULLTIME;
+						break;
+					case edit_contents::url:
+						*(*pprgInputScopes) = IS_URL;
+						break;
+				}
+			} else {
+				*(*pprgInputScopes) = IS_DEFAULT;
+			}
+			*pcCount = 1;
+			return S_OK;
+		}
 
+		virtual HRESULT STDMETHODCALLTYPE GetPhrase(__RPC__deref_out_ecount_full_opt(*pcCount) BSTR** ppbstrPhrases, __RPC__out UINT* pcCount) {
+			*ppbstrPhrases = nullptr;
+			*pcCount = 0;
+			return E_NOTIMPL;
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE GetRegularExpression(__RPC__deref_out_opt BSTR* pbstrRegExp) {
+			*pbstrRegExp = nullptr;
+			return E_NOTIMPL;
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE GetSRGS(__RPC__deref_out_opt BSTR* pbstrSRGS) {
+			*pbstrSRGS = nullptr;
+			return E_NOTIMPL;
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE GetXML(__RPC__deref_out_opt BSTR* pbstrXML) {
+			*pbstrXML = nullptr;
+			return E_NOTIMPL;
 		}
 
 		text_services_object(ITfThreadMgr* manager_ptr, TfClientId owner, window_data& win, edit_interface* ei) : win(win), ei(ei), m_refCount(1) {
-			InitializeSRWLock(&document_lock);
 			manager_ptr->CreateDocumentMgr(&document);
-			document->CreateContext(owner, 0, static_cast<ITextStoreACP*>(this), &primary_context, &content_identifier);
-			document->Push(primary_context);
+			auto hr = document->CreateContext(owner, 0, static_cast<ITextStoreACP2*>(this), &primary_context, &content_identifier);
+			hr = document->Push(primary_context);
 		}
-		~text_services_object() {
-
+		virtual ~text_services_object() {
+			free_gathered_attributes();
 		}
 	};
 
+
 	void release_text_services_object(text_services_object* ptr) {
 		ptr->ei = nullptr;
-		ptr->Release();
 		safe_release(ptr->primary_context);
 		safe_release(ptr->document);
+		ptr->Release();
+	}
+
+
+	win32_text_services::win32_text_services() {
+		CoCreateInstance(CLSID_TF_ThreadMgr, NULL, CLSCTX_INPROC_SERVER,
+			IID_ITfThreadMgr, (void**)&manager_ptr);
+	}
+	win32_text_services::~win32_text_services() {
+		safe_release(manager_ptr);
 	}
 
 	void win32_text_services::start_text_services() {
-		CoCreateInstance(CLSID_TF_ThreadMgr, NULL, CLSCTX_INPROC_SERVER,
-			IID_ITfThreadMgr2, (void**)&manager_ptr);
 		manager_ptr->Activate(&client_id);
+		//manager_ptr->SuspendKeystrokeHandling();
 	}
 	void win32_text_services::end_text_services() {
 		manager_ptr->Deactivate();
-		safe_release(manager_ptr);
 	}
-	text_services_object* win32_text_services::create_text_service_object(window_data&, edit_interface& ei) {
+	void win32_text_services::on_text_change(text_services_object* ts, uint32_t old_start, uint32_t old_end, uint32_t new_end) {
+		if(send_notifications && ts->advise_sink && ts->notify_on_text_change) {
+			TS_TEXTCHANGE chng{LONG(old_start), LONG(old_end), LONG(new_end) };
+			ts->advise_sink->OnTextChange(0, &chng);
+		}
+	}
+	void win32_text_services::on_selection_change(text_services_object* ts) {
+		if(send_notifications && ts->advise_sink && ts->notify_on_selection_change) {
+			ts->advise_sink->OnSelectionChange();
+		}
+	}
 
+	void win32_text_services::set_focus(window_data& win, text_services_object* o) {
+		//manager_ptr->SetFocus(o->document);
+
+		hwnd_direct_access_base* b = static_cast<hwnd_direct_access_base*>(win.window_interface->get_os_access(os_handle_type::windows_hwnd));
+		if(b) {
+			ITfDocumentMgr* old_doc = nullptr;
+			manager_ptr->AssociateFocus(b->m_hwnd, o ? o->document : nullptr, &old_doc);
+			safe_release(old_doc);
+		} 
+	}
+	void win32_text_services::suspend_keystroke_handling() {
+		//manager_ptr->SuspendKeystrokeHandling();
+	}
+	void win32_text_services::resume_keystroke_handling() {
+		//manager_ptr->ResumeKeystrokeHandling();
+	}
+
+	text_services_object* win32_text_services::create_text_service_object(window_data& win, edit_interface& ei) {
+		return new text_services_object(manager_ptr, client_id, win, &ei);
 	}
 }

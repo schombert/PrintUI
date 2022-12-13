@@ -113,10 +113,17 @@ int WINAPI wWinMain(
 
 	if(SUCCEEDED(CoInitializeEx(NULL, COINIT_APARTMENTTHREADED))) {
 		{
-			main_window app;
-			
-			app.create_window();
-			app.message_loop();
+			std::shared_ptr<printui::text::text_services_wrapper> ts = std::make_shared<printui::text::win32_text_services>();
+			ts->start_text_services();
+
+			{
+				main_window app(ts);
+
+				app.create_window();
+				app.message_loop();
+			}
+
+			ts->end_text_services();
 		}
 		CoUninitialize();
 	}

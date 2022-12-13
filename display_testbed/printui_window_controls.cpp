@@ -141,7 +141,7 @@ namespace printui {
 		win.window_interface->close(win);
 	}
 
-	window_bar_element::window_bar_element(window_data& win, bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& app_settings) : info_i(win), close_i(), settings_pages(win, app_settings) {
+	window_bar_element::window_bar_element(window_data& win, bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& app_settings) : info_i(win), close_i(), settings_pages(win, app_settings), print_ui_settings(win) {
 		if(mn)
 			min_i.emplace();
 		if(mx)

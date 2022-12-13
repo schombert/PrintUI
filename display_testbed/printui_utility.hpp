@@ -859,6 +859,10 @@ namespace printui {
 		new_line, backspace, delete_char, backspace_word, delete_word, tab, cursor_down, cursor_up, cursor_left, cursor_right, cursor_left_word, cursor_right_word, to_line_start, to_line_end, to_text_start, to_text_end, cut, copy, paste, select_all, undo, redo, select_current_word, select_current_section, delete_selection
 	};
 
+	enum class edit_contents : uint8_t {
+		generic_text, number, single_char, email, date, time, url
+	};
+
 	struct edit_interface {
 		virtual ~edit_interface() { }
 
@@ -871,9 +875,12 @@ namespace printui {
 		virtual void command(window_data&, edit_command cmd, bool extend_selection) = 0;
 		virtual void insert_temporary_codepoint(window_data&, uint32_t codepoint) = 0;
 		virtual void clear_temporary_contents(window_data&) = 0;
+		virtual void set_temporary_text(window_data&, std::wstring_view txt) = 0;
 		virtual void register_composition_result(window_data&, std::wstring_view result) = 0;
 		virtual void register_conversion_target_change(window_data&) = 0;
 		virtual void set_cursor_visibility(window_data&, bool is_visible) = 0;
+		virtual void insert_text(window_data&, uint32_t position_start, uint32_t position_end, std::wstring_view content) = 0;
+		virtual void update_analysis(window_data& win) = 0;
 
 		// retrieve information from control
 		virtual uint32_t get_cursor() const = 0;
@@ -890,6 +897,15 @@ namespace printui {
 		virtual void populate_selection_rectangles(window_data&, std::vector<screen_space_rect>& rects) = 0;
 		virtual void get_range_bounds(window_data&, uint32_t position_start, uint32_t position_end, std::vector<screen_space_rect>& rects) = 0;
 		virtual bool is_read_only() const = 0;
+		virtual content_alignment get_alignment() const = 0;
+		virtual bool position_is_ltr(uint32_t position) = 0;
+		virtual edit_contents get_type() const = 0;
+		virtual bool is_word_position(uint32_t v) = 0;
+		virtual bool is_valid_cursor_position(uint32_t v) = 0;
+		virtual uint32_t previous_word_position(uint32_t v) = 0;
+		virtual uint32_t next_word_position(uint32_t v) = 0;
+		virtual uint32_t previous_valid_cursor_position(uint32_t v) = 0;
+		virtual uint32_t next_valid_cursor_position(uint32_t v) = 0;
 
 		// notify control of event
 		virtual void on_finalize(window_data&) = 0;
@@ -1091,6 +1107,7 @@ namespace printui {
 	protected:
 		std::vector<selection_run> cached_selection_region;
 		accessibility_object_ptr acc_obj;
+		text_services_ptr ts_obj;
 		text_analysis_ptr analysis_obj;
 		IDWriteTextLayout* formatted_text = nullptr;
 
@@ -1122,8 +1139,9 @@ namespace printui {
 		void internal_move_cursor_to_point(window_data&, int32_t x, int32_t y, bool extend_selection);
 	public:
 		interactable_state saved_state;
+		edit_contents edit_type = edit_contents::generic_text;
 
-		simple_editable_text(content_alignment text_alignment, uint16_t name, uint16_t alt_text, uint8_t minimum_layout_space);
+		simple_editable_text(window_data& win, content_alignment text_alignment, uint16_t name, uint16_t alt_text, uint8_t minimum_layout_space);
 		virtual ~simple_editable_text();
 
 		// render_interface
@@ -1158,9 +1176,13 @@ namespace printui {
 		virtual void command(window_data&, edit_command cmd, bool extend_selection) override;
 		virtual void insert_temporary_codepoint(window_data&, uint32_t codepoint) override;
 		virtual void clear_temporary_contents(window_data&) override;
+		virtual void set_temporary_text(window_data&, std::wstring_view txt) override;
 		virtual void register_composition_result(window_data&, std::wstring_view result) override;
 		virtual void register_conversion_target_change(window_data&) override;
 		virtual void set_cursor_visibility(window_data&, bool is_visible) override;
+		virtual void insert_text(window_data&, uint32_t position_start, uint32_t position_end, std::wstring_view content) override;
+		virtual void update_analysis(window_data& win) override;
+
 
 		// retrieve information from control
 		virtual uint32_t get_cursor() const override;
@@ -1178,6 +1200,16 @@ namespace printui {
 		virtual layout_interface* get_layout_interface() override {
 			return this;
 		}
+		virtual bool position_is_ltr(uint32_t position) override;
+		virtual edit_contents get_type() const override {
+			return edit_type;
+		}
+		virtual bool is_word_position(uint32_t v) override;
+		virtual bool is_valid_cursor_position(uint32_t v) override;
+		virtual uint32_t previous_word_position(uint32_t v) override;
+		virtual uint32_t next_word_position(uint32_t v) override;
+		virtual uint32_t previous_valid_cursor_position(uint32_t v) override;
+		virtual uint32_t next_valid_cursor_position(uint32_t v) override;
 
 		// notify control of event
 		virtual void on_finalize(window_data&) override;
@@ -1189,7 +1221,7 @@ namespace printui {
 		void set_text(window_data& win, std::wstring const&);
 		uint16_t get_alt_text() const;
 		uint16_t get_name() const;
-		content_alignment get_alignment() const {
+		virtual content_alignment get_alignment() const override {
 			return text_alignment;
 		}
 		bool is_disabled() const {
@@ -1198,8 +1230,6 @@ namespace printui {
 		bool is_read_only() const override {
 			return disabled;
 		}
-		
-		text::text_analysis_object* get_analysis(window_data const& win);
 
 		// for rendering
 		void prepare_text(window_data const& win);
@@ -1775,7 +1805,7 @@ namespace printui {
 
 		std::vector<page_content> content_description;
 
-		common_printui_settings();
+		common_printui_settings(window_data& win);
 		virtual ~common_printui_settings() { }
 
 		virtual layout_node_type get_node_type() override {
@@ -2004,6 +2034,7 @@ namespace printui {
 			void consume_text_file(std::string_view body, std::unordered_map<std::string, uint32_t, string_hash, std::equal_to<>> const& font_name_to_index);
 		};
 
+		void impl_update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm);
 		void update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm);
 
 		class text_manager {
@@ -2064,7 +2095,7 @@ namespace printui {
 			replaceable_instance instantiate_text(uint16_t id, text_parameter const* s = nullptr, text_parameter const* e = nullptr) const;
 			replaceable_instance instantiate_text(std::string_view key, text_parameter const* s = nullptr, text_parameter const* e = nullptr) const;
 
-			friend void update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm);
+			friend void impl_update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm);
 		};
 
 		void apply_default_vertical_options(IDWriteTypography* t);
@@ -2115,6 +2146,11 @@ namespace printui {
 			virtual void start_text_services() = 0;
 			virtual void end_text_services() = 0;
 			virtual text_services_object* create_text_service_object(window_data&, edit_interface& ei) = 0;
+			virtual void on_text_change(text_services_object*, uint32_t old_start, uint32_t old_end, uint32_t new_end) = 0;
+			virtual void on_selection_change(text_services_object*) = 0;
+			virtual void set_focus(window_data& win, text_services_object*) = 0;
+			virtual void suspend_keystroke_handling() = 0;
+			virtual void resume_keystroke_handling() = 0;
 		};
 	}
 	
@@ -2328,6 +2364,7 @@ namespace printui {
 
 		std::unique_ptr<window_wrapper> window_interface;
 		std::unique_ptr<accessibility_framework_wrapper> accessibility_interface;
+		std::shared_ptr<text::text_services_wrapper> text_services_interface;
 
 		uint32_t ui_width = 0;
 		uint32_t ui_height = 0;
@@ -2410,7 +2447,7 @@ namespace printui {
 		animation_status_struct animation_status;
 		bool ui_animations_on = true;
 
-		window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai);
+		window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai, std::shared_ptr<text::text_services_wrapper> const& ts);
 		virtual ~window_data();
 
 		virtual void load_default_dynamic_settings() = 0;

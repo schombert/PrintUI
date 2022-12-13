@@ -308,7 +308,7 @@ namespace printui {
 		}
 	}
 
-	window_data::window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai) : window_bar(*this, mn, mx, settings, setting_items), window_interface(std::move(wi)), accessibility_interface(std::move(ai)) {
+	window_data::window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai, std::shared_ptr<text::text_services_wrapper> const& ts) : window_bar(*this, mn, mx, settings, setting_items), window_interface(std::move(wi)), accessibility_interface(std::move(ai)), text_services_interface(ts) {
 		horizontal_interactable_bg.file_name = L"left_select_i.svg";
 		horizontal_interactable_bg.edge_padding = 0.0f;
 		vertical_interactable_bg.file_name = L"top_select_i.svg";
@@ -1720,12 +1720,19 @@ namespace printui {
 		if(keyboard_target != nullptr) {
 			keyboard_target->on_finalize(*this);
 			selecting_edit_text = false;
+			if(!i)
+				text_services_interface->suspend_keystroke_handling();
+		} else {
+			if(i)
+				text_services_interface->resume_keystroke_handling();
 		}
 		keyboard_target = i;
 		if(i) {
 			i->on_initialize(*this);
 		} else {
 			accessibility_interface->on_focus_returned_to_root();
+			text_services_interface->set_focus(*this, nullptr);
 		}
+
 	}
 }

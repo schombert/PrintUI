@@ -302,7 +302,8 @@ namespace printui {
 	// SIMPLE EDIT CONTROL
 	//
 
-	simple_editable_text::simple_editable_text(content_alignment text_alignment, uint16_t name, uint16_t alt_text, uint8_t minimum_layout_space) : analysis_obj(text::make_analysis_object()), text_alignment(text_alignment), name(name), alt_text(alt_text), minimum_layout_space(minimum_layout_space) {
+	simple_editable_text::simple_editable_text(window_data& win, content_alignment text_alignment, uint16_t name, uint16_t alt_text, uint8_t minimum_layout_space) : analysis_obj(text::make_analysis_object()), text_alignment(text_alignment), name(name), alt_text(alt_text), minimum_layout_space(minimum_layout_space) {
+		ts_obj = win.text_services_interface->create_text_service_object(win, *this);
 	}
 	simple_editable_text::~simple_editable_text() {
 		safe_release(formatted_text);
@@ -315,6 +316,8 @@ namespace printui {
 
 		auto selection_start = std::min(position_start, position_end);
 		auto selection_end = std::max(position_start, position_end);
+
+		prepare_text(win);
 
 		uint32_t metrics_size = 0;
 		formatted_text->HitTestTextRange(selection_start, selection_end - selection_start, 0, 0, nullptr, 0, &metrics_size);
@@ -330,7 +333,7 @@ namespace printui {
 		temp.width = uint16_t(location.width);
 		temp.height = uint16_t(location.height);
 
-		auto new_content_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin() + node.right_margin()), 1, temp);
+		auto new_content_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, node.width - (node.left_margin() + node.right_margin()), 1, temp);
 
 		auto window_rect = win.window_interface->get_window_location();
 
@@ -532,6 +535,25 @@ namespace printui {
 			analysis_out_of_date = false;
 		}
 	}
+	bool simple_editable_text::is_word_position(uint32_t v) {
+		return text::is_word_position(analysis_obj, int32_t(v));
+	}
+	bool simple_editable_text::is_valid_cursor_position(uint32_t v) {
+		return text::is_cursor_position(analysis_obj, int32_t(v));
+	}
+	uint32_t simple_editable_text::previous_word_position(uint32_t v) {
+		return text::get_previous_word_position(analysis_obj, int32_t(v));
+	}
+	uint32_t simple_editable_text::next_word_position(uint32_t v) {
+		return text::get_next_word_position(analysis_obj, int32_t(v));
+	}
+	uint32_t simple_editable_text::previous_valid_cursor_position(uint32_t v) {
+		return text::get_previous_cursor_position(analysis_obj, int32_t(v));
+	}
+	uint32_t simple_editable_text::next_valid_cursor_position(uint32_t v) {
+		return text::get_next_cursor_position(analysis_obj, int32_t(v));
+	}
+
 	void simple_editable_text::internal_on_text_changed(window_data& win) {
 		safe_release(formatted_text);
 		analysis_out_of_date = true;
@@ -572,6 +594,8 @@ namespace printui {
 				win.window_interface->move_system_caret(int32_t(cached_cursor_postion + adjusted_content_rect.left), int32_t(adjusted_content_rect.top));
 			else
 				win.window_interface->move_system_caret(int32_t(adjusted_content_rect.left), int32_t(cached_cursor_postion + adjusted_content_rect.top));
+
+			win.text_services_interface->on_selection_change(ts_obj);
 		}
 	}
 
@@ -689,6 +713,10 @@ namespace printui {
 				}
 			}
 		}
+	}
+
+	void simple_editable_text::update_analysis(window_data& win) {
+		prepare_analysis(win);
 	}
 
 	void simple_editable_text::render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) {
@@ -989,6 +1017,7 @@ namespace printui {
 			}
 
 			win.window_interface->invalidate_window();
+			win.text_services_interface->set_focus(win, ts_obj);
 		}
 	}
 
@@ -998,6 +1027,8 @@ namespace printui {
 		if(disabled)
 			return;
 
+		auto old_end = std::max(anchor_position, cursor_position);
+		auto old_start = std::min(anchor_position, cursor_position);
 		if(anchor_position != cursor_position) {
 			command(win, edit_command::delete_selection, false);
 		}
@@ -1016,6 +1047,7 @@ namespace printui {
 		anchor_position = cursor_position;
 		internal_on_selection_changed(win);
 		internal_on_text_changed(win);
+		win.text_services_interface->on_text_change(ts_obj, uint32_t(old_start), uint32_t(old_end), uint32_t(cursor_position));
 		win.window_interface->invalidate_window();
 	}
 	void simple_editable_text::clear(window_data& win) {
@@ -1023,11 +1055,13 @@ namespace printui {
 			return;
 
 		if(text.length() > 0) {
+			auto old_length = text.length();
 			text.clear();
 			cursor_position = 0;
 			anchor_position = 0;
 			internal_on_selection_changed(win);
 			internal_on_text_changed(win);
+			win.text_services_interface->on_text_change(ts_obj, 0, uint32_t(old_length), 0);
 			win.window_interface->invalidate_window();
 		}
 	}
@@ -1084,8 +1118,10 @@ namespace printui {
 					auto previous_position = text::get_previous_cursor_position(analysis_obj, cursor_position);
 					if(previous_position != cursor_position) {
 						text.erase(size_t(previous_position), size_t(cursor_position - previous_position));
+						auto old_cursor = cursor_position;
 						cursor_position = previous_position;
 						anchor_position = previous_position;
+						win.text_services_interface->on_text_change(ts_obj, uint32_t(previous_position), uint32_t(old_cursor), uint32_t(previous_position));
 					}
 				}
 				internal_on_selection_changed(win);
@@ -1101,6 +1137,7 @@ namespace printui {
 					auto next_position = text::get_next_cursor_position(analysis_obj, cursor_position);
 					if(next_position != cursor_position) {
 						text.erase(size_t(cursor_position), size_t(next_position - cursor_position));
+						win.text_services_interface->on_text_change(ts_obj, uint32_t(cursor_position), uint32_t(next_position), uint32_t(cursor_position));
 					}
 				}
 				internal_on_selection_changed(win);
@@ -1115,8 +1152,10 @@ namespace printui {
 					auto previous_position = text::get_previous_word_position(analysis_obj, cursor_position);
 					if(previous_position != cursor_position) {
 						text.erase(size_t(previous_position), size_t(cursor_position - previous_position));
+						auto old_cursor = cursor_position;
 						cursor_position = previous_position;
 						anchor_position = previous_position;
+						win.text_services_interface->on_text_change(ts_obj, uint32_t(previous_position), uint32_t(old_cursor), uint32_t(previous_position));
 					}
 				}
 				internal_on_selection_changed(win);
@@ -1132,6 +1171,7 @@ namespace printui {
 					auto next_position = text::get_next_word_position(analysis_obj, cursor_position);
 					if(next_position != cursor_position) {
 						text.erase(size_t(cursor_position), size_t(next_position - cursor_position));
+						win.text_services_interface->on_text_change(ts_obj, uint32_t(cursor_position), uint32_t(next_position), uint32_t(cursor_position));
 					}
 				}
 				internal_on_selection_changed(win);
@@ -1220,6 +1260,8 @@ namespace printui {
 				return;
 			case edit_command::paste:
 			{
+				auto old_start_position = std::min(anchor_position, cursor_position);
+				auto old_end_position = std::max(anchor_position, cursor_position);
 				win.edit_undo_buffer.push_state(undo_item{ this, text, anchor_position, cursor_position });
 				if(anchor_position != cursor_position) {
 					std::wstring_view v(text);
@@ -1235,6 +1277,7 @@ namespace printui {
 				anchor_position = cursor_position;
 				internal_on_selection_changed(win);
 				internal_on_text_changed(win);
+				win.text_services_interface->on_text_change(ts_obj, uint32_t(old_start_position), uint32_t(old_end_position), uint32_t(cursor_position));
 			}
 				return;
 			case edit_command::select_all:
@@ -1246,11 +1289,14 @@ namespace printui {
 			{
 				auto undostate = win.edit_undo_buffer.undo(undo_item{ this, text, anchor_position, cursor_position });
 				if(undostate.has_value()) {
+					auto old_length = text.length();
 					text = (*undostate).contents;
 					cursor_position = (*undostate).cursor;
 					anchor_position = (*undostate).anchor;
 					internal_on_selection_changed(win);
 					internal_on_text_changed(win);
+
+					win.text_services_interface->on_text_change(ts_obj, uint32_t(0), uint32_t(old_length), uint32_t(text.length()));
 				}
 			}
 				return;
@@ -1258,11 +1304,14 @@ namespace printui {
 			{
 				auto redostate = win.edit_undo_buffer.redo(undo_item{ this, text, anchor_position, cursor_position });
 				if(redostate.has_value()) {
+					auto old_length = text.length();
 					text = (*redostate).contents;
 					cursor_position = (*redostate).cursor;
 					anchor_position = (*redostate).anchor;
 					internal_on_selection_changed(win);
 					internal_on_text_changed(win);
+
+					win.text_services_interface->on_text_change(ts_obj, uint32_t(0), uint32_t(old_length), uint32_t(text.length()));
 				}
 			}
 				return;
@@ -1288,6 +1337,7 @@ namespace printui {
 					anchor_position = start;
 					internal_on_selection_changed(win);
 					internal_on_text_changed(win);
+					win.text_services_interface->on_text_change(ts_obj, uint32_t(start), uint32_t(start + length), uint32_t(start));
 				}
 				return;
 		}
@@ -1323,9 +1373,23 @@ namespace printui {
 		text.erase(size_t(temp_text_position), size_t(temp_text_length));
 		cursor_position = temp_text_position;
 		anchor_position = temp_text_position;
+		auto old_length = temp_text_length;
+		temp_text_length = 0;
 		internal_on_selection_changed(win);
 		internal_on_text_changed(win);
+		win.text_services_interface->on_text_change(ts_obj, uint32_t(temp_text_position), uint32_t(temp_text_position + old_length), uint32_t(temp_text_position));
+		
 	}
+
+	void simple_editable_text::set_temporary_text(window_data& win, std::wstring_view txt) {
+		text.erase(size_t(temp_text_position), size_t(temp_text_length));
+		temp_text_position = cursor_position;
+		text.insert(size_t(temp_text_position), txt);
+		temp_text_length = int32_t(txt.length());
+
+		internal_on_text_changed(win);
+	}
+
 	void simple_editable_text::set_cursor_visibility(window_data& win, bool is_visible) {
 		if(cursor_visible != is_visible) {
 			cursor_visible = is_visible;
@@ -1345,6 +1409,13 @@ namespace printui {
 	}
 
 	// retrieve information from control
+	bool simple_editable_text::position_is_ltr(uint32_t position) {
+		if(position < text.length()) {
+			return text::position_is_ltr(analysis_obj, position);
+		} else {
+			return true;
+		}
+	}
 	uint32_t simple_editable_text::get_cursor() const {
 		return uint32_t(cursor_position);
 	}
@@ -1457,18 +1528,47 @@ namespace printui {
 			}
 		}
 	}
+	void simple_editable_text::insert_text(window_data& win, uint32_t position_start, uint32_t position_end, std::wstring_view content) {
+		if(win.keyboard_target == this) {
+			if(!changes_made)
+				win.edit_undo_buffer.push_state(undo_item{ this, text, anchor_position, cursor_position });
+		}
+
+		if(position_start != position_end)
+			text.erase(size_t(position_start), size_t(position_end));
+		text.insert(size_t(position_start), content);
+
+		if(int32_t(position_end) < anchor_position) {
+			anchor_position += int32_t(content.length()) - int32_t(position_end - position_start);
+			anchor_position = std::max(0, anchor_position);
+		} else if(int32_t(position_start) <= anchor_position && anchor_position <= int32_t(position_end)) {
+			anchor_position = int32_t(position_start + content.length());
+		}
+		if(int32_t(position_end) < cursor_position) {
+			cursor_position += int32_t(content.length()) - int32_t(position_end - position_start);
+			cursor_position = std::max(0, cursor_position);
+		} else if(int32_t(position_start) <= cursor_position && cursor_position <= int32_t(position_end)) {
+			cursor_position = int32_t(position_start + content.length());
+		}
+
+		internal_on_selection_changed(win);
+		internal_on_text_changed(win);
+		win.text_services_interface->on_text_change(ts_obj, position_start, position_end, uint32_t(content.length()));
+		win.window_interface->invalidate_window();
+	}
 	void simple_editable_text::set_text(window_data& win, std::wstring const& t) {
 		if(win.keyboard_target == this) {
 			if(!changes_made)
 				win.edit_undo_buffer.push_state(undo_item{ this, text, anchor_position, cursor_position });
 		}
+		auto old_length = text.length();
 		text = t;
 		cursor_position = int32_t(t.length());
 		anchor_position = int32_t(t.length());
 		
 		internal_on_selection_changed(win);
 		internal_on_text_changed(win);
-		
+		win.text_services_interface->on_text_change(ts_obj, uint32_t(0), uint32_t(old_length), uint32_t(text.length()));
 		win.window_interface->invalidate_window();
 	}
 	uint16_t simple_editable_text::get_alt_text() const {
@@ -1476,10 +1576,6 @@ namespace printui {
 	}
 	uint16_t simple_editable_text::get_name() const {
 		return name;
-	}
-	text::text_analysis_object* simple_editable_text::get_analysis(window_data const& win) {
-		prepare_analysis(win);
-		return analysis_obj;
 	}
 
 	//

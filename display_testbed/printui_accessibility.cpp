@@ -2595,7 +2595,6 @@ namespace printui {
 		auto control = parent->control;
 		if(!control)
 			return UIA_E_ELEMENTNOTAVAILABLE;
-		auto analysis = control->get_analysis(parent->win);
 
 		if(end < start)
 			std::swap(start, end);
@@ -2605,15 +2604,17 @@ namespace printui {
 		start = std::min(start, max_end);
 
 		if(unit == TextUnit_Character) {
-			if(!text::is_cursor_position(analysis, start)) {
-				start = text::get_previous_cursor_position(analysis, start);
+			control->update_analysis(parent->win);
+			if(!control->is_valid_cursor_position(start)) {
+				start = control->previous_valid_cursor_position(start);
 			}
-			end = text::get_next_cursor_position(analysis, start);
+			end = control->next_valid_cursor_position(start);
 		} else if(unit == TextUnit_Format || unit == TextUnit_Word) {
-			if(!text::is_word_position(analysis, start)) {
-				start = text::get_previous_word_position(analysis, start);
+			control->update_analysis(parent->win);
+			if(!control->is_word_position(start)) {
+				start = control->previous_word_position(start);
 			}
-			end = text::get_next_word_position(analysis, start);
+			end = control->next_word_position(start);
 		} else {
 			start = 0;
 			end = max_end;
@@ -2795,8 +2796,8 @@ namespace printui {
 
 		auto first = std::min(start, end);
 		auto length = (std::max(start, end) - first);
-		auto base_text = control->get_text();
 
+		auto base_text = control->get_text();
 		int32_t found_length = 0;
 
 		if(first >= base_text.length())
@@ -2828,10 +2829,8 @@ namespace printui {
 		auto control = parent->control;
 		if(!control)
 			return UIA_E_ELEMENTNOTAVAILABLE;
-		auto analysis = control->get_analysis(parent->win);
 
 		auto tstart = std::max(std::min(start, end), 0);
-		tstart = std::min(tstart, int32_t(control->get_text_length()) - 1);
 		tstart = std::max(tstart, 0);
 
 		switch(attributeId) {
@@ -2858,8 +2857,9 @@ namespace printui {
 				pRetVal->lVal = CapStyle_None;
 				break;
 			case UIA_CaretBidiModeAttributeId:
+				control->update_analysis(parent->win);
 				pRetVal->vt = VT_I4;
-				pRetVal->lVal = text::position_is_ltr(analysis, tstart) ? CaretBidiMode_LTR : CaretBidiMode_RTL;
+				pRetVal->lVal = control->position_is_ltr(tstart) ? CaretBidiMode_LTR : CaretBidiMode_RTL;
 				break;
 			case UIA_CaretPositionAttributeId:
 				pRetVal->vt = VT_I4;
@@ -3070,7 +3070,6 @@ namespace printui {
 		auto control = parent->control;
 		if(!control)
 			return UIA_E_ELEMENTNOTAVAILABLE;
-		auto analysis = control->get_analysis(parent->win);
 
 		if(end < start)
 			std::swap(start, end);
@@ -3083,14 +3082,16 @@ namespace printui {
 
 		*pRetVal = 0;
 
+
 		if(unit == TextUnit_Character) {
-			if(!text::is_cursor_position(analysis, start)) {
-				start = text::get_previous_cursor_position(analysis, start);
+			control->update_analysis(parent->win);
+			if(!control->is_valid_cursor_position(start)) {
+				start = control->previous_valid_cursor_position(start);
 			}
 			
 			while(count > 0) {
-				auto next = text::get_next_cursor_position(analysis, start);
-				if(next != start) {
+				auto next = control->next_valid_cursor_position(start);
+				if(int32_t(next) != start) {
 					++(*pRetVal);
 					start = next;
 				} else {
@@ -3099,8 +3100,8 @@ namespace printui {
 				--count;
 			}
 			while(count < 0) {
-				auto next = text::get_previous_cursor_position(analysis, start);
-				if(next != start) {
+				auto next = control->previous_valid_cursor_position(start);
+				if(int32_t(next) != start) {
 					--(*pRetVal);
 					start = next;
 				} else {
@@ -3109,16 +3110,17 @@ namespace printui {
 				++count;
 			}
 			if(!degenerate)
-				end = text::get_next_cursor_position(analysis, start);
+				end = control->next_valid_cursor_position(start);
 			else
 				end = start;
 		} else if(unit == TextUnit_Format || unit == TextUnit_Word) {
-			if(!text::is_word_position(analysis, start)) {
-				start = text::get_previous_word_position(analysis, start);
+			control->update_analysis(parent->win);
+			if(!control->is_word_position(start)) {
+				start = control->previous_word_position(start);
 			}
 			while(count > 0) {
-				auto next = text::get_next_word_position(analysis, start);
-				if(next != start) {
+				auto next = control->next_word_position(start);
+				if(int32_t(next) != start) {
 					++(*pRetVal);
 					start = next;
 				} else {
@@ -3127,8 +3129,8 @@ namespace printui {
 				--count;
 			}
 			while(count < 0) {
-				auto next = text::get_previous_word_position(analysis, start);
-				if(next != start) {
+				auto next = control->previous_word_position(start);
+				if(int32_t(next) != start) {
 					--(*pRetVal);
 					start = next;
 				} else {
@@ -3137,7 +3139,7 @@ namespace printui {
 				++count;
 			}
 			if(!degenerate)
-				end = text::get_next_word_position(analysis, start);
+				end = control->next_word_position(start);
 			else
 				end = start;
 		} else {
@@ -3153,7 +3155,6 @@ namespace printui {
 		auto control = parent->control;
 		if(!control)
 			return UIA_E_ELEMENTNOTAVAILABLE;
-		auto analysis = control->get_analysis(parent->win);
 
 		if(end < start)
 			std::swap(start, end);
@@ -3166,9 +3167,10 @@ namespace printui {
 		*pRetVal = 0;
 
 		if(unit == TextUnit_Character) {
+			control->update_analysis(parent->win);
 			while(count > 0) {
-				auto next = text::get_next_cursor_position(analysis, to_move);
-				if(next != to_move) {
+				auto next = control->next_valid_cursor_position(to_move);
+				if(int32_t(next) != to_move) {
 					++(*pRetVal);
 					to_move = next;
 				} else {
@@ -3177,8 +3179,8 @@ namespace printui {
 				--count;
 			}
 			while(count < 0) {
-				auto next = text::get_previous_cursor_position(analysis, to_move);
-				if(next != to_move) {
+				auto next = control->previous_valid_cursor_position(to_move);
+				if(int32_t(next) != to_move) {
 					--(*pRetVal);
 					to_move = next;
 				} else {
@@ -3194,9 +3196,10 @@ namespace printui {
 					start = end;
 			}
 		} else if(unit == TextUnit_Format || unit == TextUnit_Word) {
+			control->update_analysis(parent->win);
 			while(count > 0) {
-				auto next = text::get_next_word_position(analysis, to_move);
-				if(next != to_move) {
+				auto next = control->next_word_position(to_move);
+				if(int32_t(next) != to_move) {
 					++(*pRetVal);
 					to_move = next;
 				} else {
@@ -3205,8 +3208,8 @@ namespace printui {
 				--count;
 			}
 			while(count < 0) {
-				auto next = text::get_previous_word_position(analysis, to_move);
-				if(next != to_move) {
+				auto next = control->previous_word_position(to_move);
+				if(int32_t(next) != to_move) {
 					--(*pRetVal);
 					to_move = next;
 				} else {
@@ -3505,7 +3508,7 @@ namespace printui {
 		*pRetVal = nullptr;
 		if(!control)
 			return UIA_E_ELEMENTNOTAVAILABLE;
-		
+
 		auto temp_text = control->get_text();
 		*pRetVal = SysAllocString(temp_text.c_str());
 		return S_OK;
@@ -3566,6 +3569,7 @@ namespace printui {
 			*pRetVal = nullptr;
 			return UIA_E_ELEMENTNOTAVAILABLE;
 		}
+
 		auto from_point = control->get_position_from_screen_point(win, screen_space_point{ int32_t(point.x), int32_t(point.y) });
 		*pRetVal = new simple_edit_range_provider(this, int32_t(from_point), int32_t(from_point));
 		return S_OK;
