@@ -158,6 +158,9 @@ namespace printui {
 					const wchar_t* text = reinterpret_cast<const wchar_t*>(memory);
 					return_value = std::wstring(text, text + byteSize / sizeof(wchar_t));
 					GlobalUnlock(hClipboardData);
+					if(return_value.length() > 0 && return_value.back() == 0) {
+						return_value.pop_back();
+					}
 				}
 			}
 			CloseClipboard();
@@ -238,7 +241,7 @@ namespace printui {
 			UpdateWindow((HWND)(m_hwnd));
 
 			if(UiaHasServerSideProvider(m_hwnd))
-				OutputDebugStringA("provider found\n");
+				OutputDebugStringA("provider found\n"); // this was done to force the root window provider to load early
 
 			RAWINPUTDEVICE deviceList[2];
 			deviceList[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
@@ -696,19 +699,48 @@ namespace printui {
 			} else if(key_code == VK_TAB) {
 				keyboard_target->command(*this, edit_command::tab, false);
 			} else if(key_code == VK_LEFT) {
-				if(ctrl_held)
-					keyboard_target->command(*this, edit_command::cursor_left_word, shift_held);
-				else
-					keyboard_target->command(*this, edit_command::cursor_left, shift_held);
+				if(horizontal(orientation)) {
+					if(ctrl_held) {
+						keyboard_target->command(*this, edit_command::cursor_left_word, shift_held);
+					} else {
+						keyboard_target->command(*this, edit_command::cursor_left, shift_held);
+					}
+				} else if(orientation == layout_orientation::vertical_left_to_right) {
+					keyboard_target->command(*this, edit_command::cursor_up, shift_held);
+				} else {
+					keyboard_target->command(*this, edit_command::cursor_down, shift_held);
+				}
 			} else if(key_code == VK_RIGHT) {
-				if(ctrl_held)
-					keyboard_target->command(*this, edit_command::cursor_right_word, shift_held);
-				else
-					keyboard_target->command(*this, edit_command::cursor_right, shift_held);
+				if(horizontal(orientation)) {
+					if(ctrl_held)
+						keyboard_target->command(*this, edit_command::cursor_right_word, shift_held);
+					else
+						keyboard_target->command(*this, edit_command::cursor_right, shift_held);
+				} else if(orientation == layout_orientation::vertical_left_to_right) {
+					keyboard_target->command(*this, edit_command::cursor_down, shift_held);
+				} else {
+					keyboard_target->command(*this, edit_command::cursor_up, shift_held);
+				}
 			} else if(key_code == VK_UP) {
-				keyboard_target->command(*this, edit_command::cursor_up, shift_held);
+				if(horizontal(orientation)) {
+					keyboard_target->command(*this, edit_command::cursor_up, shift_held);
+				} else {
+					if(ctrl_held) {
+						keyboard_target->command(*this, edit_command::cursor_left_word, shift_held);
+					} else {
+						keyboard_target->command(*this, edit_command::cursor_left, shift_held);
+					}
+				}
 			} else if(key_code == VK_DOWN) {
-				keyboard_target->command(*this, edit_command::cursor_down, shift_held);
+				if(horizontal(orientation)) {
+					keyboard_target->command(*this, edit_command::cursor_down, shift_held);
+				} else {
+					if(ctrl_held) {
+						keyboard_target->command(*this, edit_command::cursor_right_word, shift_held);
+					} else {
+						keyboard_target->command(*this, edit_command::cursor_right, shift_held);
+					}
+				}
 			} else if(key_code == VK_HOME) {
 				if(ctrl_held)
 					keyboard_target->command(*this, edit_command::to_text_start, shift_held);
@@ -1094,7 +1126,9 @@ namespace printui {
 					} // fallthrough; keep above WM_MOUSEMOVE
 					case WM_MOUSEMOVE:
 					{
-						if(app->on_mouse_move(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)))
+						if(app->keyboard_target && app->keyboard_target->consume_mouse_event(*app, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), uint32_t(wParam))) {
+							return 0;
+						} else if(app->on_mouse_move(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)))
 							return 0;
 						else
 							break;
@@ -1132,15 +1166,26 @@ namespace printui {
 					}
 					case WM_RBUTTONDOWN:
 					{
-						if(app->on_mouse_right_down(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)))
+						if(app->keyboard_target && app->keyboard_target->consume_mouse_event(*app, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), uint32_t(wParam))) {
 							return 0;
-						else
+						} else if(app->on_mouse_right_down(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam))) {
+							return 0;
+						} else {
 							break;
+						}
 					}
+					case WM_RBUTTONDBLCLK:
+						if(app->keyboard_target && app->keyboard_target->consume_mouse_event(*app, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), uint32_t(wParam))) {
+							return 0;
+						}
+						break;
 					case WM_LBUTTONDOWN:
 					{
 						SetCapture(hwnd);
 						if(app->keyboard_target) {
+							if(app->keyboard_target->consume_mouse_event(*app, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), uint32_t(wParam))) {
+								return 0;
+							}
 							auto duration = std::chrono::steady_clock::now() - app->last_double_click;
 							auto in_ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
 							if(in_ms.count() <= app->double_click_ms) {
@@ -1157,6 +1202,9 @@ namespace printui {
 					case WM_LBUTTONDBLCLK:
 					{
 						if(app->keyboard_target) {
+							if(app->keyboard_target->consume_mouse_event(*app, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), uint32_t(wParam))) {
+								return 0;
+							}
 							app->keyboard_target->command(*app, edit_command::select_current_word, false);
 							app->last_double_click = std::chrono::steady_clock::now();
 						}

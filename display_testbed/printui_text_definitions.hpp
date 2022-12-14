@@ -26,5 +26,6 @@ namespace printui::text {
 		virtual void set_focus(window_data& win, text_services_object*) override;
 		virtual void suspend_keystroke_handling() override;
 		virtual void resume_keystroke_handling() override;
+		virtual bool send_mouse_event_to_tso(text_services_object* ts, int32_t x, int32_t y, uint32_t buttons) override;
 	};
 }

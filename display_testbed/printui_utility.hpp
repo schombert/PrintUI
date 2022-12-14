@@ -863,6 +863,11 @@ namespace printui {
 		generic_text, number, single_char, email, date, time, url
 	};
 
+	struct mouse_test_result {
+		uint32_t position;
+		uint32_t quadrent;
+	};
+
 	struct edit_interface {
 		virtual ~edit_interface() { }
 
@@ -873,14 +878,14 @@ namespace printui {
 		virtual void set_selection(window_data&, uint32_t start, uint32_t end) = 0;
 		virtual bool move_cursor_by_screen_pt(window_data&, screen_space_point pt, bool extend_selection) = 0; // returns if cursor was captured;
 		virtual void command(window_data&, edit_command cmd, bool extend_selection) = 0;
-		virtual void insert_temporary_codepoint(window_data&, uint32_t codepoint) = 0;
+		virtual void set_temporary_selection(window_data&, uint32_t start, uint32_t end) = 0;
 		virtual void clear_temporary_contents(window_data&) = 0;
-		virtual void set_temporary_text(window_data&, std::wstring_view txt) = 0;
-		virtual void register_composition_result(window_data&, std::wstring_view result) = 0;
+		virtual void register_composition_result(window_data&) = 0;
 		virtual void register_conversion_target_change(window_data&) = 0;
 		virtual void set_cursor_visibility(window_data&, bool is_visible) = 0;
 		virtual void insert_text(window_data&, uint32_t position_start, uint32_t position_end, std::wstring_view content) = 0;
 		virtual void update_analysis(window_data& win) = 0;
+		virtual bool consume_mouse_event(window_data& win, int32_t x, int32_t y, uint32_t buttons) = 0;
 
 		// retrieve information from control
 		virtual uint32_t get_cursor() const = 0;
@@ -894,6 +899,7 @@ namespace printui {
 		virtual uint32_t get_temporary_length() const = 0;
 		virtual layout_interface* get_layout_interface() = 0;
 		virtual uint32_t get_position_from_screen_point(window_data&, screen_space_point pt) = 0;
+		virtual mouse_test_result get_detailed_position(window_data&, screen_space_point pt) = 0; //in window coordinates
 		virtual void populate_selection_rectangles(window_data&, std::vector<screen_space_rect>& rects) = 0;
 		virtual void get_range_bounds(window_data&, uint32_t position_start, uint32_t position_end, std::vector<screen_space_rect>& rects) = 0;
 		virtual bool is_read_only() const = 0;
@@ -1174,15 +1180,14 @@ namespace printui {
 		virtual void set_selection(window_data&, uint32_t start, uint32_t end) override;
 		virtual bool move_cursor_by_screen_pt(window_data&, screen_space_point pt, bool extend_selection) override; // returns if cursor was captured;
 		virtual void command(window_data&, edit_command cmd, bool extend_selection) override;
-		virtual void insert_temporary_codepoint(window_data&, uint32_t codepoint) override;
+		virtual void set_temporary_selection(window_data&, uint32_t start, uint32_t end) override;
 		virtual void clear_temporary_contents(window_data&) override;
-		virtual void set_temporary_text(window_data&, std::wstring_view txt) override;
-		virtual void register_composition_result(window_data&, std::wstring_view result) override;
+		virtual void register_composition_result(window_data&) override;
 		virtual void register_conversion_target_change(window_data&) override;
 		virtual void set_cursor_visibility(window_data&, bool is_visible) override;
 		virtual void insert_text(window_data&, uint32_t position_start, uint32_t position_end, std::wstring_view content) override;
 		virtual void update_analysis(window_data& win) override;
-
+		virtual bool consume_mouse_event(window_data& win, int32_t x, int32_t y, uint32_t buttons) override;
 
 		// retrieve information from control
 		virtual uint32_t get_cursor() const override;
@@ -1195,6 +1200,7 @@ namespace printui {
 		virtual screen_space_rect get_edit_bounds(window_data&) const override;
 		virtual screen_space_rect get_character_bounds(window_data&, uint32_t position) const override;
 		virtual uint32_t get_position_from_screen_point(window_data&, screen_space_point pt) override;
+		virtual mouse_test_result get_detailed_position(window_data&, screen_space_point pt) override; //in window coordinates
 		virtual void populate_selection_rectangles(window_data&, std::vector<screen_space_rect>& rects) override;
 		virtual void get_range_bounds(window_data&, uint32_t position_start, uint32_t position_end, std::vector<screen_space_rect>& rects) override;
 		virtual layout_interface* get_layout_interface() override {
@@ -2036,6 +2042,8 @@ namespace printui {
 
 		void impl_update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm);
 		void update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm);
+		int32_t left_visual_cursor_position(text_analysis_object* ptr, int32_t position, std::wstring const& str, bool ltr, text_manager const& tm);
+		int32_t right_visual_cursor_position(text_analysis_object* ptr, int32_t position, std::wstring const& str, bool ltr, text_manager const& tm);
 
 		class text_manager {
 		private:
@@ -2096,6 +2104,8 @@ namespace printui {
 			replaceable_instance instantiate_text(std::string_view key, text_parameter const* s = nullptr, text_parameter const* e = nullptr) const;
 
 			friend void impl_update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm);
+			friend int32_t left_visual_cursor_position(text_analysis_object* ptr, int32_t position, std::wstring const& str, bool ltr, text_manager const& tm);
+			friend int32_t right_visual_cursor_position(text_analysis_object* ptr, int32_t position, std::wstring const& str, bool ltr, text_manager const& tm);
 		};
 
 		void apply_default_vertical_options(IDWriteTypography* t);
@@ -2140,6 +2150,8 @@ namespace printui {
 		bool is_cursor_position(text_analysis_object* ptr, int32_t position);
 		bool is_word_position(text_analysis_object* ptr, int32_t position);
 		bool position_is_ltr(text_analysis_object* ptr, int32_t position);
+		int32_t left_visual_word_position(text_analysis_object* ptr, int32_t position);
+		int32_t right_visual_word_position(text_analysis_object* ptr, int32_t position);
 
 		struct text_services_wrapper {
 			virtual ~text_services_wrapper() { }
@@ -2151,6 +2163,7 @@ namespace printui {
 			virtual void set_focus(window_data& win, text_services_object*) = 0;
 			virtual void suspend_keystroke_handling() = 0;
 			virtual void resume_keystroke_handling() = 0;
+			virtual bool send_mouse_event_to_tso(text_services_object* ts, int32_t x, int32_t y, uint32_t buttons) = 0;
 		};
 	}
 	

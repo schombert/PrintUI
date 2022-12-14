@@ -17,6 +17,8 @@
 #include <inputscope.h>
 #include <Textstor.h>
 #include <tsattrs.h>
+#include <msctf.h>
+#include <olectl.h>
 
 #include "printui_text_definitions.hpp"
 #include "printui_windows_definitions.hpp"
@@ -2923,13 +2925,130 @@ namespace printui::text {
 				char_count,
 				&(processed_items[i].a),
 				ptr->char_attributes.data() + processed_items[i].iCharPos);
-			for(int32_t j = processed_items[i + 1].iCharPos; j < processed_items[i + 1].iCharPos; ++j) {
+			for(int32_t j = processed_items[i].iCharPos; j < processed_items[i + 1].iCharPos; ++j) {
 				ptr->char_attributes[j].fReserved = (processed_items[i].a.s.uBidiLevel & 0x01);
 			}
 		}
 	}
 	void update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm) {
 		impl_update_analyzed_text(ptr, str, ltr, tm);
+	}
+
+	int32_t left_visual_cursor_position(text_analysis_object* ptr, int32_t position, std::wstring const& str, bool ltr, text_manager const& tm) {
+		auto is_ltr = position_is_ltr(ptr, position);
+		auto default_pos = is_ltr ? get_previous_cursor_position(ptr, position) : get_next_cursor_position(ptr, position);
+		auto default_ltr = position_is_ltr(ptr, default_pos);
+		if(default_ltr == is_ltr)
+			return default_pos;
+
+		int32_t items_got = 0;
+		std::vector<SCRIPT_ITEM> processed_items(8);
+		int32_t current_size = 8;
+
+		SCRIPT_CONTROL control;
+		memset(&control, 0, sizeof(SCRIPT_CONTROL));
+		SCRIPT_STATE state;
+		memset(&state, 0, sizeof(SCRIPT_STATE));
+
+		control.uDefaultLanguage = LANGIDFROMLCID(tm.lcid);
+		state.uBidiLevel = ltr ? 0 : 1;
+		state.fArabicNumContext = tm.app_lang == L"ar" ? 1 : 0;
+
+		while(ScriptItemize(
+			str.data(),
+			int32_t(str.length()),
+			current_size - 1,
+			&control,
+			&state,
+			processed_items.data(),
+			&items_got) == E_OUTOFMEMORY) {
+			current_size *= 2;
+			processed_items.resize(current_size);
+		}
+		int32_t run_position = 0;
+		std::vector<BYTE> run_embedding_levels(items_got);
+		std::vector<int32_t> visual_to_logical(items_got);
+		std::vector<int32_t> logical_to_visual(items_got);
+
+		for(int32_t i = 0; i < items_got; ++i) {
+			if(processed_items[i].iCharPos <= position && position < processed_items[i + 1].iCharPos) {
+				run_position = i;
+			}
+			run_embedding_levels[i] = processed_items[i].a.s.uBidiLevel;
+		}
+
+		ScriptLayout(items_got, run_embedding_levels.data(), visual_to_logical.data(), logical_to_visual.data());
+		auto visual_position_of_run = logical_to_visual[run_position];
+		if(visual_position_of_run == 0) {
+			return position;
+		}
+		auto logical_position_of_left_run = visual_to_logical[visual_position_of_run - 1];
+		auto next_run_is_ltr = (processed_items[logical_position_of_left_run].a.s.uBidiLevel & 0x01) == 0;
+		if(next_run_is_ltr) {
+			// find rightmost char position by moving back from the run after it
+			return get_previous_cursor_position(ptr, processed_items[logical_position_of_left_run + 1].iCharPos);
+		} else {
+			// rightmost char position is first char
+			return processed_items[logical_position_of_left_run].iCharPos;
+		}
+	}
+	int32_t right_visual_cursor_position(text_analysis_object* ptr, int32_t position, std::wstring const& str, bool ltr, text_manager const& tm) {
+		auto is_ltr = position_is_ltr(ptr, position);
+		auto default_pos = is_ltr ? get_next_cursor_position(ptr, position) : get_previous_cursor_position(ptr, position);
+		auto default_ltr = position_is_ltr(ptr, default_pos);
+		if(default_ltr == is_ltr)
+			return default_pos;
+
+		int32_t items_got = 0;
+		std::vector<SCRIPT_ITEM> processed_items(8);
+		int32_t current_size = 8;
+
+		SCRIPT_CONTROL control;
+		memset(&control, 0, sizeof(SCRIPT_CONTROL));
+		SCRIPT_STATE state;
+		memset(&state, 0, sizeof(SCRIPT_STATE));
+
+		control.uDefaultLanguage = LANGIDFROMLCID(tm.lcid);
+		state.uBidiLevel = ltr ? 0 : 1;
+		state.fArabicNumContext = tm.app_lang == L"ar" ? 1 : 0;
+
+		while(ScriptItemize(
+			str.data(),
+			int32_t(str.length()),
+			current_size - 1,
+			&control,
+			&state,
+			processed_items.data(),
+			&items_got) == E_OUTOFMEMORY) {
+			current_size *= 2;
+			processed_items.resize(current_size);
+		}
+		int32_t run_position = 0;
+		std::vector<BYTE> run_embedding_levels(items_got);
+		std::vector<int32_t> visual_to_logical(items_got);
+		std::vector<int32_t> logical_to_visual(items_got);
+
+		for(int32_t i = 0; i < items_got; ++i) {
+			if(processed_items[i].iCharPos <= position && position < processed_items[i + 1].iCharPos) {
+				run_position = i;
+			}
+			run_embedding_levels[i] = processed_items[i].a.s.uBidiLevel;
+		}
+
+		ScriptLayout(items_got, run_embedding_levels.data(), visual_to_logical.data(), logical_to_visual.data());
+		auto visual_position_of_run = logical_to_visual[run_position];
+		if(visual_position_of_run == items_got - 1) { // is already rightmost
+			return position;
+		}
+		auto logical_position_of_left_run = visual_to_logical[visual_position_of_run + 1];
+		auto next_run_is_ltr = (processed_items[logical_position_of_left_run].a.s.uBidiLevel & 0x01) == 0;
+		if(next_run_is_ltr) {
+			// leftmost char position is first char
+			return processed_items[logical_position_of_left_run].iCharPos;
+		} else {
+			// find leftmost char position by moving back from the run after it
+			return get_previous_cursor_position(ptr, processed_items[logical_position_of_left_run + 1].iCharPos);
+		}
 	}
 
 	int32_t number_of_cursor_positions_in_range(text_analysis_object* ptr, int32_t start, int32_t count) {
@@ -2962,6 +3081,20 @@ namespace printui::text {
 		}
 		return int32_t(array_size);
 	}
+	int32_t left_visual_word_position(text_analysis_object* ptr, int32_t position) {
+		if(position_is_ltr(ptr, position)) {
+			return get_previous_word_position(ptr, position);
+		} else {
+			return get_next_word_position(ptr, position);
+		}
+	}
+	int32_t right_visual_word_position(text_analysis_object* ptr, int32_t position) {
+		if(position_is_ltr(ptr, position)) {
+			return get_next_word_position(ptr, position);
+		} else {
+			return get_previous_word_position(ptr, position);
+		}
+	}
 	int32_t get_previous_word_position(text_analysis_object* ptr, int32_t position) {
 		--position;
 		if(position < ptr->char_attributes.size()) {
@@ -2984,11 +3117,13 @@ namespace printui::text {
 		return int32_t(array_size);
 	}
 	bool position_is_ltr(text_analysis_object* ptr, int32_t position) {
-		bool result = false;
 		if(position < ptr->char_attributes.size()) {
-			result = ptr->char_attributes[position].fReserved == 0;
+			return  ptr->char_attributes[position].fReserved == 0;
+		} else if(ptr->char_attributes.size() > 0){
+			return ptr->char_attributes[ptr->char_attributes.size() - 1].fReserved == 0;
+		} else {
+			return false;
 		}
-		return result;
 	}
 
 	bool is_cursor_position(text_analysis_object* ptr, int32_t position) {
@@ -3010,9 +3145,16 @@ namespace printui::text {
 		unlocked, locked_read, locked_readwrite
 	};
 
-	struct text_services_object : public ITextStoreACP2, public ITfInputScope, public ITfContextOwnerCompositionSink {
+	struct mouse_sink {
+		ITfMouseSink* sink;
+		LONG range_start;
+		LONG range_length;
+	};
+
+	struct text_services_object : public ITextStoreACP2, public ITfInputScope, public ITfContextOwnerCompositionSink, public ITfMouseTrackerACP {
 		
 		std::vector<TS_ATTRVAL> gathered_attributes;
+		std::vector<mouse_sink> installed_mouse_sinks;
 		window_data& win;
 		edit_interface* ei = nullptr;
 		ITfDocumentMgr* document = nullptr;
@@ -3020,9 +3162,10 @@ namespace printui::text {
 		TfEditCookie content_identifier = 0;
 		ITextStoreACPSink* advise_sink = nullptr;
 		lock_state document_lock_state = lock_state::unlocked;
-		bool interim_caret = false;
 		bool notify_on_text_change = false;
 		bool notify_on_selection_change = false;
+		bool relock_pending = false;
+		bool in_composition = false;
 
 		ULONG m_refCount;
 
@@ -3042,6 +3185,8 @@ namespace printui::text {
 				*ppvObject = static_cast<ITfInputScope*>(this);
 			else if(riid == __uuidof(ITfContextOwnerCompositionSink))
 				*ppvObject = static_cast<ITfContextOwnerCompositionSink*>(this);
+			else if(riid == __uuidof(ITfMouseTrackerACP))
+				*ppvObject = static_cast<ITfMouseTrackerACP*>(this);
 			else {
 				*ppvObject = NULL;
 				return E_NOINTERFACE;
@@ -3060,52 +3205,109 @@ namespace printui::text {
 			return val;
 		}
 
+		//ITfMouseTrackerACP
+		virtual HRESULT STDMETHODCALLTYPE AdviseMouseSink(__RPC__in_opt ITfRangeACP* range, __RPC__in_opt ITfMouseSink* pSink, __RPC__out DWORD* pdwCookie) {
+			if(!range || !pSink || !pdwCookie)
+				return E_INVALIDARG;
+			for(uint32_t i = 0; i < installed_mouse_sinks.size(); ++i) {
+				if(installed_mouse_sinks[i].sink == nullptr) {
+					installed_mouse_sinks[i].sink = pSink;
+					pSink->AddRef();
+					installed_mouse_sinks[i].range_start = 0;
+					installed_mouse_sinks[i].range_length = 0;
+					range->GetExtent(&(installed_mouse_sinks[i].range_start), &(installed_mouse_sinks[i].range_length));
+					*pdwCookie = DWORD(i);
+					return S_OK;
+				}
+			}
+			installed_mouse_sinks.emplace_back();
+			installed_mouse_sinks.back().sink = pSink;
+			pSink->AddRef();
+			installed_mouse_sinks.back().range_start = 0;
+			installed_mouse_sinks.back().range_length = 0;
+			range->GetExtent(&(installed_mouse_sinks.back().range_start), &(installed_mouse_sinks.back().range_length));
+			*pdwCookie = DWORD(installed_mouse_sinks.size() - 1);
+			return S_OK;
+		}
+
+		virtual HRESULT STDMETHODCALLTYPE UnadviseMouseSink(DWORD dwCookie) {
+			if(dwCookie < installed_mouse_sinks.size()) {
+				safe_release(installed_mouse_sinks[dwCookie].sink);
+			}
+			return S_OK;
+		}
+
+		bool send_mouse_event(int32_t x, int32_t y, uint32_t buttons) {
+			if(installed_mouse_sinks.empty())
+				return false;
+			if(!ei)
+				return false;
+
+			auto detailed_pos = ei->get_detailed_position(win, screen_space_point{ x,y });
+			for(auto& ms : installed_mouse_sinks) {
+				if(ms.sink && int32_t(detailed_pos.position) >= ms.range_start && int32_t(detailed_pos.position) <= ms.range_start + ms.range_length) {
+					BOOL eaten = false;
+					ms.sink->OnMouseEvent(detailed_pos.position, detailed_pos.quadrent, buttons, &eaten);
+					if(eaten)
+						return true;
+				}
+			}
+			return false;
+		}
+
 		//ITfContextOwnerCompositionSink
 		virtual HRESULT STDMETHODCALLTYPE OnStartComposition(__RPC__in_opt ITfCompositionView* /*pComposition*/, __RPC__out BOOL* pfOk) {
 			*pfOk = TRUE;
+			in_composition = true;
 			return S_OK;
 		}
 
-		virtual HRESULT STDMETHODCALLTYPE OnUpdateComposition(__RPC__in_opt ITfCompositionView* pComposition, __RPC__in_opt ITfRange* pRangeNew) {
-
-			if(pRangeNew) {
-				WCHAR temp_text[256];
-				ULONG text_gotten = 0;
-				auto hr = pRangeNew->GetText(content_identifier, 0, temp_text, 256, &text_gotten);
-
-				if(ei) {
-					//ei->clear_temporary_contents(win);
-					//ei->set_temporary_text(win, std::wstring_view(temp_text, text_gotten));
+		virtual HRESULT STDMETHODCALLTYPE OnUpdateComposition(__RPC__in_opt ITfCompositionView* pComposition, __RPC__in_opt ITfRange* /*pRangeNew*/) {
+			ITfRange* view_range = nullptr;
+			pComposition->GetRange(&view_range);
+			if(view_range) {
+				ITfRangeACP* acp_range = nullptr;
+				view_range->QueryInterface(IID_PPV_ARGS(&acp_range));
+				if(ei && acp_range) {
+					LONG start = 0;
+					LONG count = 0;
+					acp_range->GetExtent(&start, &count);
+					if(count > 0) {
+						ei->set_temporary_selection(win, uint32_t(start), uint32_t(start + count));
+					}
 				}
+				safe_release(acp_range);
 			}
+			safe_release(view_range);
 
 			return S_OK;
 		}
 
-		virtual HRESULT STDMETHODCALLTYPE OnEndComposition(__RPC__in_opt ITfCompositionView* pComposition) {
-			ITfRange* comp_range = nullptr;
-			pComposition->GetRange(&comp_range);
-			if(comp_range) {
-				WCHAR temp_text[256];
-				ULONG text_gotten = 0;
-				comp_range->GetText(content_identifier, 0, temp_text, 256, &text_gotten);
-				safe_release(comp_range);
-
-				if(ei) {
-					//ei->clear_temporary_contents(win);
-					//ei->insert_text(win, ei->get_cursor(), ei->get_cursor(), std::wstring_view(temp_text, text_gotten));
-				}
+		virtual HRESULT STDMETHODCALLTYPE OnEndComposition(__RPC__in_opt ITfCompositionView* /*pComposition*/) {
+			if(ei) {
+				ei->register_composition_result(win);
 			}
+			in_composition = false;
 			return S_OK;
 		}
 
 		// ITextStoreACP2
 		virtual HRESULT STDMETHODCALLTYPE AdviseSink(__RPC__in REFIID riid, __RPC__in_opt IUnknown* punk, DWORD dwMask) {
 			if(!IsEqualGUID(riid, IID_ITextStoreACPSink)) {
-				return TS_E_NOOBJECT;
+				return E_INVALIDARG;
 			}
-			if(FAILED(punk->QueryInterface(IID_ITextStoreACPSink, (void**)&advise_sink))) {
+			ITextStoreACPSink* temp = nullptr;
+			if(FAILED(punk->QueryInterface(IID_ITextStoreACPSink, (void**)&temp))) {
 				return E_NOINTERFACE;
+			}
+			if(advise_sink) {
+				if(advise_sink == temp) {
+					safe_release(temp);
+				} else {
+					return CONNECT_E_ADVISELIMIT;
+				}
+			} else {
+				advise_sink = temp;
 			}
 			notify_on_text_change = (TS_AS_TEXT_CHANGE & dwMask) != 0;
 			notify_on_selection_change = (TS_AS_SEL_CHANGE & dwMask) != 0;
@@ -3114,6 +3316,8 @@ namespace printui::text {
 
 		virtual HRESULT STDMETHODCALLTYPE UnadviseSink(__RPC__in_opt IUnknown* /*punk*/) {
 			safe_release(advise_sink);
+			notify_on_text_change = false;
+			notify_on_selection_change = false;
 			return S_OK;
 		}
 
@@ -3123,7 +3327,7 @@ namespace printui::text {
 				return E_UNEXPECTED;
 			}
 			
-			static bool relock_pending = false;
+			relock_pending = false;
 
 			if(document_lock_state != lock_state::unlocked) {
 				if(dwLockFlags & TS_LF_SYNC) {
@@ -3159,25 +3363,38 @@ namespace printui::text {
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE GetStatus(__RPC__out TS_STATUS* pdcs) {
+			if(!pdcs)
+				return E_INVALIDARG;
 			pdcs->dwStaticFlags = TS_SS_NOHIDDENTEXT;
 			pdcs->dwDynamicFlags = (ei && ei->is_read_only() ? TS_SD_READONLY : 0);
 			return S_OK;
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE QueryInsert(LONG acpTestStart, LONG acpTestEnd, ULONG /*cch*/, __RPC__out LONG* pacpResultStart, __RPC__out LONG* pacpResultEnd) {
-			*pacpResultStart = acpTestStart;
-			*pacpResultEnd = acpTestEnd;
+			if(!pacpResultStart || !pacpResultEnd || acpTestStart > acpTestEnd)
+				return E_INVALIDARG;
+			if(!ei)
+				return TF_E_DISCONNECTED;
+			*pacpResultStart = std::min(acpTestStart, LONG(ei->get_text_length()));
+			*pacpResultEnd = std::min(acpTestEnd, LONG(ei->get_text_length()));
 			return S_OK;
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE GetSelection(ULONG ulIndex, ULONG ulCount, __RPC__out_ecount_part(ulCount, *pcFetched) TS_SELECTION_ACP* pSelection, __RPC__out ULONG* pcFetched) {
+			if(!pcFetched)
+				return E_INVALIDARG;
+			if(document_lock_state == lock_state::unlocked)
+				return TS_E_NOLOCK;
+
 			if(ei && ulCount > 0 && (ulIndex == 0 || ulIndex == TF_DEFAULT_SELECTION)) {
+				if(!pSelection)
+					return E_INVALIDARG;
 				auto start = ei->get_cursor();
 				auto end = ei->get_selection_anchor();
 				pSelection[0].acpStart = int32_t(std::min(start, end));
 				pSelection[0].acpEnd = int32_t(std::max(start, end));
 				pSelection[0].style.ase = start < end ? TS_AE_START : TS_AE_END;
-				pSelection[0].style.fInterimChar = interim_caret ? TRUE : FALSE;
+				pSelection[0].style.fInterimChar = FALSE;
 				*pcFetched = 1;
 			} else {
 				*pcFetched = 0;
@@ -3191,15 +3408,28 @@ namespace printui::text {
 			if(!ei)
 				return TF_E_DISCONNECTED;
 			if(ulCount > 0) {
+				if(!pSelection)
+					return E_INVALIDARG;
+
 				auto start = pSelection->style.ase == TS_AE_START ? pSelection->acpEnd : pSelection->acpStart;
 				auto end = pSelection->style.ase == TS_AE_START ? pSelection->acpStart : pSelection->acpEnd;
-				interim_caret = pSelection->style.fInterimChar == TRUE;
 				ei->set_selection(win, start, end);
 			}
 			return S_OK;
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE GetText(LONG acpStart, LONG acpEnd, __RPC__out_ecount_part(cchPlainReq, *pcchPlainRet) WCHAR* pchPlain, ULONG cchPlainReq, __RPC__out ULONG* pcchPlainRet, __RPC__out_ecount_part(cRunInfoReq, *pcRunInfoRet) TS_RUNINFO* prgRunInfo, ULONG cRunInfoReq, __RPC__out ULONG* pcRunInfoRet, __RPC__out LONG* pacpNext) {
+
+			if(!pcchPlainRet || !pcRunInfoRet)
+				return E_INVALIDARG;
+			if(!pchPlain && cchPlainReq != 0)
+				return E_INVALIDARG;
+			if(!prgRunInfo && cRunInfoReq != 0)
+				return E_INVALIDARG;
+			if(!pacpNext)
+				return E_INVALIDARG;
+			if(document_lock_state == lock_state::unlocked)
+				return TF_E_NOLOCK;
 
 			*pcchPlainRet = 0;
 
@@ -3241,7 +3471,10 @@ namespace printui::text {
 				return TF_E_NOLOCK;
 			if(!ei)
 				return TF_E_DISCONNECTED;
-
+			if(!pChange)
+				return E_INVALIDARG;
+			if(!pchText && cch > 0)
+				return E_INVALIDARG;
 
 			auto len = LONG(ei->get_text_length());
 
@@ -3259,7 +3492,7 @@ namespace printui::text {
 			}
 
 			pChange->acpStart = acpStart;
-			pChange->acpOldEnd = acpEnd;
+			pChange->acpOldEnd = acpRemovingEnd;
 			pChange->acpNewEnd = acpStart + cch;
 
 			return S_OK;
@@ -3269,12 +3502,19 @@ namespace printui::text {
 			return E_NOTIMPL;
 		}
 
-		virtual HRESULT STDMETHODCALLTYPE GetEmbedded(LONG /*acpPos*/, __RPC__in REFGUID /*rguidService*/, __RPC__in REFIID /*riid*/, __RPC__deref_out_opt IUnknown** /*ppunk*/) {
+		virtual HRESULT STDMETHODCALLTYPE GetEmbedded(LONG /*acpPos*/, __RPC__in REFGUID /*rguidService*/, __RPC__in REFIID /*riid*/, __RPC__deref_out_opt IUnknown** ppunk) {
+			if(!ppunk)
+				return E_INVALIDARG;
+			*ppunk = nullptr;
 			return E_NOTIMPL;
 		}
 
-		virtual HRESULT STDMETHODCALLTYPE QueryInsertEmbedded(__RPC__in const GUID* /*pguidService*/, __RPC__in const FORMATETC* /*pFormatEtc*/, __RPC__out BOOL* /*pfInsertable*/) {
-			return E_NOTIMPL;
+		virtual HRESULT STDMETHODCALLTYPE QueryInsertEmbedded(__RPC__in const GUID* /*pguidService*/, __RPC__in const FORMATETC* pFormatEtc, __RPC__out BOOL* pfInsertable) {
+			if(!pFormatEtc || !pfInsertable)
+				return E_INVALIDARG;
+			if(pfInsertable)
+				*pfInsertable = FALSE;
+			return S_OK;
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE InsertEmbedded(DWORD /*dwFlags*/, LONG /*acpStart*/, LONG /*acpEnd*/, __RPC__in_opt IDataObject* /*pDataObject*/, __RPC__out TS_TEXTCHANGE* /*pChange*/) {
@@ -3291,14 +3531,17 @@ namespace printui::text {
 			LONG acpEnd = std::max(ei->get_cursor(), ei->get_selection_anchor());
 
 			if((dwFlags & TS_IAS_QUERYONLY) != 0) {
-				*pacpStart = acpStart;
-				*pacpEnd = acpStart + cch;
+				if(document_lock_state == lock_state::unlocked)
+					return TS_E_NOLOCK;
+				if(pacpStart)
+					*pacpStart = acpStart;
+				if(pacpEnd)
+					*pacpEnd = acpStart + cch;
 				return S_OK;
 			}
 
 			if(document_lock_state != lock_state::locked_readwrite)
 				return TF_E_NOLOCK;
-
 			if(!pchText)
 				return E_INVALIDARG;
 
@@ -3459,14 +3702,12 @@ namespace printui::text {
 						}
 					}
 				} else if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Text_VerticalWriting)) {
-					if(!horizontal(win.orientation)) {
-						gathered_attributes.emplace_back();
-						gathered_attributes.back().idAttr = paFilterAttrs[i];
-						gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
-						if(fill_variants) {
-							gathered_attributes.back().varValue.vt = VT_BOOL;
-							gathered_attributes.back().varValue.boolVal = VARIANT_TRUE;
-						}
+					gathered_attributes.emplace_back();
+					gathered_attributes.back().idAttr = paFilterAttrs[i];
+					gathered_attributes.back().dwOverlapId = int32_t(gathered_attributes.size());
+					if(fill_variants) {
+						gathered_attributes.back().varValue.vt = VT_BOOL;
+						gathered_attributes.back().varValue.boolVal = horizontal(win.orientation) ? VARIANT_FALSE : VARIANT_TRUE;
 					}
 				} else if(IsEqualGUID(paFilterAttrs[i], GUID_PROP_COMPOSING)) {
 					gathered_attributes.emplace_back();
@@ -3485,7 +3726,8 @@ namespace printui::text {
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE RequestSupportedAttrs(DWORD dwFlags, ULONG cFilterAttrs, __RPC__in_ecount_full_opt(cFilterAttrs) const TS_ATTRID* paFilterAttrs) {
-
+			if(!paFilterAttrs && cFilterAttrs > 0)
+				return E_INVALIDARG;
 			if(!ei)
 				return TF_E_DISCONNECTED;
 
@@ -3495,7 +3737,8 @@ namespace printui::text {
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE RequestAttrsAtPosition(LONG acpPos, ULONG cFilterAttrs, __RPC__in_ecount_full_opt(cFilterAttrs) const TS_ATTRID* paFilterAttrs, DWORD dwFlags) {
-
+			if(!paFilterAttrs && cFilterAttrs > 0)
+				return E_INVALIDARG;
 			if(!ei)
 				return TF_E_DISCONNECTED;
 
@@ -3505,7 +3748,8 @@ namespace printui::text {
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE RequestAttrsTransitioningAtPosition(LONG acpPos, ULONG cFilterAttrs, __RPC__in_ecount_full_opt(cFilterAttrs) const TS_ATTRID* paFilterAttrs, DWORD dwFlags) {
-			
+			if(!paFilterAttrs && cFilterAttrs > 0)
+				return E_INVALIDARG;
 			if(!ei)
 				return TF_E_DISCONNECTED;
 
@@ -3553,6 +3797,9 @@ namespace printui::text {
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE FindNextAttrTransition(LONG acpStart, LONG acpHalt, ULONG cFilterAttrs, __RPC__in_ecount_full_opt(cFilterAttrs) const TS_ATTRID* paFilterAttrs, DWORD dwFlags, __RPC__out LONG* pacpNext, __RPC__out BOOL* pfFound, __RPC__out LONG* plFoundOffset) {
+			if(!pacpNext || !pfFound || !plFoundOffset)
+				return E_INVALIDARG;
+
 			*pfFound = FALSE;
 			if(plFoundOffset)
 				*plFoundOffset = 0;
@@ -3616,6 +3863,10 @@ namespace printui::text {
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE GetEndACP(__RPC__out LONG* pacp) {
+			if(!pacp)
+				return E_INVALIDARG;
+			if(document_lock_state == lock_state::unlocked)
+				return TS_E_NOLOCK;
 			*pacp = 0;
 			if(!ei)
 				return TF_E_DISCONNECTED;
@@ -3624,6 +3875,8 @@ namespace printui::text {
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE GetActiveView(__RPC__out TsViewCookie* pvcView) {
+			if(!pvcView)
+				return E_INVALIDARG;
 			*pvcView = 0;
 			return S_OK;
 		}
@@ -3655,6 +3908,11 @@ namespace printui::text {
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE GetTextExt(TsViewCookie /*vcView*/, LONG acpStart, LONG acpEnd, __RPC__out RECT* prc, __RPC__out BOOL* pfClipped) {
+			if(!pfClipped || !prc)
+				return E_INVALIDARG;
+			if(document_lock_state == lock_state::unlocked)
+				return TS_E_NOLOCK;
+
 			*pfClipped = FALSE;
 			*prc = RECT{ 0,0,0,0 };
 
@@ -3684,6 +3942,9 @@ namespace printui::text {
 		}
 
 		virtual HRESULT STDMETHODCALLTYPE GetScreenExt(TsViewCookie /*vcView*/, __RPC__out RECT* prc) {
+			if(!prc)
+				return E_INVALIDARG;
+
 			*prc = RECT{ 0,0,0,0 };
 
 			if(!ei)
@@ -3812,6 +4073,9 @@ namespace printui::text {
 		if(send_notifications && ts->advise_sink && ts->notify_on_selection_change) {
 			ts->advise_sink->OnSelectionChange();
 		}
+	}
+	bool win32_text_services::send_mouse_event_to_tso(text_services_object* ts, int32_t x, int32_t y, uint32_t buttons) {
+		return ts->send_mouse_event(x, y, buttons);
 	}
 
 	void win32_text_services::set_focus(window_data& win, text_services_object* o) {
