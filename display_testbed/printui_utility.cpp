@@ -28,46 +28,7 @@
 #pragma comment(lib, "dxguid.lib")
 
 namespace printui {
-	void load_launch_settings(launch_settings& ls, std::unordered_map<std::string, uint32_t, text::string_hash, std::equal_to<>>& font_name_to_index) {
-		HANDLE file_handle = nullptr;
-		HANDLE mapping_handle = nullptr;
-		char const* mapped_bytes = nullptr;
 
-		WCHAR module_name[MAX_PATH] = {};
-		int32_t path_used = GetModuleFileName(nullptr, module_name, MAX_PATH);
-		while(path_used >= 0 && module_name[path_used] != L'\\') {
-			module_name[path_used] = 0;
-			--path_used;
-		}
-		wcscat_s(module_name, MAX_PATH, L"settings");
-
-		file_handle = CreateFileW(module_name, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-		if(file_handle == INVALID_HANDLE_VALUE) {
-			file_handle = nullptr;
-		} else {
-			mapping_handle = CreateFileMapping(file_handle, nullptr, PAGE_READONLY, 0, 0, nullptr);
-			if(mapping_handle) {
-				mapped_bytes = (char const*)MapViewOfFile(mapping_handle, FILE_MAP_READ, 0, 0, 0);
-
-			}
-		}
-
-		if(mapped_bytes) {
-			_LARGE_INTEGER pvalue;
-			GetFileSizeEx(file_handle, &pvalue);
-			parse::settings_file(ls, font_name_to_index, mapped_bytes, mapped_bytes + pvalue.QuadPart);
-		}
-
-
-		if(mapped_bytes)
-			UnmapViewOfFile(mapped_bytes);
-		if(mapping_handle)
-			CloseHandle(mapping_handle);
-		if(file_handle)
-			CloseHandle(file_handle);
-	}
-
-	
 
 	void load_locale_settings(std::wstring const& directory, launch_settings& ls, std::unordered_map<std::string, uint32_t, text::string_hash, std::equal_to<>>& font_name_to_index) {
 		std::wstring dat = directory + L"\\*.dat";
@@ -97,7 +58,51 @@ namespace printui {
 			if(mapped_bytes) {
 				_LARGE_INTEGER pvalue;
 				GetFileSizeEx(file_handle, &pvalue);
-				parse::locale_settings_file(ls, font_name_to_index, mapped_bytes, mapped_bytes + pvalue.QuadPart);
+				parse::settings_file(ls, font_name_to_index, mapped_bytes, mapped_bytes + pvalue.QuadPart);
+			}
+
+
+			if(mapped_bytes)
+				UnmapViewOfFile(mapped_bytes);
+			if(mapping_handle)
+				CloseHandle(mapping_handle);
+			if(file_handle)
+				CloseHandle(file_handle);
+
+			FindClose(search_handle);
+		}
+
+	}
+
+	void load_locale_fonts(std::wstring const& directory, launch_settings& ls, std::unordered_map<std::string, uint32_t, text::string_hash, std::equal_to<>>& font_name_to_index) {
+		std::wstring dat = directory + L"\\*.dat";
+		WIN32_FIND_DATAW fdata;
+		HANDLE search_handle = FindFirstFile(dat.c_str(), &fdata);
+
+		if(search_handle != INVALID_HANDLE_VALUE) {
+
+			std::wstring fname = directory + L"\\" + fdata.cFileName;
+
+			HANDLE file_handle = nullptr;
+			HANDLE mapping_handle = nullptr;
+			char const* mapped_bytes = nullptr;
+
+
+			file_handle = CreateFileW(fname.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+			if(file_handle == INVALID_HANDLE_VALUE) {
+				file_handle = nullptr;
+			} else {
+				mapping_handle = CreateFileMapping(file_handle, nullptr, PAGE_READONLY, 0, 0, nullptr);
+				if(mapping_handle) {
+					mapped_bytes = (char const*)MapViewOfFile(mapping_handle, FILE_MAP_READ, 0, 0, 0);
+
+				}
+			}
+
+			if(mapped_bytes) {
+				_LARGE_INTEGER pvalue;
+				GetFileSizeEx(file_handle, &pvalue);
+				parse::custom_fonts_only(ls, font_name_to_index, mapped_bytes, mapped_bytes + pvalue.QuadPart);
 			}
 
 

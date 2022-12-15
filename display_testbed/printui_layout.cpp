@@ -901,6 +901,7 @@ namespace printui {
 
 	void window_data::change_orientation(layout_orientation o) {
 		orientation = o;
+		dynamic_settings.preferred_orientation = o;
 		layout_out_of_date = true;
 		stop_ui_animations();
 

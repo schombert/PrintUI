@@ -288,8 +288,6 @@ namespace printui {
 		float descender = 0.0f;
 	};
 
-	void parse_font_fallbacks_file(std::vector<printui::font_fallback>& result, char const* start, char const* end);
-
 	struct brush_color {
 		float r = 0.0f;
 		float g = 0.0f;
@@ -351,6 +349,7 @@ namespace printui {
 		font_description primary_font;
 		font_description small_font;
 		std::vector<font_description> named_fonts;
+		std::vector<font_fallback> fallbacks;
 		std::vector<brush> brushes;
 		float layout_base_size = 20.0f;
 		int32_t line_width = 25;
@@ -367,7 +366,14 @@ namespace printui {
 		std::wstring text_directory;
 		std::wstring locale_region;
 		std::wstring locale_lang;
+		bool locale_is_default = true;
+
 		layout_orientation preferred_orientation = layout_orientation::horizontal_left_to_right;
+		float animation_speed_multiplier = 1.0f;
+		bool uianimations = true;
+		bool caret_blink = true;
+
+		bool settings_changed = false;
 	};
 
 	namespace text {
@@ -399,7 +405,9 @@ namespace printui {
 
 	namespace parse {
 		void settings_file(launch_settings& ls, std::unordered_map<std::string, uint32_t, text::string_hash, std::equal_to<>>& font_name_to_index, char const* start, char const* end);
-		void locale_settings_file(launch_settings& ls, std::unordered_map<std::string, uint32_t, text::string_hash, std::equal_to<>>& font_name_to_index, char const* start, char const* end);
+		void custom_fonts_only(launch_settings& ls, std::unordered_map<std::string, uint32_t, text::string_hash, std::equal_to<>>& font_name_to_index, char const* start, char const* end);
+		std::string create_settings_file(launch_settings const& ls);
+		void font_fallbacks_file(std::vector<printui::font_fallback>& result, char const* start, char const* end);
 	}
 
 	struct window_data;
@@ -469,8 +477,8 @@ namespace printui {
 		void redraw_icons(window_data&);
 	};
 
-	void load_launch_settings(launch_settings& ls, std::unordered_map<std::string, uint32_t, text::string_hash, std::equal_to<>>& font_name_to_index);
 	void load_locale_settings(std::wstring const& directory, launch_settings& ls, std::unordered_map<std::string, uint32_t, text::string_hash, std::equal_to<>>& font_name_to_index);
+	void load_locale_fonts(std::wstring const& directory, launch_settings& ls, std::unordered_map<std::string, uint32_t, text::string_hash, std::equal_to<>>& font_name_to_index);
 
 	std::optional<std::wstring> get_path(std::wstring const& file_name, wchar_t const* relative_path, wchar_t const* appdata_path);
 
@@ -1911,7 +1919,6 @@ namespace printui {
 
 	namespace text {
 		void load_fonts_from_directory(std::wstring const& directory, IDWriteFontSetBuilder2* bldr);
-		std::vector<font_fallback> get_global_font_fallbacks();
 		void load_fallbacks_by_type(std::vector<font_fallback> const& fb, font_type type, IDWriteFontFallbackBuilder* bldr, IDWriteFontCollection1* collection, IDWriteFactory6* dwrite_factory);
 		void update_font_metrics(font_description& desc, IDWriteFactory6* dwrite_factory, wchar_t const* locale, float target_pixels, float dpi_scale, IDWriteFont* font);
 		void create_font_collection(window_data& win, std::wstring font_directory);
@@ -2077,7 +2084,7 @@ namespace printui {
 		public:
 			uint8_t text_generation = 0;
 
-			void update_with_new_locale(window_data& win);
+			void update_with_new_locale(window_data& win, bool update_settings);
 			void populate_text_content(window_data const& win);
 			void register_name(std::string_view n, uint16_t id);
 
@@ -2091,12 +2098,13 @@ namespace printui {
 			friend text_function;
 			friend text_with_formatting;
 
-			void change_locale(std::wstring const& lang, std::wstring const& region, window_data& win);
-			void default_locale(window_data& win);
+			void change_locale(std::wstring const& lang, std::wstring const& region, window_data& win, bool update_settings);
+			void default_locale(window_data& win, bool update_settings);
 
 			double text_to_double(wchar_t* start, uint32_t count) const;
 			int64_t text_to_int(wchar_t* start, uint32_t count) const;
 			wchar_t const* locale_string() const;
+			std::wstring locale_name() const;
 			bool is_locale_default() const;
 			bool is_current_locale(std::wstring const& lang, std::wstring const& region) const;
 
@@ -2245,6 +2253,13 @@ namespace printui {
 		virtual void destroy_system_caret() = 0;
 	};
 
+	struct file_system_wrapper {
+		virtual ~file_system_wrapper() { }
+		virtual void load_settings(window_data& win) = 0;
+		virtual void save_settings(window_data& win) = 0;
+		virtual void load_global_font_fallbacks(launch_settings& ls) = 0;
+	};
+
 	enum class resize_type : uint8_t {
 		resize, maximize, minimize
 	};
@@ -2378,6 +2393,7 @@ namespace printui {
 		std::unique_ptr<window_wrapper> window_interface;
 		std::unique_ptr<accessibility_framework_wrapper> accessibility_interface;
 		std::shared_ptr<text::text_services_wrapper> text_services_interface;
+		std::unique_ptr<file_system_wrapper> file_system;
 
 		uint32_t ui_width = 0;
 		uint32_t ui_height = 0;
@@ -2406,6 +2422,7 @@ namespace printui {
 		undo_buffer edit_undo_buffer;
 		bool selecting_edit_text = false;
 		int32_t double_click_ms = 5;
+		int32_t caret_blink_ms = 1024;
 		decltype(std::chrono::steady_clock::now()) last_double_click;
 
 		struct {
@@ -2458,14 +2475,11 @@ namespace printui {
 		bool previous_frame_in_place_animation = false;
 		decltype(std::chrono::steady_clock::now()) in_place_animation_start;
 		animation_status_struct animation_status;
-		bool ui_animations_on = true;
 
-		window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai, std::shared_ptr<text::text_services_wrapper> const& ts);
+		window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai, std::shared_ptr<text::text_services_wrapper> const& ts, std::unique_ptr<file_system_wrapper>&& file_system);
 		virtual ~window_data();
 
 		virtual void load_default_dynamic_settings() = 0;
-		virtual void load_primary_font_fallbacks(IDWriteFontFallbackBuilder* bldr) = 0;
-		virtual void load_small_font_fallbacks(IDWriteFontFallbackBuilder* bldr) = 0;
 		virtual void client_on_dpi_change() = 0;
 		virtual void client_on_resize(uint32_t width, uint32_t height) = 0;
 
@@ -2483,6 +2497,7 @@ namespace printui {
 		// OTHER
 
 		void create_persistent_resources();
+		void initialize_font_fallbacks();
 		void message_loop();
 
 		void create_window();

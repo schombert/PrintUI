@@ -74,9 +74,10 @@ namespace printui {
 		}
 	}
 	void single_line_centered_header::recreate_contents(window_data& win, layout_node& self) {
+		auto width = self.width;
 		auto button = win.create_node(&close_button, 2, 1, false);
 		auto& button_node = win.get_node(button);
-		button_node.x = uint16_t(self.width - 2);
+		button_node.x = uint16_t(width - 2);
 		win.immediate_add_child(l_id, button);
 	}
 	accessibility_object* single_line_centered_header::get_accessibility_interface(window_data& win) {
@@ -783,10 +784,12 @@ namespace printui {
 
 			// render cursor
 			if(cursor_visible && formatted_text) {
-				win.register_in_place_animation();
-				auto ms_in_cycle = win.in_place_animation_running_ms() % 1024;
-				float in_cycle_length = float(ms_in_cycle) * 2.0f * 3.1415f / 1024.0f;
-				float intensity = (cos(in_cycle_length) + 1.0f) * 0.5f;
+				if(win.dynamic_settings.caret_blink)
+					win.register_in_place_animation();
+	
+				auto ms_in_cycle = win.in_place_animation_running_ms() % win.caret_blink_ms;
+				float in_cycle_length = float(ms_in_cycle) * 2.0f * 3.1415f / float(win.caret_blink_ms);
+				float intensity = win.dynamic_settings.caret_blink ? (cos(in_cycle_length) + 1.0f) * 0.5f : 1.0f;
 
 				auto is_light = win.dynamic_settings.brushes[rect.foreground_index].is_light_color;
 				auto resolved_brush = is_light ?

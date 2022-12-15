@@ -237,6 +237,10 @@ namespace printui {
 	}
 
 	void common_printui_settings::recreate_contents(window_data& win, layout_node&) {
+
+		if(toggle_animations.toggle_is_on != win.dynamic_settings.uianimations) {
+			toggle_animations.change_toggle_state(win, win.dynamic_settings.uianimations);
+		}
 		page_layout_specification page_spec;
 		page_spec.header = &header;
 		page_spec.footer = &footer;
@@ -263,6 +267,7 @@ namespace printui {
 
 	void settings_orientation_list::on_select(window_data& win, size_t v) {
 		win.change_orientation(layout_orientation(v));
+		win.dynamic_settings.settings_changed = true;
 	}
 	list_option_description settings_orientation_list::describe_option(window_data const&, uint32_t i) {
 		switch(i) {
@@ -281,6 +286,7 @@ namespace printui {
 
 	void settings_input_mode_list::on_select(window_data& win, size_t v) {
 		win.switch_input_mode(input_mode(v));
+		win.dynamic_settings.settings_changed = true;
 	}
 	list_option_description settings_input_mode_list::describe_option(window_data const&, uint32_t i) {
 		switch(i) {
@@ -306,7 +312,12 @@ namespace printui {
 	}
 
 	void language_button::button_action(window_data& win) {
-		win.text_data.change_locale(lang, region, win);
+		win.dynamic_settings.locale_lang = lang;
+		win.dynamic_settings.locale_region = region;
+
+		win.text_data.change_locale(lang, region, win, true);
+		win.dynamic_settings.settings_changed = true;
+
 		win.window_bar.print_ui_settings.lang_menu.close(win, true);
 	}
 
@@ -359,7 +370,8 @@ namespace printui {
 	}
 
 	void ui_animation_toggle_button::toggle_action(window_data& win, bool toggle_state) {
-		win.ui_animations_on = toggle_state;
+		win.dynamic_settings.uianimations = toggle_state;
+		win.dynamic_settings.settings_changed = true;
 	}
 }
 

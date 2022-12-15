@@ -1463,7 +1463,7 @@ namespace printui {
 		animation_status.is_running = false;
 	}
 	void window_data::prepare_ui_animation() {
-		if(ui_animations_on == false)
+		if(dynamic_settings.uianimations == false)
 			return;
 
 		stop_ui_animations();
@@ -1483,10 +1483,11 @@ namespace printui {
 	}
 
 	void window_data::start_ui_animation(animation_description description) {
-		if(ui_animations_on == false)
+		if(dynamic_settings.uianimations == false)
 			return;
 
 		animation_status.description = description;
+		animation_status.description.duration_seconds /= dynamic_settings.animation_speed_multiplier;
 		animation_status.description.animated_region = render::extend_rect_to_edges(animation_status.description.animated_region, *this);
 
 		switch(orientation) {

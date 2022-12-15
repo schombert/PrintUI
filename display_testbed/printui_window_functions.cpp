@@ -204,6 +204,10 @@ namespace printui {
 
 		if(m_hwnd) {
 			win.double_click_ms = GetDoubleClickTime();
+			win.caret_blink_ms = GetCaretBlinkTime() * 2;
+			if(GetCaretBlinkTime() == INFINITE)
+				win.dynamic_settings.caret_blink = false;
+
 			win.last_double_click = std::chrono::steady_clock::now();
 
 			if(win.dynamic_settings.imode == printui::input_mode::mouse_and_keyboard
@@ -228,11 +232,7 @@ namespace printui {
 				static_cast<int>(ceil(float(win.dynamic_settings.window_y_size) * win.dpi / 96.f)),
 				SWP_NOMOVE | SWP_FRAMECHANGED);
 
-			if(win.dynamic_settings.locale_lang.size() > 0) {
-				win.text_data.change_locale(win.dynamic_settings.locale_lang, win.dynamic_settings.locale_region, win);
-			} else {
-				win.text_data.default_locale(win);
-			}
+			win.file_system->load_settings(win);
 
 			auto window_title_id = win.text_data.text_id_from_name("window_title").id;
 			win.title_bar.set_text_content(uint16_t(window_title_id));
@@ -311,7 +311,7 @@ namespace printui {
 		}
 	}
 
-	window_data::window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai, std::shared_ptr<text::text_services_wrapper> const& ts) : window_bar(*this, mn, mx, settings, setting_items), window_interface(std::move(wi)), accessibility_interface(std::move(ai)), text_services_interface(ts) {
+	window_data::window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai, std::shared_ptr<text::text_services_wrapper> const& ts, std::unique_ptr<file_system_wrapper>&& file_system) : window_bar(*this, mn, mx, settings, setting_items), window_interface(std::move(wi)), accessibility_interface(std::move(ai)), text_services_interface(ts), file_system(std::move(file_system)) {
 		horizontal_interactable_bg.file_name = L"left_select_i.svg";
 		horizontal_interactable_bg.edge_padding = 0.0f;
 		vertical_interactable_bg.file_name = L"top_select_i.svg";
@@ -370,6 +370,11 @@ namespace printui {
 	}
 
 	window_data::~window_data() {
+		if(dynamic_settings.settings_changed) {
+			file_system->save_settings(*this);
+			dynamic_settings.settings_changed = false;
+		}
+
 		safe_release(common_text_format);
 		safe_release(small_text_format);
 		safe_release(font_fallbacks);
@@ -533,6 +538,31 @@ namespace printui {
 		}
 	}
 
+	void window_data::initialize_font_fallbacks() {
+		file_system->load_global_font_fallbacks(dynamic_settings);
+
+		{
+			safe_release(font_fallbacks);
+			IDWriteFontFallbackBuilder* bldr = nullptr;
+			dwrite_factory->CreateFontFallbackBuilder(&bldr);
+
+			text::load_fallbacks_by_type(dynamic_settings.fallbacks, dynamic_settings.primary_font.type, bldr, font_collection, dwrite_factory);
+
+			bldr->CreateFontFallback(&font_fallbacks);
+			safe_release(bldr);
+		}
+		{
+			safe_release(small_font_fallbacks);
+			IDWriteFontFallbackBuilder* bldr = nullptr;
+			dwrite_factory->CreateFontFallbackBuilder(&bldr);
+
+			text::load_fallbacks_by_type(dynamic_settings.fallbacks, dynamic_settings.small_font.type, bldr, font_collection, dwrite_factory);
+
+			bldr->CreateFontFallback(&small_font_fallbacks);
+			safe_release(bldr);
+		}
+	}
+
 	void window_data::on_dpi_change() {
 		intitialize_fonts();
 
@@ -550,7 +580,7 @@ namespace printui {
 		CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_IWICImagingFactory, reinterpret_cast<void**>(&wic_factory));
 		DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(dwrite_factory), reinterpret_cast<IUnknown**>(&dwrite_factory));
 
-		load_launch_settings(dynamic_settings, text_data.font_name_to_index);
+		//load_launch_settings(dynamic_settings, text_data.font_name_to_index);
 
 		{
 			D2D1_STROKE_STYLE_PROPERTIES style_prop;
@@ -566,31 +596,6 @@ namespace printui {
 
 		//fonts
 		text::create_font_collection(*this, dynamic_settings.font_directory);
-
-		//fallbacks
-		auto global_fb = text::get_global_font_fallbacks();
-
-		{
-			IDWriteFontFallbackBuilder* bldr = nullptr;
-			dwrite_factory->CreateFontFallbackBuilder(&bldr);
-
-			load_primary_font_fallbacks(bldr);
-
-			text::load_fallbacks_by_type(global_fb, dynamic_settings.primary_font.type, bldr, font_collection, dwrite_factory);
-			bldr->CreateFontFallback(&font_fallbacks);
-			safe_release(bldr);
-		}
-		{
-			IDWriteFontFallbackBuilder* bldr = nullptr;
-			dwrite_factory->CreateFontFallbackBuilder(&bldr);
-
-			load_small_font_fallbacks(bldr);
-
-			text::load_fallbacks_by_type(global_fb, dynamic_settings.small_font.type, bldr, font_collection, dwrite_factory);
-			bldr->CreateFontFallback(&font_fallbacks);
-			safe_release(bldr);
-		}
-
 	}
 
 	void window_data::expand_to_fit_content() {
@@ -1207,8 +1212,13 @@ namespace printui {
 							}
 							app->keyboard_target->command(*app, edit_command::select_current_word, false);
 							app->last_double_click = std::chrono::steady_clock::now();
+							return 0;
 						}
-						return 0;
+						if(app->on_mouse_left_down(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam))) {
+							return 0;
+						} else {
+							break;
+						}
 					}
 					case WM_LBUTTONUP:
 						ReleaseCapture();
@@ -1745,6 +1755,11 @@ namespace printui {
 
 		if(window_bar.acc_obj) {
 			accessibility_interface->on_contents_changed(window_bar.acc_obj);
+		}
+
+		if(dynamic_settings.settings_changed) {
+			file_system->save_settings(*this);
+			dynamic_settings.settings_changed = false;
 		}
 	}
 

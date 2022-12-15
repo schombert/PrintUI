@@ -45,49 +45,6 @@ namespace printui::text {
 		safe_release(system_fallback);
 	}
 
-	std::vector<font_fallback> get_global_font_fallbacks() {
-		HANDLE file_handle = nullptr;
-		HANDLE mapping_handle = nullptr;
-		char const* mapped_bytes = nullptr;
-		std::vector<font_fallback> result;
-
-		wchar_t* local_path_out = nullptr;
-		if(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &local_path_out) != S_OK) {
-			CoTaskMemFree(local_path_out);
-			return result;
-		}
-
-		std::wstring fallback_def_file = std::wstring(local_path_out) = L"\\printui\\font_fallbacks.txt";
-		CoTaskMemFree(local_path_out);
-
-		file_handle = CreateFileW(fallback_def_file.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-		if(file_handle == INVALID_HANDLE_VALUE) {
-			file_handle = nullptr;
-		} else {
-			mapping_handle = CreateFileMapping(file_handle, nullptr, PAGE_READONLY, 0, 0, nullptr);
-			if(mapping_handle) {
-				mapped_bytes = (char const*)MapViewOfFile(mapping_handle, FILE_MAP_READ, 0, 0, 0);
-
-			}
-		}
-
-		if(mapped_bytes) {
-			_LARGE_INTEGER pvalue;
-			GetFileSizeEx(file_handle, &pvalue);
-			parse_font_fallbacks_file(result, mapped_bytes, mapped_bytes + pvalue.QuadPart);
-		}
-
-
-		if(mapped_bytes)
-			UnmapViewOfFile(mapped_bytes);
-		if(mapping_handle)
-			CloseHandle(mapping_handle);
-		if(file_handle)
-			CloseHandle(file_handle);
-
-		return result;
-	}
-
 	void load_fonts_from_directory(std::wstring const& directory, IDWriteFontSetBuilder2* bldr) {
 		{
 			std::wstring otf = directory + L"\\*.otf";
@@ -1122,7 +1079,7 @@ namespace printui::text {
 		}
 	}
 
-	void text_manager::update_with_new_locale(window_data& win) {
+	void text_manager::update_with_new_locale(window_data& win, bool update_settings) {
 		std::wstring full_compound = app_region.size() != 0 ? app_lang + L"-" + app_region : app_lang;
 
 		if(auto it = cardinal_functions.find(full_compound); it != cardinal_functions.end()) {
@@ -1140,7 +1097,6 @@ namespace printui::text {
 		} else {
 			ordinal_classification = [](int64_t) { return text::ord_other; };
 		}
-
 
 
 		{
@@ -1161,6 +1117,7 @@ namespace printui::text {
 		
 		lcid = os_locale_is_default ? LocaleNameToLCID(LOCALE_NAME_USER_DEFAULT, 0) : LocaleNameToLCID(full_compound.c_str(), LOCALE_ALLOW_NEUTRAL_NAMES);
 
+
 		{
 			WCHAR module_name[MAX_PATH] = {};
 			int32_t path_used = GetModuleFileName(nullptr, module_name, MAX_PATH);
@@ -1170,14 +1127,21 @@ namespace printui::text {
 			}
 
 			std::wstring locale_path = module_name + win.dynamic_settings.text_directory + L"\\" + full_compound;
-
-			load_locale_settings(locale_path, win.dynamic_settings, win.text_data.font_name_to_index);
+			win.dynamic_settings.fallbacks.clear();
+			if(update_settings) {
+				load_locale_settings(locale_path, win.dynamic_settings, win.text_data.font_name_to_index);
+			} else {
+				load_locale_fonts(locale_path, win.dynamic_settings, win.text_data.font_name_to_index);
+			}
 
 			auto locale_name = get_locale_name(locale_path);
 			win.window_bar.print_ui_settings.lang_menu.open_button.set_text(win, locale_name.length() > 0 ? locale_name : full_compound);
-
-			win.intitialize_fonts();
 		}
+
+		win.dynamic_settings.fallbacks.clear();
+		win.initialize_font_fallbacks();
+		win.intitialize_fonts();
+
 		// load text from files
 		populate_text_content(win);
 
@@ -1193,7 +1157,7 @@ namespace printui::text {
 	}
 
 
-	void text_manager::change_locale(std::wstring const& lang, std::wstring const& region, window_data& win) {
+	void text_manager::change_locale(std::wstring const& lang, std::wstring const& region, window_data& win, bool update_settings) {
 		app_lang = lang;
 		app_region = region;
 
@@ -1206,10 +1170,10 @@ namespace printui::text {
 			os_locale_is_default = true;
 		}
 
-		update_with_new_locale(win);
+		update_with_new_locale(win, update_settings);
 	}
 
-	void text_manager::default_locale(window_data& win) {
+	void text_manager::default_locale(window_data& win, bool update_settings) {
 
 		WCHAR buffer[LOCALE_NAME_MAX_LENGTH] = { 0 };
 		GetUserDefaultLocaleName(buffer, LOCALE_NAME_MAX_LENGTH);
@@ -1244,7 +1208,7 @@ namespace printui::text {
 		os_locale_is_default = true;
 
 
-		update_with_new_locale(win);
+		update_with_new_locale(win, update_settings);
 	}
 
 
@@ -1879,6 +1843,13 @@ namespace printui::text {
 			return os_locale.c_str();
 		else
 			return nullptr;
+	}
+
+	std::wstring text_manager::locale_name() const {
+		if(!os_locale_is_default && os_locale.length() != 0)
+			return os_locale;
+		else
+			return app_region.size() != 0 ? app_lang + L"-" + app_region : app_lang;
 	}
 
 	bool text_manager::is_locale_default() const {

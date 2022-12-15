@@ -18,6 +18,9 @@
 void main_window::load_default_dynamic_settings() {
 	dynamic_settings.window_border = 3;
 	dynamic_settings.layout_base_size = 22;
+
+	/*IMPORTANT: MAKE ROOM FOR ALL DESIRED BRUSHES*/
+	dynamic_settings.brushes.clear();
 	dynamic_settings.brushes.push_back(printui::brush{ L"yellowpaper.png", printui::brush_color{0.95f,0.95f,0.95f}, true });
 	dynamic_settings.brushes.push_back(printui::brush{ L"", printui::brush_color{0.0f,0.0f,0.0f}, false });
 	
