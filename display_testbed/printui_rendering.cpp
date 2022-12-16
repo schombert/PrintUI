@@ -544,7 +544,7 @@ namespace printui {
 	void icon::redraw_image(window_data const& win) {
 		safe_release(rendered_layer);
 
-		auto resolved_path = get_path(file_name, win.dynamic_settings.icon_directory.c_str(), L"icons");
+		auto resolved_path = win.file_system->resolve_file_path(file_name, win.dynamic_settings.icon_directory);
 
 		if(resolved_path.has_value()) {
 			IStream* fstream = nullptr;
@@ -808,7 +808,7 @@ namespace printui {
 		for(auto& b : dynamic_settings.brushes) {
 			if(SUCCEEDED(hr)) {
 				if(b.texture.length() > 0) {
-					auto pth = get_path(b.texture, dynamic_settings.texture_directory.c_str(), L"textures");
+					auto pth = file_system->resolve_file_path(b.texture, dynamic_settings.texture_directory);
 
 					IWICBitmapDecoder* pDecoder = nullptr;
 					IWICBitmapFrameDecode* pSource = nullptr;

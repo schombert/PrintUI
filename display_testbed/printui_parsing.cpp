@@ -19,7 +19,7 @@ namespace printui::parse {
 		char const* end;
 
 		std::string_view to_string() const {
-			return std::string_view(start, end);
+			return std::string_view(start, end - start);
 		}
 	};
 

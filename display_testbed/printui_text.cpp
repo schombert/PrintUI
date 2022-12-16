@@ -45,33 +45,15 @@ namespace printui::text {
 		safe_release(system_fallback);
 	}
 
-	void load_fonts_from_directory(std::wstring const& directory, IDWriteFontSetBuilder2* bldr) {
-		{
-			std::wstring otf = directory + L"\\*.otf";
-
-			WIN32_FIND_DATAW fdata;
-			HANDLE search_handle = FindFirstFile(otf.c_str(), &fdata);
-			if(search_handle != INVALID_HANDLE_VALUE) {
-				do {
-					std::wstring fname = directory + L"\\" + fdata.cFileName;
-					bldr->AddFontFile(fname.c_str());
-				} while(FindNextFile(search_handle, &fdata));
-				FindClose(search_handle);
-			}
-		}
-		{
-			std::wstring otf = directory + L"\\*.ttf";
-
-			WIN32_FIND_DATAW fdata;
-			HANDLE search_handle = FindFirstFile(otf.c_str(), &fdata);
-			if(search_handle != INVALID_HANDLE_VALUE) {
-				do {
-					std::wstring fname = directory + L"\\" + fdata.cFileName;
-					bldr->AddFontFile(fname.c_str());
-				} while(FindNextFile(search_handle, &fdata));
-				FindClose(search_handle);
-			}
-		}
+	void load_fonts_from_directory(window_data const& win, std::wstring const& directory, IDWriteFontSetBuilder2* bldr) {
+		win.file_system->for_each_filtered_file(directory + L"\\*.otf", [bldr, &directory](std::wstring const& name) {
+			std::wstring fname = directory + L"\\" + name;
+			bldr->AddFontFile(fname.c_str());
+		});
+		win.file_system->for_each_filtered_file(directory + L"\\*.ttf", [bldr, &directory](std::wstring const& name) {
+			std::wstring fname = directory + L"\\" + name;
+			bldr->AddFontFile(fname.c_str());
+		});
 	}
 
 	void update_font_metrics(font_description& desc, IDWriteFactory6* dwrite_factory, wchar_t const* locale, float target_pixels, float dpi_scale, IDWriteFont* font) {
@@ -122,26 +104,22 @@ namespace printui::text {
 	}
 
 
-	void create_font_collection(window_data& win, std::wstring font_directory) {
+	void create_font_collection(window_data& win) {
+		safe_release(win.font_collection);
+
 		IDWriteFontSetBuilder2* bldr = nullptr;
 		win.dwrite_factory->CreateFontSetBuilder(&bldr);
 
-		if(font_directory.length() > 0) {
-			WCHAR module_name[MAX_PATH] = {};
-			int32_t path_used = GetModuleFileName(nullptr, module_name, MAX_PATH);
-			while(path_used >= 0 && module_name[path_used] != L'\\') {
-				module_name[path_used] = 0;
-				--path_used;
-			}
-			wcscat_s(module_name, MAX_PATH, font_directory.c_str());
-			load_fonts_from_directory(module_name, bldr);
+		{
+			auto root = win.file_system->get_root_directory();
+			auto font_dir = root + win.dynamic_settings.font_directory;
+			load_fonts_from_directory(win, font_dir, bldr);
 		}
-
-		wchar_t* local_path_out = nullptr;
-		if(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &local_path_out) == S_OK) {
-			load_fonts_from_directory(std::wstring(local_path_out) + L"\\printui\\fonts", bldr);
+		{
+			auto root = win.file_system->get_common_printui_directory();
+			auto font_dir = root + win.dynamic_settings.font_directory;
+			load_fonts_from_directory(win, font_dir, bldr);
 		}
-		CoTaskMemFree(local_path_out);
 
 		IDWriteFontSet* sysfs = nullptr;
 		win.dwrite_factory->GetSystemFontSet(&sysfs);
@@ -1059,23 +1037,30 @@ namespace printui::text {
 		return nGrouping;
 	}
 	
-	std::wstring get_locale_name(std::wstring const& directory) {
-		std::wstring dat = directory + L"\\*.dat";
+	std::wstring get_locale_name(window_data const& win, std::wstring const& directory) {
+		auto result = win.file_system->find_matching_file_name(directory + L"\\*.dat");
+		if(result.length() > 4) {
+			result.pop_back();
+			result.pop_back();
+			result.pop_back();
+			result.pop_back();
+		} else {
+			result.clear();
+		}
+		return result;
+	}
 
-		WIN32_FIND_DATAW fdata;
-		HANDLE search_handle = FindFirstFile(dat.c_str(), &fdata);
-		if(search_handle != INVALID_HANDLE_VALUE) {
-			std::wstring result(fdata.cFileName);
+	std::wstring text_manager::locale_display_name(window_data const& win) const {
+		std::wstring locale_path = win.file_system->get_root_directory() + win.dynamic_settings.text_directory + L"\\" + locale_name();
+		auto result = win.file_system->find_matching_file_name(locale_path + L"\\*.dat");
+		if(result.length() > 4) {
 			result.pop_back();
 			result.pop_back();
 			result.pop_back();
 			result.pop_back();
-
-			FindClose(search_handle);
-
 			return result;
 		} else {
-			return std::wstring();
+			return locale_name();
 		}
 	}
 
@@ -1119,22 +1104,15 @@ namespace printui::text {
 
 
 		{
-			WCHAR module_name[MAX_PATH] = {};
-			int32_t path_used = GetModuleFileName(nullptr, module_name, MAX_PATH);
-			while(path_used >= 0 && module_name[path_used] != L'\\') {
-				module_name[path_used] = 0;
-				--path_used;
-			}
-
-			std::wstring locale_path = module_name + win.dynamic_settings.text_directory + L"\\" + full_compound;
+			std::wstring locale_path = win.file_system->get_root_directory() + win.dynamic_settings.text_directory + L"\\" + full_compound;
 			win.dynamic_settings.fallbacks.clear();
 			if(update_settings) {
-				load_locale_settings(locale_path, win.dynamic_settings, win.text_data.font_name_to_index);
+				win.load_locale_settings(locale_path);
 			} else {
-				load_locale_fonts(locale_path, win.dynamic_settings, win.text_data.font_name_to_index);
+				win.load_locale_fonts(locale_path);
 			}
 
-			auto locale_name = get_locale_name(locale_path);
+			auto locale_name = get_locale_name(win,locale_path);
 			win.window_bar.print_ui_settings.lang_menu.open_button.set_text(win, locale_name.length() > 0 ? locale_name : full_compound);
 		}
 
@@ -1171,6 +1149,7 @@ namespace printui::text {
 		}
 
 		update_with_new_locale(win, update_settings);
+		win.dynamic_settings.locale_is_default = false;
 	}
 
 	void text_manager::default_locale(window_data& win, bool update_settings) {
@@ -1893,48 +1872,15 @@ namespace printui::text {
 		*/
 	}
 
-	void text_manager::load_text_from_directory(std::wstring const& directory) {
+	void text_manager::load_text_from_directory(window_data const& win, std::wstring const& directory) {
 		std::wstring txt = directory + L"\\*.txt";
 
-		WIN32_FIND_DATAW fdata;
-		HANDLE search_handle = FindFirstFile(txt.c_str(), &fdata);
-		if(search_handle != INVALID_HANDLE_VALUE) {
-			do {
-				std::wstring fname = directory + L"\\" + fdata.cFileName;
-
-				HANDLE file_handle = nullptr;
-				HANDLE mapping_handle = nullptr;
-				char const* mapped_bytes = nullptr;
-
-
-				file_handle = CreateFileW(fname.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-				if(file_handle == INVALID_HANDLE_VALUE) {
-					file_handle = nullptr;
-				} else {
-					mapping_handle = CreateFileMapping(file_handle, nullptr, PAGE_READONLY, 0, 0, nullptr);
-					if(mapping_handle) {
-						mapped_bytes = (char const*)MapViewOfFile(mapping_handle, FILE_MAP_READ, 0, 0, 0);
-
-					}
-				}
-
-				if(mapped_bytes) {
-					_LARGE_INTEGER pvalue;
-					GetFileSizeEx(file_handle, &pvalue);
-					text_data.consume_text_file(std::string_view(mapped_bytes, mapped_bytes + pvalue.QuadPart), font_name_to_index);
-				}
-
-
-				if(mapped_bytes)
-					UnmapViewOfFile(mapped_bytes);
-				if(mapping_handle)
-					CloseHandle(mapping_handle);
-				if(file_handle)
-					CloseHandle(file_handle);
-
-			} while(FindNextFile(search_handle, &fdata));
-			FindClose(search_handle);
-		}
+		win.file_system->for_each_filtered_file(txt, [&](std::wstring const& name) {
+			std::wstring fname = directory + L"\\" + name;
+			win.file_system->with_file_content(fname, [&](std::string_view content) {
+				text_data.consume_text_file(content, font_name_to_index);
+			});
+		});
 	}
 
 	void text_manager::populate_text_content(window_data const& win) {
@@ -1967,45 +1913,28 @@ namespace printui::text {
 		std::wstring desired_full_path = module_name + win.dynamic_settings.text_directory + L"\\" + full_name;
 		std::wstring desired_abbr_path = module_name + win.dynamic_settings.text_directory + L"\\" + app_lang;
 
-		bool full_valid = [&](){
-			auto a = GetFileAttributesW(desired_full_path.c_str());
-			return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY) != 0;
-		}();
-		bool abbr_valid = [&]() {
-			auto a = GetFileAttributesW(desired_abbr_path.c_str());
-			return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY) != 0;
-		}();
+		bool full_valid = win.file_system->directory_exists(desired_full_path);
+		bool abbr_valid = win.file_system->directory_exists(desired_abbr_path);
 
 		if(full_valid)
-			load_text_from_directory(desired_full_path);
+			load_text_from_directory(win, desired_full_path);
 		if(abbr_valid)
-			load_text_from_directory(desired_abbr_path);
+			load_text_from_directory(win, desired_abbr_path);
 
-		if(!full_valid && !full_valid) {
+		if(!full_valid && !abbr_valid) {
 			std::wstring en_path = module_name + win.dynamic_settings.text_directory + L"\\en";
-			bool en_valid = [&]() {
-				auto a = GetFileAttributesW(desired_abbr_path.c_str());
-				return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY) != 0;
-			}();
-
-			if(en_valid) {
-				load_text_from_directory(en_path);
+			if(win.file_system->directory_exists(en_path)) {
+				load_text_from_directory(win, en_path);
 			} else {
 				// now we just take the first option w/o a dash
-
-				std::wstring base_path = module_name + win.dynamic_settings.text_directory + L"\\*";
-
-				WIN32_FIND_DATAW fdata;
-				HANDLE search_handle = FindFirstFile(base_path.c_str(), &fdata);
-				if(search_handle != INVALID_HANDLE_VALUE) {
-					do {
-						if((fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0 && std::wstring(fdata.cFileName).find(L'-') == std::wstring::npos && fdata.cFileName != std::wstring(L".") && fdata.cFileName != std::wstring(L"..")) {
-							load_text_from_directory(module_name + win.dynamic_settings.text_directory + L"\\" + fdata.cFileName);
-							break;
-						}
-					} while(FindNextFile(search_handle, &fdata));
-					FindClose(search_handle);
-				}
+				std::wstring base_path = module_name + win.dynamic_settings.text_directory;
+				bool directory_found = false;
+				win.file_system->for_each_directory(module_name + win.dynamic_settings.text_directory, [&](std::wstring const& name) { 
+					if(!directory_found && name.find(L'-') == std::wstring::npos) {
+						load_text_from_directory(win, base_path + L"\\" + name);
+						directory_found = true;
+					}
+				});
 			}
 		}
 	}
@@ -2316,37 +2245,25 @@ namespace printui::text {
 		}
 
 		std::wstring locale_path = module_name + win.dynamic_settings.text_directory;
-		std::wstring locale_search = module_name + win.dynamic_settings.text_directory + L"\\*";
-		WIN32_FIND_DATAW fdata;
-		HANDLE search_handle = FindFirstFile(locale_search.c_str(), &fdata);
-		if(search_handle != INVALID_HANDLE_VALUE) {
-			do {
-				if((fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0 && fdata.cFileName != std::wstring(L".") && fdata.cFileName != std::wstring(L"..")) {
-					
-					size_t first_dash = 0;
-					for(; fdata.cFileName[first_dash] != 0; ++first_dash) {
-						if(fdata.cFileName[first_dash] == L'-')
-							break;
-					}
-					
-					size_t region_end = fdata.cFileName[first_dash] != 0 ? first_dash + 1 : first_dash;
-					for(; fdata.cFileName[region_end] != 0; ++region_end) {
-						;
-					}
 
-					auto locale_name = get_locale_name(locale_path + L"\\" + fdata.cFileName);
-					if(locale_name.length() > 0) {
-						result.push_back(language_description{
-							std::wstring(fdata.cFileName, fdata.cFileName + first_dash), // language
-							fdata.cFileName[first_dash] != 0 // region
-								? std::wstring(fdata.cFileName + first_dash + 1, fdata.cFileName + region_end)
-								: std::wstring(),
-							locale_name });
-					}
-				}
-			} while(FindNextFile(search_handle, &fdata));
-			FindClose(search_handle);
-		}
+		win.file_system->for_each_directory(locale_path, [&](std::wstring const& name) {
+			size_t first_dash = 0;
+			size_t region_end = name.length();
+
+			for(; first_dash < region_end; ++first_dash) {
+				if(name[first_dash] == L'-')
+					break;
+			}
+
+			auto locale_name = get_locale_name(win, locale_path + L"\\" + name);
+			if(locale_name.length() > 0) {
+				result.push_back(language_description{
+					name.substr(0, first_dash), // language
+					first_dash != region_end // region
+						? name.substr(first_dash + 1) : std::wstring(),
+					locale_name });
+			}
+		});
 
 		return result;
 	}

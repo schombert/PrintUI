@@ -477,11 +477,6 @@ namespace printui {
 		void redraw_icons(window_data&);
 	};
 
-	void load_locale_settings(std::wstring const& directory, launch_settings& ls, std::unordered_map<std::string, uint32_t, text::string_hash, std::equal_to<>>& font_name_to_index);
-	void load_locale_fonts(std::wstring const& directory, launch_settings& ls, std::unordered_map<std::string, uint32_t, text::string_hash, std::equal_to<>>& font_name_to_index);
-
-	std::optional<std::wstring> get_path(std::wstring const& file_name, wchar_t const* relative_path, wchar_t const* appdata_path);
-
 	enum class size_flags : uint8_t {
 		none, fill_to_max, match_content, fill_to_max_single_col
 	};
@@ -1918,10 +1913,10 @@ namespace printui {
 	};
 
 	namespace text {
-		void load_fonts_from_directory(std::wstring const& directory, IDWriteFontSetBuilder2* bldr);
+		void load_fonts_from_directory(window_data const& win, std::wstring const& directory, IDWriteFontSetBuilder2* bldr);
 		void load_fallbacks_by_type(std::vector<font_fallback> const& fb, font_type type, IDWriteFontFallbackBuilder* bldr, IDWriteFontCollection1* collection, IDWriteFactory6* dwrite_factory);
 		void update_font_metrics(font_description& desc, IDWriteFactory6* dwrite_factory, wchar_t const* locale, float target_pixels, float dpi_scale, IDWriteFont* font);
-		void create_font_collection(window_data& win, std::wstring font_directory);
+		void create_font_collection(window_data& win);
 
 		enum class extra_formatting : uint8_t {
 			none, small_caps, italic, old_numbers, tabular_numbers, bold
@@ -2076,7 +2071,7 @@ namespace printui {
 			cardinal_plural_fn cardinal_classification = nullptr;
 			ordinal_plural_fn ordinal_classification = nullptr;
 
-			void load_text_from_directory(std::wstring const& directory);
+			void load_text_from_directory(window_data const& win, std::wstring const& directory);
 			replaceable_instance parameter_to_text(text_parameter p) const;
 
 			replaceable_instance format_int(int64_t value, uint32_t decimal_places) const;
@@ -2105,6 +2100,7 @@ namespace printui {
 			int64_t text_to_int(wchar_t* start, uint32_t count) const;
 			wchar_t const* locale_string() const;
 			std::wstring locale_name() const;
+			std::wstring locale_display_name(window_data const& win) const;
 			bool is_locale_default() const;
 			bool is_current_locale(std::wstring const& lang, std::wstring const& region) const;
 
@@ -2258,6 +2254,16 @@ namespace printui {
 		virtual void load_settings(window_data& win) = 0;
 		virtual void save_settings(window_data& win) = 0;
 		virtual void load_global_font_fallbacks(launch_settings& ls) = 0;
+		virtual std::wstring find_matching_file_name(std::wstring const& directory_and_filter) = 0;
+		virtual void for_each_filtered_file(std::wstring const& directory_and_filter, std::function<void(std::wstring const&)> const& fn) = 0;
+		virtual void for_each_file(std::wstring const& directory, std::function<void(std::wstring const&)> const& fn) = 0;
+		virtual void for_each_directory(std::wstring const& directory, std::function<void(std::wstring const&)> const& fn) = 0;
+		virtual void with_file_content(std::wstring const& file_name, std::function<void(std::string_view)> const& fn) = 0;
+		virtual bool file_exists(std::wstring const& file_name) = 0;
+		virtual bool directory_exists(std::wstring const& dir_name) = 0;
+		virtual std::optional<std::wstring> resolve_file_path(std::wstring const& file_name, std::wstring const& subdirectory) = 0;
+		virtual std::wstring get_root_directory() = 0;
+		virtual std::wstring get_common_printui_directory() = 0;
 	};
 
 	enum class resize_type : uint8_t {
@@ -2657,6 +2663,9 @@ namespace printui {
 		void set_keyboard_focus(edit_interface* i);
 		void register_in_place_animation();
 		int64_t in_place_animation_running_ms() const;
+
+		void load_locale_settings(std::wstring const& directory);
+		void load_locale_fonts(std::wstring const& directory);
 	};
 
 	

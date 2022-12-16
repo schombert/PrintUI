@@ -136,7 +136,6 @@ namespace printui {
 		} else {
 			text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, font.line_spacing, font.baseline);
 		}
-
 		if(horizontal(win.orientation)) {
 
 			win.dwrite_factory->CreateTextLayout(text.c_str(), uint32_t(text.length()), text_format, float(font.line_spacing), float(font.line_spacing), &formatted_text);
@@ -267,7 +266,7 @@ namespace printui {
 		}
 	}
 	void stored_text::draw_text(window_data const& win, int32_t x, int32_t y) const {
-		win.d2d_device_context->DrawTextLayout(D2D1_POINT_2F{ float(x), float(y) }, formatted_text, win.dummy_brush, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+		win.d2d_device_context->DrawTextLayout(D2D1_POINT_2F{ float(x), float(y) }, formatted_text, win.dummy_brush, 0 /*D2D1_DRAW_TEXT_OPTIONS_CLIP*/);
 	}
 	void stored_text::set_text(std::wstring const& v) {
 		invalidate();
@@ -685,7 +684,7 @@ namespace printui {
 		}
 	}
 	void simple_editable_text::draw_text(window_data const& win, int32_t x, int32_t y) const {
-		win.d2d_device_context->DrawTextLayout(D2D1_POINT_2F{ float(x), float(y) }, formatted_text, win.dummy_brush, D2D1_DRAW_TEXT_OPTIONS_CLIP);
+		win.d2d_device_context->DrawTextLayout(D2D1_POINT_2F{ float(x), float(y) }, formatted_text, win.dummy_brush, 0 /*D2D1_DRAW_TEXT_OPTIONS_CLIP*/);
 	}
 
 	ui_rectangle simple_editable_text::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
@@ -761,8 +760,15 @@ namespace printui {
 			prepare_selection_regions(win);
 
 			// render text
-			win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.foreground_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, adjusted_content_rect, adjusted_content_rect);
+			{
+				auto text_and_margin = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin()), 1, rect);
 
+				D2D1_RECT_F text_and_margin_r{
+					float(text_and_margin.x), float(text_and_margin.y),
+					float(text_and_margin.x + text_and_margin.width), float(text_and_margin.y + text_and_margin.height)
+				};
+				win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.foreground_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, text_and_margin_r, text_and_margin_r);
+			}
 			// render selection, if any
 			if((anchor_position != cursor_position || temp_text_length != 0) && formatted_text) {
 				for(auto& rng : cached_selection_region) {
@@ -808,7 +814,15 @@ namespace printui {
 			}
 		} else { // case: disabled
 			win.palette[rect.foreground_index]->SetOpacity(0.6f);
-			win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.foreground_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, adjusted_content_rect, adjusted_content_rect);
+			{
+				auto text_and_margin = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin()), 1, rect);
+
+				D2D1_RECT_F text_and_margin_r{
+					float(text_and_margin.x), float(text_and_margin.y),
+					float(text_and_margin.x + text_and_margin.width), float(text_and_margin.y + text_and_margin.height)
+				};
+				win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.foreground_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, text_and_margin_r, text_and_margin_r);
+			}
 			win.palette[rect.foreground_index]->SetOpacity(1.0f);
 		}
 	}
@@ -1724,7 +1738,7 @@ namespace printui {
 
 		render::background_rectangle(bg_rect, win, rect.display_flags, rect.background_index, under_mouse);
 		
-		auto text_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin() + node.right_margin()), label_text.resolved_text_size.y, rect);
+		auto text_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin()), label_text.resolved_text_size.y, rect);
 
 		D2D1_RECT_F content_rect{
 			float(text_rect.x), float(text_rect.y),
@@ -1829,7 +1843,7 @@ namespace printui {
 
 		auto& node = win.get_node(l_id);
 
-		auto new_content_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin() + node.right_margin()), button_text.resolved_text_size.y, rect);
+		auto new_content_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin()), button_text.resolved_text_size.y, rect);
 
 		D2D1_RECT_F adjusted_content_rect{
 			float(new_content_rect.x), float(new_content_rect.y),
@@ -2228,7 +2242,7 @@ namespace printui {
 
 
 	std::wstring page_jump_back_button::get_name(window_data const& win) {
-		text::text_parameter tp[1] = { text::int_param(jump_size(win)) };
+		text::text_parameter tp[1] = { text::int_param(jump_size(win), 0) };
 		return win.text_data.instantiate_text(text_id::page_prev_prev_name, tp, tp + 1).text_content.text;
 	}
 
@@ -2325,7 +2339,7 @@ namespace printui {
 	}
 
 	std::wstring page_jump_forward_button::get_name(window_data const& win) {
-		text::text_parameter tp[1] = { text::int_param(jump_size(win)) };
+		text::text_parameter tp[1] = { text::int_param(jump_size(win), 0) };
 		return win.text_data.instantiate_text(text_id::page_next_next_name, tp, tp+1).text_content.text;
 	}
 

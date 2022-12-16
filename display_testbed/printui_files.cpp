@@ -122,4 +122,130 @@ namespace printui {
 		}
 
 	}
+
+	std::wstring win32_file_system::find_matching_file_name(std::wstring const& directory_and_filter) {
+		WIN32_FIND_DATAW fdata;
+		HANDLE search_handle = FindFirstFile(directory_and_filter.c_str(), &fdata);
+		if(search_handle != INVALID_HANDLE_VALUE) {
+			FindClose(search_handle);
+			return std::wstring(fdata.cFileName);
+		} else {
+			return std::wstring();
+		}
+	}
+
+	void win32_file_system::for_each_filtered_file(std::wstring const& directory_and_filter, std::function<void(std::wstring const&)> const& fn) {
+
+		WIN32_FIND_DATAW fdata;
+		HANDLE search_handle = FindFirstFile(directory_and_filter.c_str(), &fdata);
+		if(search_handle != INVALID_HANDLE_VALUE) {
+			do {
+				fn(std::wstring(fdata.cFileName));
+			} while(FindNextFile(search_handle, &fdata));
+			FindClose(search_handle);
+		}
+	}
+
+	void win32_file_system::with_file_content(std::wstring const& file_name, std::function<void(std::string_view)> const& fn) {
+
+		HANDLE file_handle = CreateFileW(file_name.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
+		if(file_handle != INVALID_HANDLE_VALUE) {
+			HANDLE mapping_handle = CreateFileMapping(file_handle, nullptr, PAGE_READONLY, 0, 0, nullptr);
+			if(mapping_handle) {
+				char const* mapped_bytes = (char const*)MapViewOfFile(mapping_handle, FILE_MAP_READ, 0, 0, 0);
+				if(mapped_bytes) {
+					_LARGE_INTEGER pvalue;
+					GetFileSizeEx(file_handle, &pvalue);
+					fn(std::string_view(mapped_bytes, mapped_bytes + pvalue.QuadPart));
+					UnmapViewOfFile(mapped_bytes);
+				}
+				CloseHandle(mapping_handle);
+			}
+			CloseHandle(file_handle);
+		}
+	}
+
+	bool win32_file_system::file_exists(std::wstring const& file_name) {
+		auto a = GetFileAttributes(file_name.c_str());
+		return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY) == 0;
+	}
+	bool win32_file_system::directory_exists(std::wstring const& dir_name) {
+		auto a = GetFileAttributes(dir_name.c_str());
+		return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY) != 0;
+	}
+
+	void win32_file_system::for_each_file(std::wstring const& directory, std::function<void(std::wstring const&)> const& fn) {
+		std::wstring wfilter = directory + L"\\*";
+		WIN32_FIND_DATAW fdata;
+		HANDLE search_handle = FindFirstFile(wfilter.c_str(), &fdata);
+		if(search_handle != INVALID_HANDLE_VALUE) {
+			do {
+				if((fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0)
+					fn(std::wstring(fdata.cFileName));
+			} while(FindNextFile(search_handle, &fdata));
+			FindClose(search_handle);
+		}
+	}
+
+	void win32_file_system::for_each_directory(std::wstring const& directory, std::function<void(std::wstring const&)> const& fn) {
+		std::wstring wfilter = directory + L"\\*";
+		WIN32_FIND_DATAW fdata;
+		HANDLE search_handle = FindFirstFile(wfilter.c_str(), &fdata);
+		if(search_handle != INVALID_HANDLE_VALUE) {
+			do {
+				if((fdata.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0 && fdata.cFileName != std::wstring(L".") && fdata.cFileName != std::wstring(L"..")) {
+					fn(std::wstring(fdata.cFileName));
+				}
+			} while(FindNextFile(search_handle, &fdata));
+			FindClose(search_handle);
+		}
+	}
+
+	std::optional<std::wstring> win32_file_system::resolve_file_path(std::wstring const& file_name, std::wstring const& subdirectory) {
+		{
+			WCHAR module_name[MAX_PATH] = {};
+			int32_t path_used = GetModuleFileName(nullptr, module_name, MAX_PATH);
+			while(path_used >= 0 && module_name[path_used] != L'\\') {
+				module_name[path_used] = 0;
+				--path_used;
+			}
+			std::wstring rel_name = std::wstring(module_name) + subdirectory + L"\\" + file_name;
+
+			if(GetFileAttributes(rel_name.c_str()) != INVALID_FILE_ATTRIBUTES)
+				return rel_name;
+		}
+		{
+			wchar_t* local_path_out = nullptr;
+			std::wstring app_name;
+			if(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &local_path_out) == S_OK) {
+				app_name = std::wstring(local_path_out) + L"\\printui\\" + subdirectory + L"\\" + file_name;
+			}
+			CoTaskMemFree(local_path_out);
+
+			if(app_name.length() > 0 && GetFileAttributes(app_name.c_str()) != INVALID_FILE_ATTRIBUTES)
+				return app_name;
+		}
+
+		return std::optional<std::wstring>{};
+	}
+
+	std::wstring win32_file_system::get_root_directory() {
+		WCHAR module_name[MAX_PATH] = {};
+		int32_t path_used = GetModuleFileName(nullptr, module_name, MAX_PATH);
+		while(path_used >= 0 && module_name[path_used] != L'\\') {
+			module_name[path_used] = 0;
+			--path_used;
+		}
+		return module_name;
+	}
+
+	std::wstring win32_file_system::get_common_printui_directory() {
+		wchar_t* local_path_out = nullptr;
+		std::wstring result;
+		if(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &local_path_out) == S_OK) {
+			result = std::wstring(local_path_out) + L"\\printui\\";
+		}
+		CoTaskMemFree(local_path_out);
+		return result;
+	}
 }

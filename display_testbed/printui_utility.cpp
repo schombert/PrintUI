@@ -29,95 +29,6 @@
 
 namespace printui {
 
-
-	void load_locale_settings(std::wstring const& directory, launch_settings& ls, std::unordered_map<std::string, uint32_t, text::string_hash, std::equal_to<>>& font_name_to_index) {
-		std::wstring dat = directory + L"\\*.dat";
-		WIN32_FIND_DATAW fdata;
-		HANDLE search_handle = FindFirstFile(dat.c_str(), &fdata);
-
-		if(search_handle != INVALID_HANDLE_VALUE) {
-
-			std::wstring fname = directory + L"\\" + fdata.cFileName;
-
-			HANDLE file_handle = nullptr;
-			HANDLE mapping_handle = nullptr;
-			char const* mapped_bytes = nullptr;
-
-
-			file_handle = CreateFileW(fname.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-			if(file_handle == INVALID_HANDLE_VALUE) {
-				file_handle = nullptr;
-			} else {
-				mapping_handle = CreateFileMapping(file_handle, nullptr, PAGE_READONLY, 0, 0, nullptr);
-				if(mapping_handle) {
-					mapped_bytes = (char const*)MapViewOfFile(mapping_handle, FILE_MAP_READ, 0, 0, 0);
-
-				}
-			}
-
-			if(mapped_bytes) {
-				_LARGE_INTEGER pvalue;
-				GetFileSizeEx(file_handle, &pvalue);
-				parse::settings_file(ls, font_name_to_index, mapped_bytes, mapped_bytes + pvalue.QuadPart);
-			}
-
-
-			if(mapped_bytes)
-				UnmapViewOfFile(mapped_bytes);
-			if(mapping_handle)
-				CloseHandle(mapping_handle);
-			if(file_handle)
-				CloseHandle(file_handle);
-
-			FindClose(search_handle);
-		}
-
-	}
-
-	void load_locale_fonts(std::wstring const& directory, launch_settings& ls, std::unordered_map<std::string, uint32_t, text::string_hash, std::equal_to<>>& font_name_to_index) {
-		std::wstring dat = directory + L"\\*.dat";
-		WIN32_FIND_DATAW fdata;
-		HANDLE search_handle = FindFirstFile(dat.c_str(), &fdata);
-
-		if(search_handle != INVALID_HANDLE_VALUE) {
-
-			std::wstring fname = directory + L"\\" + fdata.cFileName;
-
-			HANDLE file_handle = nullptr;
-			HANDLE mapping_handle = nullptr;
-			char const* mapped_bytes = nullptr;
-
-
-			file_handle = CreateFileW(fname.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-			if(file_handle == INVALID_HANDLE_VALUE) {
-				file_handle = nullptr;
-			} else {
-				mapping_handle = CreateFileMapping(file_handle, nullptr, PAGE_READONLY, 0, 0, nullptr);
-				if(mapping_handle) {
-					mapped_bytes = (char const*)MapViewOfFile(mapping_handle, FILE_MAP_READ, 0, 0, 0);
-
-				}
-			}
-
-			if(mapped_bytes) {
-				_LARGE_INTEGER pvalue;
-				GetFileSizeEx(file_handle, &pvalue);
-				parse::custom_fonts_only(ls, font_name_to_index, mapped_bytes, mapped_bytes + pvalue.QuadPart);
-			}
-
-
-			if(mapped_bytes)
-				UnmapViewOfFile(mapped_bytes);
-			if(mapping_handle)
-				CloseHandle(mapping_handle);
-			if(file_handle)
-				CloseHandle(file_handle);
-
-			FindClose(search_handle);
-		}
-
-	}
-
 	void ui_rectangle::rotate_borders(layout_orientation o) {
 		switch(o) {
 			case layout_orientation::horizontal_left_to_right:
@@ -150,34 +61,6 @@ namespace printui {
 				return;
 			}
 		}
-	}
-
-	std::optional<std::wstring> get_path(std::wstring const& file_name, wchar_t const* relative_path, wchar_t const* appdata_path) {
-		{
-			WCHAR module_name[MAX_PATH] = {};
-			int32_t path_used = GetModuleFileName(nullptr, module_name, MAX_PATH);
-			while(path_used >= 0 && module_name[path_used] != L'\\') {
-				module_name[path_used] = 0;
-				--path_used;
-			}
-			std::wstring rel_name = std::wstring(module_name) + relative_path + L"\\" + file_name;
-
-			if(GetFileAttributes(rel_name.c_str()) != INVALID_FILE_ATTRIBUTES)
-				return rel_name;
-		}
-		{
-			wchar_t* local_path_out = nullptr;
-			std::wstring app_name;
-			if(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &local_path_out) == S_OK) {
-				app_name = std::wstring(local_path_out) + L"\\printui\\" + appdata_path + L"\\" + file_name;
-			}
-			CoTaskMemFree(local_path_out);
-
-			if(app_name.length() > 0 && GetFileAttributes(app_name.c_str()) != INVALID_FILE_ATTRIBUTES)
-				return app_name;
-		}
-
-		return std::optional<std::wstring>{};
 	}
 
 	uint32_t content_alignment_to_text_alignment(content_alignment align) {

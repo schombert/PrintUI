@@ -24,6 +24,9 @@ void main_window::load_default_dynamic_settings() {
 	dynamic_settings.brushes.push_back(printui::brush{ L"yellowpaper.png", printui::brush_color{0.95f,0.95f,0.95f}, true });
 	dynamic_settings.brushes.push_back(printui::brush{ L"", printui::brush_color{0.0f,0.0f,0.0f}, false });
 	
+	dynamic_settings.texture_directory = L"textures";
+	dynamic_settings.font_directory = L"fonts";
+	dynamic_settings.icon_directory = L"icons";
 	dynamic_settings.text_directory = L"locale";
 	dynamic_settings.primary_font.name = L"Libre Caslon Text";
 	dynamic_settings.primary_font.type = printui::font_type::roman;

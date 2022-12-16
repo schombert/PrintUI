@@ -595,7 +595,7 @@ namespace printui {
 		}
 
 		//fonts
-		text::create_font_collection(*this, dynamic_settings.font_directory);
+		text::create_font_collection(*this);
 	}
 
 	void window_data::expand_to_fit_content() {
@@ -1143,8 +1143,6 @@ namespace printui {
 						if((HIWORD(lParam) & KF_REPEAT) != 0 && app->keyboard_target == nullptr)
 							return 0;
 
-						// IF text box has focus, process only secondary escape, else ...
-
 						if(app->on_key_down(0xFF & MapVirtualKey(UINT(wParam), MAPVK_VK_TO_VSC), UINT(wParam))) {
 							return 0;
 						} else {
@@ -1153,8 +1151,6 @@ namespace printui {
 					}
 					case WM_KEYUP:
 					{
-						// IF text box has focus, process only secondary escape, else ...
-
 						if(app->on_key_up(0xFF & MapVirtualKey(UINT(wParam), MAPVK_VK_TO_VSC), UINT(wParam))) {
 							return 0;
 						} else {
@@ -1797,5 +1793,23 @@ namespace printui {
 			text_services_interface->set_focus(*this, nullptr);
 		}
 
+	}
+
+	void window_data::load_locale_settings(std::wstring const& directory) {
+		auto filen = file_system->find_matching_file_name(directory + L"\\*.dat");
+		if(filen.length() > 0) {
+			file_system->with_file_content(directory + L"\\" + filen, [&](std::string_view content) {
+				parse::settings_file(dynamic_settings, text_data.font_name_to_index, content.data(), content.data() + content.length());
+				});
+		}
+	}
+
+	void window_data::load_locale_fonts(std::wstring const& directory) {
+		auto filen = file_system->find_matching_file_name(directory + L"\\*.dat");
+		if(filen.length() > 0) {
+			file_system->with_file_content(directory + L"\\" + filen, [&](std::string_view content) {
+				parse::custom_fonts_only(dynamic_settings, text_data.font_name_to_index, content.data(), content.data() + content.length());
+				});
+		}
 	}
 }

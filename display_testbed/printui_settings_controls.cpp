@@ -241,6 +241,10 @@ namespace printui {
 		if(toggle_animations.toggle_is_on != win.dynamic_settings.uianimations) {
 			toggle_animations.change_toggle_state(win, win.dynamic_settings.uianimations);
 		}
+		lang_menu.open_button.set_text(win, win.text_data.locale_display_name(win));
+		orientation_list.quiet_select_option_by_value(win, size_t(win.orientation));
+		input_mode_list.quiet_select_option_by_value(win, size_t(win.dynamic_settings.imode));
+
 		page_layout_specification page_spec;
 		page_spec.header = &header;
 		page_spec.footer = &footer;
@@ -370,8 +374,10 @@ namespace printui {
 	}
 
 	void ui_animation_toggle_button::toggle_action(window_data& win, bool toggle_state) {
-		win.dynamic_settings.uianimations = toggle_state;
-		win.dynamic_settings.settings_changed = true;
+		if(toggle_state != win.dynamic_settings.uianimations) {
+			win.dynamic_settings.uianimations = toggle_state;
+			win.dynamic_settings.settings_changed = true;
+		}
 	}
 }
 
