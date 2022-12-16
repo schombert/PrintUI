@@ -104,7 +104,11 @@ namespace text_id {
 	constexpr uint16_t ui_animations_label = 53;
 	constexpr uint16_t ui_animations_info = 54;
 
-	constexpr uint16_t first_free_id = 55;
+	constexpr uint16_t ui_scale = 55;
+	constexpr uint16_t ui_scale_edit_name = 56;
+	constexpr uint16_t ui_scale_info = 57;
+
+	constexpr uint16_t first_free_id = 58;
 }
 
 namespace printui {
@@ -370,6 +374,7 @@ namespace printui {
 
 		layout_orientation preferred_orientation = layout_orientation::horizontal_left_to_right;
 		float animation_speed_multiplier = 1.0f;
+		float global_size_multiplier = 1.0f;
 		bool uianimations = true;
 		bool caret_blink = true;
 
@@ -1251,6 +1256,18 @@ namespace printui {
 
 	};
 
+	struct editable_numeric_range : public simple_editable_text {
+		float minimum = 0.0f;
+		float maximum = 0.0f;
+		int8_t precision = 0;
+
+		editable_numeric_range(window_data& win, content_alignment text_alignment, uint16_t name, uint16_t alt_text, uint8_t minimum_layout_space, float minimum, float maximum, int8_t precision);
+		virtual accessibility_object* get_accessibility_interface(window_data&) override;
+		void set_value(window_data& win, float v);
+		float get_value(window_data& win) const;
+		virtual void command(window_data&, edit_command cmd, bool extend_selection) override;
+	};
+
 	struct vertical_2x2_max_icon : public icon_button_base {
 		vertical_2x2_max_icon();
 		virtual void button_action(window_data&) override;
@@ -1749,6 +1766,11 @@ namespace printui {
 		virtual void button_action(window_data&) override;
 	};
 
+	struct ui_scale_edit : public editable_numeric_range {
+		ui_scale_edit(window_data& win) : editable_numeric_range(win, content_alignment::trailing, text_id::ui_scale_edit_name, text_id::ui_scale_info, 3, 0.5f, 3.0f, 2) { }
+		virtual void on_edit_finished(window_data& win, std::wstring const&) override;
+	};
+
 	struct language_button : public button_control_base {
 		std::wstring lang;
 		std::wstring region;
@@ -1808,7 +1830,8 @@ namespace printui {
 		label_control toggle_animations_label;
 		ui_animation_toggle_button toggle_animations;
 
-		simple_editable_text test_box;
+		label_control ui_scale_label;
+		ui_scale_edit ui_scale_e;
 
 		accessibility_object_ptr acc_obj;
 
@@ -2073,9 +2096,6 @@ namespace printui {
 
 			void load_text_from_directory(window_data const& win, std::wstring const& directory);
 			replaceable_instance parameter_to_text(text_parameter p) const;
-
-			replaceable_instance format_int(int64_t value, uint32_t decimal_places) const;
-			replaceable_instance format_double(double value, uint32_t decimal_places) const;
 		public:
 			uint8_t text_generation = 0;
 
@@ -2096,8 +2116,11 @@ namespace printui {
 			void change_locale(std::wstring const& lang, std::wstring const& region, window_data& win, bool update_settings);
 			void default_locale(window_data& win, bool update_settings);
 
-			double text_to_double(wchar_t* start, uint32_t count) const;
-			int64_t text_to_int(wchar_t* start, uint32_t count) const;
+			double text_to_double(wchar_t const* start, uint32_t count) const;
+			int64_t text_to_int(wchar_t const* start, uint32_t count) const;
+			replaceable_instance format_int(int64_t value, uint32_t decimal_places) const;
+			replaceable_instance format_double(double value, uint32_t decimal_places) const;
+
 			wchar_t const* locale_string() const;
 			std::wstring locale_name() const;
 			std::wstring locale_display_name(window_data const& win) const;
@@ -2287,9 +2310,10 @@ namespace printui {
 		virtual accessibility_object* make_open_list_control_accessibility_interface(window_data& w, open_list_control& b) = 0;
 		virtual accessibility_object* make_container_accessibility_interface(window_data& w, layout_interface* b, uint16_t name) = 0;
 		virtual accessibility_object* make_plain_text_accessibility_interface(window_data& w, layout_interface* b, stored_text* t, bool is_content) = 0;
-		virtual accessibility_object* make_simple_text_accessibility_interface(window_data& w, simple_editable_text& control) = 0;
+		virtual accessibility_object* make_simple_text_accessibility_interface(window_data& w, edit_interface* control, uint16_t name, uint16_t alt) = 0;
 		virtual accessibility_object* make_expandable_selection_list(window_data& win, generic_expandable* control, generic_selection_container* sc, uint16_t name, uint16_t alt_text) = 0;
 		virtual accessibility_object* make_expandable_container(window_data& win, generic_expandable* control, uint16_t name, uint16_t alt_text) = 0;
+		virtual accessibility_object* make_numeric_range_accessibility_interface(window_data& win, editable_numeric_range& control) = 0;
 		virtual void on_invoke(accessibility_object* b) = 0;
 		virtual void on_enable_disable(accessibility_object* b, bool disabled) = 0;
 		virtual void on_select_unselect(accessibility_object* b, bool selection_state) = 0;
@@ -2302,6 +2326,7 @@ namespace printui {
 		virtual void on_window_layout_changed() = 0;
 		virtual void on_text_content_changed(accessibility_object* b) = 0;
 		virtual void on_text_value_changed(accessibility_object* b) = 0;
+		virtual void on_text_numeric_value_changed(accessibility_object* b) = 0;
 		virtual void on_text_selection_changed(accessibility_object* b) = 0;
 		virtual void on_conversion_target_changed(accessibility_object* b) = 0;
 		virtual void on_composition_change(accessibility_object* b, std::wstring_view comp) = 0;
@@ -2554,6 +2579,7 @@ namespace printui {
 		uint32_t content_window_y = 0;
 
 		void change_orientation(layout_orientation o);
+		void change_size_multiplier(float v);
 		void recreate_layout();
 		void resize_item(layout_reference id, int32_t new_width, int32_t new_height);
 		void set_window_title(std::wstring const& title);

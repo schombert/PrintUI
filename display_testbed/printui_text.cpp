@@ -1014,6 +1014,66 @@ namespace printui::text {
 		ordinal_functions.insert_or_assign(L"or", ord_5or);
 
 		ordinal_functions.insert_or_assign(L"cy", ord_6cy);
+
+
+		register_name("ui_settings_name", ::text_id::ui_settings_name);
+		register_name("settings_header", ::text_id::settings_header);
+		register_name("orientation_label", ::text_id::orientation_label);
+		register_name("orientation_ltr", ::text_id::orientation_ltr);
+		register_name("orientation_rtl", ::text_id::orientation_rtl);
+		register_name("orientation_vltr", ::text_id::orientation_vltr);
+		register_name("orientation_vrtl", ::text_id::orientation_vrtl);
+		register_name("input_mode_label", ::text_id::input_mode_label);
+		register_name("input_mode_keyboard_only", ::text_id::input_mode_keyboard_only);
+		register_name("input_mode_mouse_only", ::text_id::input_mode_mouse_only);
+		register_name("input_mode_controller_only", ::text_id::input_mode_controller_only);
+		register_name("input_mode_controller_with_pointer", ::text_id::input_mode_controller_with_pointer);
+		register_name("input_mode_mouse_and_keyboard", ::text_id::input_mode_mouse_and_keyboard);
+		register_name("input_mode_follow_input", ::text_id::input_mode_follow_input);
+		register_name("language_label", ::text_id::language_label);
+		register_name("page_fraction", ::text_id::page_fraction);
+		register_name("minimize_info", ::text_id::minimize_info);
+		register_name("maximize_info", ::text_id::maximize_info);
+		register_name("restore_info", ::text_id::restore_info);
+		register_name("settings_info", ::text_id::settings_info);
+		register_name("info_info", ::text_id::info_info);
+		register_name("close_info", ::text_id::close_info);
+		register_name("orientation_info", ::text_id::orientation_info);
+		register_name("input_mode_info", ::text_id::input_mode_info);
+		register_name("input_mode_mouse_info", ::text_id::input_mode_mouse_info);
+		register_name("input_mode_automatic_info", ::text_id::input_mode_automatic_info);
+		register_name("input_mode_controller_info", ::text_id::input_mode_controller_info);
+		register_name("input_mode_controller_hybrid_info", ::text_id::input_mode_controller_hybrid_info);
+		register_name("input_mode_keyboard_info", ::text_id::input_mode_keyboard_info);
+		register_name("input_mode_mk_hybrid_info", ::text_id::input_mode_mk_hybrid_info);
+		register_name("language_info", ::text_id::language_info);
+		register_name("ui_settings_info", ::text_id::ui_settings_info);
+		register_name("minimize_name", ::text_id::minimize_name);
+		register_name("maximize_name", ::text_id::maximize_name);
+		register_name("restore_name", ::text_id::restore_name);
+		register_name("close_name", ::text_id::close_name);
+		register_name("settings_name", ::text_id::settings_name);
+		register_name("info_name", ::text_id::info_name);
+		register_name("info_name_on", ::text_id::info_name_on);
+		register_name("window_bar_name", ::text_id::window_bar_name);
+		register_name("expandable_container_localized_name", ::text_id::expandable_container_localized_name);
+		register_name("settings_tabs_name", ::text_id::settings_tabs_name);
+		register_name("selection_list_localized_name", ::text_id::selection_list_localized_name);
+		register_name("close_settings_name", ::text_id::close_settings_name);
+		register_name("close_menu_name", ::text_id::close_menu_name);
+		register_name("page_prev_name", ::text_id::page_prev_name);
+		register_name("page_next_name", ::text_id::page_next_name);
+		register_name("page_prev_prev_name", ::text_id::page_prev_prev_name);
+		register_name("page_next_next_name", ::text_id::page_next_next_name);
+		register_name("page_footer_name", ::text_id::page_footer_name);
+		register_name("page_footer_info", ::text_id::page_footer_info);
+		register_name("generic_toggle_on", ::text_id::generic_toggle_on);
+		register_name("generic_toggle_off", ::text_id::generic_toggle_off);
+		register_name("ui_animations_label", ::text_id::ui_animations_label);
+		register_name("ui_animations_info", ::text_id::ui_animations_info);
+		register_name("ui_scale", ::text_id::ui_scale);
+		register_name("ui_scale_edit_name", ::text_id::ui_scale_edit_name);
+		register_name("ui_scale_info", ::text_id::ui_scale_info);
 	}
 
 	UINT GetGrouping(WCHAR const* locale) {
@@ -1839,7 +1899,7 @@ namespace printui::text {
 		return app_lang == lang && app_region == region;
 	}
 
-	double text_manager::text_to_double(wchar_t* start, uint32_t count) const {
+	double text_manager::text_to_double(wchar_t const* start, uint32_t count) const {
 		auto olestr = SysAllocStringLen(start, count);
 		double result = 0;
 		if(olestr) {
@@ -1848,7 +1908,7 @@ namespace printui::text {
 		}
 		return result;
 	}
-	int64_t text_manager::text_to_int(wchar_t* start, uint32_t count) const {
+	int64_t text_manager::text_to_int(wchar_t const* start, uint32_t count) const {
 		auto olestr = SysAllocStringLen(start, count);
 		int64_t result = 0;
 		if(olestr) {

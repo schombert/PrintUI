@@ -899,6 +899,31 @@ namespace printui {
 		run_garbage_collector();
 	}
 
+	void window_data::change_size_multiplier(float v) {
+		dynamic_settings.global_size_multiplier = v;
+		layout_out_of_date = true;
+		stop_ui_animations();
+
+		++text_data.text_generation;
+		info_popup.currently_visible = false;
+
+		intitialize_fonts();
+		init_layout_graphics();
+		common_icons.redraw_icons(*this);
+		create_interactiable_tags();
+
+		reset_layout();
+		get_layout();
+
+		update_window_focus();
+
+		if(minimum_ui_width > ui_width || minimum_ui_height > ui_height) {
+			expand_to_fit_content();
+		} else {
+			window_interface->invalidate_window();
+		}
+		accessibility_interface->on_window_layout_changed();
+	}
 	void window_data::change_orientation(layout_orientation o) {
 		orientation = o;
 		dynamic_settings.preferred_orientation = o;

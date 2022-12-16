@@ -228,8 +228,8 @@ namespace printui {
 				NULL,
 				NULL,
 				NULL,
-				static_cast<int>(ceil(float(win.dynamic_settings.window_x_size) * win.dpi / 96.f)),
-				static_cast<int>(ceil(float(win.dynamic_settings.window_y_size) * win.dpi / 96.f)),
+				static_cast<int>(ceil(float(win.dynamic_settings.window_x_size) * win.dpi * win.dynamic_settings.global_size_multiplier / 96.f)),
+				static_cast<int>(ceil(float(win.dynamic_settings.window_y_size) * win.dpi * win.dynamic_settings.global_size_multiplier / 96.f)),
 				SWP_NOMOVE | SWP_FRAMECHANGED);
 
 			win.file_system->load_settings(win);
@@ -450,7 +450,7 @@ namespace printui {
 	}
 
 	void window_data::intitialize_fonts() {
-		layout_size = int32_t(std::round(float(dynamic_settings.layout_base_size) * dpi / 96.0f));
+		layout_size = int32_t(std::round(dynamic_settings.global_size_multiplier * float(dynamic_settings.layout_base_size) * dpi / 96.0f));
 		window_border = int32_t(std::round(float(dynamic_settings.window_border) * dpi / 96.0f));
 
 		// metrics
@@ -467,7 +467,7 @@ namespace printui {
 				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_ITALIC,
 					to_font_style(dynamic_settings.primary_font.is_oblique) },
 				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_OPTICAL_SIZE,
-					dynamic_settings.primary_font.font_size * 96.0f / dpi } };
+					float(layout_size) * 0.9f * 96.0f / dpi } };
 
 			font_collection->GetMatchingFonts(dynamic_settings.primary_font.name.c_str(), fax, 4, &fl);
 			fl->GetFont(0, &f);
@@ -482,14 +482,14 @@ namespace printui {
 				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_ITALIC,
 					to_font_style(dynamic_settings.small_font.is_oblique) },
 				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_OPTICAL_SIZE,
-					dynamic_settings.small_font.font_size * 96.0f / dpi } };
+					float(layout_size) * 0.9f * 0.75f * 96.0f / dpi } };
 
 			font_collection->GetMatchingFonts(dynamic_settings.small_font.name.c_str(), fax2, 4, &fl2);
 			fl2->GetFont(0, &f2);
 			safe_release(fl2);
 
-			text::update_font_metrics(dynamic_settings.primary_font, dwrite_factory, text_data.locale_string(), float(layout_size), dpi / 96.0f, f);
-			text::update_font_metrics(dynamic_settings.small_font, dwrite_factory, text_data.locale_string(), std::round(float(layout_size) * 3.0f / 4.0f), dpi / 96.0f, f2);
+			text::update_font_metrics(dynamic_settings.primary_font, dwrite_factory, text_data.locale_string(), float(layout_size), dynamic_settings.global_size_multiplier * dpi / 96.0f, f);
+			text::update_font_metrics(dynamic_settings.small_font, dwrite_factory, text_data.locale_string(), std::round(float(layout_size) * 3.0f / 4.0f), dynamic_settings.global_size_multiplier * dpi / 96.0f, f2);
 
 			safe_release(f2);
 			safe_release(f);
@@ -756,6 +756,10 @@ namespace printui {
 					keyboard_target->command(*this, edit_command::to_text_end, shift_held);
 				else
 					keyboard_target->command(*this, edit_command::to_line_end, shift_held);
+			} else if(key_code == VK_PRIOR) {
+				keyboard_target->command(*this, edit_command::to_text_start, shift_held);
+			} else if(key_code == VK_NEXT) {
+				keyboard_target->command(*this, edit_command::to_text_end, shift_held);
 			} else if(key_code == VK_INSERT) {
 				if(ctrl_held)
 					keyboard_target->command(*this, edit_command::copy, false);

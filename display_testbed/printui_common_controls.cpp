@@ -576,11 +576,17 @@ namespace printui {
 		win.flag_for_update_from_interface(this);
 		if(acc_obj && win.is_visible(l_id)) {
 			win.accessibility_interface->on_text_content_changed(acc_obj);
-			win.accessibility_interface->on_text_value_changed(acc_obj);
+			if(edit_type != edit_contents::number)
+				win.accessibility_interface->on_text_value_changed(acc_obj);
+			else
+				win.accessibility_interface->on_text_numeric_value_changed(acc_obj);
 		}
 		on_text_changed(win, text);
 		if(win.is_visible(l_id))
 			win.window_interface->invalidate_window();
+		if(win.keyboard_target != this) {
+			on_edit_finished(win, text);
+		}
 	}
 	void simple_editable_text::internal_on_selection_changed(window_data& win) {
 		selection_out_of_date = true;
@@ -804,10 +810,18 @@ namespace printui {
 
 				win.palette[resolved_brush]->SetOpacity(intensity);
 				if(horizontal(win.orientation)) {
-					D2D_RECT_F cursorrect{ cached_cursor_postion + adjusted_content_rect.left, adjusted_content_rect.top, std::ceil(cached_cursor_postion + adjusted_content_rect.left + 1.0f * win.dpi / 96.0f), adjusted_content_rect.bottom };
+					D2D_RECT_F cursorrect{
+						cached_cursor_postion + adjusted_content_rect.left,
+						adjusted_content_rect.top,
+						std::ceil(cached_cursor_postion + adjusted_content_rect.left + 1.0f * win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f),
+						adjusted_content_rect.bottom };
 					win.d2d_device_context->FillRectangle(cursorrect, win.palette[resolved_brush]);
 				} else {
-					D2D_RECT_F cursorrect{ adjusted_content_rect.left, cached_cursor_postion + adjusted_content_rect.top, adjusted_content_rect.right , std::ceil(cached_cursor_postion + adjusted_content_rect.top + 1.0f * win.dpi / 96.0f) };
+					D2D_RECT_F cursorrect{
+						adjusted_content_rect.left,
+						cached_cursor_postion + adjusted_content_rect.top,
+						adjusted_content_rect.right ,
+						std::ceil(cached_cursor_postion + adjusted_content_rect.top + 1.0f * win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f) };
 					win.d2d_device_context->FillRectangle(cursorrect, win.palette[resolved_brush]);
 				}
 				win.palette[resolved_brush]->SetOpacity(1.0f);
@@ -1101,7 +1115,7 @@ namespace printui {
 	}
 	accessibility_object* simple_editable_text::get_accessibility_interface(window_data& win) {
 		if(!acc_obj) {
-			acc_obj = win.accessibility_interface->make_simple_text_accessibility_interface(win, *this);
+			acc_obj = win.accessibility_interface->make_simple_text_accessibility_interface(win, this, name, alt_text);
 		}
 		return acc_obj;
 	}
@@ -1131,9 +1145,9 @@ namespace printui {
 			}
 
 			if(horizontal(win.orientation)) {
-				win.window_interface->create_system_caret(int32_t(std::ceil(1.0f * win.dpi / 96.0f)), win.layout_size);
+				win.window_interface->create_system_caret(int32_t(std::ceil(1.0f * win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f)), win.layout_size);
 			} else {
-				win.window_interface->create_system_caret(win.layout_size, int32_t(std::ceil(1.0f * win.dpi / 96.0f)));
+				win.window_interface->create_system_caret(win.layout_size, int32_t(std::ceil(1.0f * win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f)));
 			}
 
 			win.window_interface->invalidate_window();
@@ -1508,9 +1522,9 @@ namespace printui {
 			if(!disabled) {
 				if(cursor_visible) {
 					if(horizontal(win.orientation)) {
-						win.window_interface->create_system_caret(int32_t(std::ceil(1.0f * win.dpi / 96.0f)), win.layout_size);
+						win.window_interface->create_system_caret(int32_t(std::ceil(1.0f * win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f)), win.layout_size);
 					} else {
-						win.window_interface->create_system_caret(win.layout_size, int32_t(std::ceil(1.0f * win.dpi / 96.0f)));
+						win.window_interface->create_system_caret(win.layout_size, int32_t(std::ceil(1.0f * win.dynamic_settings.global_size_multiplier  * win.dpi / 96.0f)));
 					}
 				} else {
 					win.window_interface->destroy_system_caret();
@@ -1566,9 +1580,17 @@ namespace printui {
 		};
 
 		if(horizontal(win.orientation)) {
-			return screen_space_rect{ cached_cursor_postion + new_content_rect.x, new_content_rect.y, int32_t(std::ceil(cached_cursor_postion + adjusted_content_rect.left + 1.0f * win.dpi / 96.0f)), new_content_rect.y + new_content_rect.height };
+			return screen_space_rect{
+				cached_cursor_postion + new_content_rect.x,
+				new_content_rect.y,
+				int32_t(std::ceil(cached_cursor_postion + adjusted_content_rect.left + 1.0f * win.dynamic_settings.global_size_multiplier  * win.dpi / 96.0f)),
+				new_content_rect.y + new_content_rect.height };
 		} else {
-			return screen_space_rect{  new_content_rect.x, cached_cursor_postion + new_content_rect.y, new_content_rect.x + new_content_rect.width, int32_t(std::ceil(cached_cursor_postion + adjusted_content_rect.top + 1.0f * win.dpi / 96.0f)) };
+			return screen_space_rect{
+				new_content_rect.x,
+				cached_cursor_postion + new_content_rect.y,
+				new_content_rect.x + new_content_rect.width,
+				int32_t(std::ceil(cached_cursor_postion + adjusted_content_rect.top + 1.0f * win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f)) };
 		}
 	}
 	screen_space_rect simple_editable_text::get_edit_bounds(window_data& win) const {
@@ -1628,9 +1650,9 @@ namespace printui {
 			}
 			if(!disabled && cursor_visible) {
 				if(horizontal(win.orientation)) {
-					win.window_interface->create_system_caret(int32_t(std::ceil(1.0f * win.dpi / 96.0f)), win.layout_size);
+					win.window_interface->create_system_caret(int32_t(std::ceil(1.0f * win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f)), win.layout_size);
 				} else {
-					win.window_interface->create_system_caret(win.layout_size, int32_t(std::ceil(1.0f * win.dpi / 96.0f)));
+					win.window_interface->create_system_caret(win.layout_size, int32_t(std::ceil(1.0f * win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f)));
 				}
 				win.window_interface->invalidate_window();
 			}
@@ -1697,6 +1719,67 @@ namespace printui {
 		return name;
 	}
 
+	//
+	// editable_numeric_range
+	//
+
+	editable_numeric_range::editable_numeric_range(window_data& win, content_alignment text_alignment, uint16_t name, uint16_t alt_text, uint8_t minimum_layout_space, float minimum, float maximum, int8_t precision) : simple_editable_text(win, text_alignment, name, alt_text, minimum_layout_space), minimum(minimum), maximum(maximum), precision(precision) {
+		edit_type = edit_contents::number;
+	}
+
+	accessibility_object* editable_numeric_range::get_accessibility_interface(window_data& win) {
+		if(!acc_obj) {
+			acc_obj = win.accessibility_interface->make_numeric_range_accessibility_interface(win, *this);
+		}
+		return acc_obj;
+	}
+	void editable_numeric_range::set_value(window_data& win, float v) {
+		auto result_to_str = win.text_data.format_double(double(v), precision);
+		set_text(win, result_to_str.text_content.text);
+	}
+	float editable_numeric_range::get_value(window_data& win) const {
+		auto current_text = get_text();
+		return float(win.text_data.text_to_double(current_text.data(), uint32_t(current_text.length())));
+	}
+	void editable_numeric_range::command(window_data& win, edit_command cmd, bool extend_selection) {
+		switch(cmd) {
+			case edit_command::cursor_up:
+			{
+				auto value = get_value(win);
+				value += float(1.0 / pow(10.0f, precision));
+				value = std::clamp(value, minimum, maximum);
+				set_value(win, value);
+				break;
+			}
+			case edit_command::cursor_down:
+			{
+				auto value = get_value(win);
+				value -= float(1.0 / pow(10.0f, precision));
+				value = std::clamp(value, minimum, maximum);
+				set_value(win, value);
+				break;
+			}
+			case edit_command::to_text_start:
+			{
+				auto value = get_value(win);
+				value += 1.0f;
+				value = std::clamp(value, minimum, maximum);
+				set_value(win, value);
+				break;
+			}
+			case edit_command::to_text_end:
+			{
+				auto value = get_value(win);
+				value -= 1.0f;
+				value = std::clamp(value, minimum, maximum);
+				set_value(win, value);
+				break;
+			}
+			default:
+				simple_editable_text::command(win, cmd, extend_selection);
+				break;
+		}
+	}
 	//
 	// LABEL
 	//

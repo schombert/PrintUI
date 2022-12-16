@@ -168,7 +168,7 @@ namespace printui {
 		}
 	}
 
-	common_printui_settings::common_printui_settings(window_data& win) : language_label(text_id::language_label, content_alignment::leading), orientation_label(text_id::orientation_label, content_alignment::leading), input_mode_label(text_id::input_mode_label, content_alignment::leading), toggle_animations_label(text_id::ui_animations_label, content_alignment::leading), test_box(win, content_alignment::trailing, uint16_t(-1), uint16_t(-1), 8) {
+	common_printui_settings::common_printui_settings(window_data& win) : language_label(text_id::language_label, content_alignment::leading), orientation_label(text_id::orientation_label, content_alignment::leading), input_mode_label(text_id::input_mode_label, content_alignment::leading), toggle_animations_label(text_id::ui_animations_label, content_alignment::leading), ui_scale_label(text_id::ui_scale, content_alignment::leading), ui_scale_e(win) {
 
 		lang_menu.open_button.set_text_alignment(content_alignment::trailing);
 		lang_menu.page_size = 1;
@@ -191,6 +191,7 @@ namespace printui {
 		input_mode_list.name = text_id::input_mode_label;
 
 		toggle_animations_label.alt_text = text_id::ui_animations_info;
+		ui_scale_label.alt_text = text_id::ui_scale_info;
 
 		content_description.push_back(page_content{&language_label, column_break_behavior::dont_break_after, item_type::item_start});
 		content_description.push_back(page_content{ &lang_menu, column_break_behavior::normal, item_type::item_end });
@@ -200,8 +201,8 @@ namespace printui {
 		content_description.push_back(page_content{ &input_mode_list, column_break_behavior::normal, item_type::item_end });
 		content_description.push_back(page_content{ &toggle_animations_label, column_break_behavior::dont_break_after, item_type::item_start });
 		content_description.push_back(page_content{ &toggle_animations, column_break_behavior::normal, item_type::item_end });
-		//test_box
-		content_description.push_back(page_content{ &test_box, column_break_behavior::normal, item_type::normal });
+		content_description.push_back(page_content{ &ui_scale_label, column_break_behavior::dont_break_after, item_type::item_start });
+		content_description.push_back(page_content{ &ui_scale_e, column_break_behavior::normal, item_type::item_end });
 	}
 
 	accessibility_object* common_printui_settings::get_accessibility_interface(window_data& win) {
@@ -244,6 +245,9 @@ namespace printui {
 		lang_menu.open_button.set_text(win, win.text_data.locale_display_name(win));
 		orientation_list.quiet_select_option_by_value(win, size_t(win.orientation));
 		input_mode_list.quiet_select_option_by_value(win, size_t(win.dynamic_settings.imode));
+
+		auto result_to_str = win.text_data.format_double(win.dynamic_settings.global_size_multiplier, 2);
+		ui_scale_e.set_text(win, result_to_str.text_content.text);
 
 		page_layout_specification page_spec;
 		page_spec.header = &header;
@@ -378,6 +382,17 @@ namespace printui {
 			win.dynamic_settings.uianimations = toggle_state;
 			win.dynamic_settings.settings_changed = true;
 		}
+	}
+
+	void ui_scale_edit::on_edit_finished(window_data& win, std::wstring const& txt) {
+		auto extracted_value = win.text_data.text_to_double(txt.data(), uint32_t(txt.length()));
+		if(extracted_value > 0.0) {
+			extracted_value = std::clamp(extracted_value, 0.5, 3.0);
+			win.change_size_multiplier(float(extracted_value));
+			win.dynamic_settings.settings_changed = true;
+		}
+		auto result_to_str = win.text_data.format_double(win.dynamic_settings.global_size_multiplier, 2);
+		set_text(win, result_to_str.text_content.text);
 	}
 }
 

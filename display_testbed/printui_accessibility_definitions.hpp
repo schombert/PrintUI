@@ -93,9 +93,10 @@ namespace printui {
         virtual accessibility_object* make_open_list_control_accessibility_interface(window_data& w, open_list_control& b) override;
         virtual accessibility_object* make_container_accessibility_interface(window_data& w, layout_interface* b, uint16_t name) override;
         virtual accessibility_object* make_plain_text_accessibility_interface(window_data& w, layout_interface* b, stored_text* t, bool is_content) override;
-        virtual accessibility_object* make_simple_text_accessibility_interface(window_data& w, simple_editable_text& control) override;
+        virtual accessibility_object* make_simple_text_accessibility_interface(window_data& w, edit_interface* control, uint16_t name, uint16_t alt) override;
         virtual accessibility_object* make_expandable_selection_list(window_data& win, generic_expandable* control, generic_selection_container* sc, uint16_t name, uint16_t alt_text) override;
         virtual accessibility_object* make_expandable_container(window_data& win, generic_expandable* control, uint16_t name, uint16_t alt_text) override;
+        virtual accessibility_object* make_numeric_range_accessibility_interface(window_data& win, editable_numeric_range& control) override;
         virtual void on_invoke(accessibility_object* b) override;
         virtual void on_enable_disable(accessibility_object* b, bool disabled) override;
         virtual void on_select_unselect(accessibility_object* b, bool selection_state) override;
@@ -108,6 +109,7 @@ namespace printui {
         virtual void on_window_layout_changed() override;
         virtual void on_text_content_changed(accessibility_object* b) override;
         virtual void on_text_value_changed(accessibility_object* b) override;
+        virtual void on_text_numeric_value_changed(accessibility_object* b) override;
         virtual void on_text_selection_changed(accessibility_object* b) override;
         virtual void on_conversion_target_changed(accessibility_object* b) override;
         virtual void on_composition_change(accessibility_object* b, std::wstring_view comp) override;
@@ -658,7 +660,7 @@ namespace printui {
         public IValueProvider {
     public:
 
-        simple_edit_provider(window_data& win, simple_editable_text& b);
+        simple_edit_provider(window_data& win, edit_interface* b, uint16_t name, uint16_t alt);
         void disconnect();
 
         // IUnknown methods
@@ -704,11 +706,58 @@ namespace printui {
         virtual ~simple_edit_provider();
     private:
         std::vector<simple_edit_range_provider*> child_ranges;
-        simple_editable_text* control = nullptr;
+        edit_interface* control = nullptr;
+        uint16_t name = 0;
+        uint16_t alt = 0;
 
         // Ref counter for this COM object.
         ULONG m_refCount;
 
         friend class simple_edit_range_provider;
+    };
+
+    class numeric_edit_provider : public disconnectable,
+        public IRawElementProviderSimple,
+        public IRawElementProviderFragment,
+        public IRangeValueProvider {
+    public:
+
+        numeric_edit_provider(window_data& win, editable_numeric_range& control);
+        void disconnect();
+
+        // IUnknown methods
+        IFACEMETHODIMP_(ULONG) AddRef();
+        IFACEMETHODIMP_(ULONG) Release();
+        IFACEMETHODIMP QueryInterface(REFIID riid, void** ppInterface);
+
+        // IRawElementProviderSimple methods
+        IFACEMETHODIMP get_ProviderOptions(ProviderOptions* pRetVal);
+        IFACEMETHODIMP GetPatternProvider(PATTERNID iid, IUnknown** pRetVal);
+        IFACEMETHODIMP GetPropertyValue(PROPERTYID idProp, VARIANT* pRetVal);
+        IFACEMETHODIMP get_HostRawElementProvider(IRawElementProviderSimple** pRetVal);
+
+        // IRawElementProviderFragment methods
+        IFACEMETHODIMP Navigate(NavigateDirection direction, IRawElementProviderFragment** pRetVal);
+        IFACEMETHODIMP GetRuntimeId(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP get_BoundingRectangle(UiaRect* pRetVal);
+        IFACEMETHODIMP GetEmbeddedFragmentRoots(SAFEARRAY** pRetVal);
+        IFACEMETHODIMP SetFocus();
+        IFACEMETHODIMP get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal);
+
+        //IRangeValueProvider
+        IFACEMETHODIMP SetValue(double val);
+        IFACEMETHODIMP get_Value(__RPC__out double* pRetVal);
+        IFACEMETHODIMP get_IsReadOnly(__RPC__out BOOL* pRetVal);
+        IFACEMETHODIMP get_Maximum(__RPC__out double* pRetVal);
+        IFACEMETHODIMP get_Minimum(__RPC__out double* pRetVal);
+        IFACEMETHODIMP get_LargeChange(__RPC__out double* pRetVal);
+        IFACEMETHODIMP get_SmallChange(__RPC__out double* pRetVal);
+
+        virtual ~numeric_edit_provider();
+    private:
+        editable_numeric_range* control = nullptr;
+
+        // Ref counter for this COM object.
+        ULONG m_refCount;
     };
 }

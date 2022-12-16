@@ -436,10 +436,10 @@ namespace printui {
 						float(r.x_position), float(r.y_position),
 						float(r.x_position + r.width), float(r.y_position + r.height) }, D2D1_ANTIALIAS_MODE_ALIASED);
 					win.d2d_device_context->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
-					win.d2d_device_context->PopAxisAlignedClip();
-
 					if(r.parent_object.get_render_interface())
 						r.parent_object->render_foreground(r, win);
+
+					win.d2d_device_context->PopAxisAlignedClip();
 					r.display_flags &= ~ui_rectangle::flag_needs_update;
 				}
 			}
@@ -475,8 +475,14 @@ namespace printui {
 				} else if((r.display_flags & ui_rectangle::flag_grouping_only) == 0) {
 					win.d2d_device_context->SetTransform(D2D1::Matrix3x2F::Identity());
 
-					if(r.parent_object.get_render_interface())
+					if(r.parent_object.get_render_interface()) {
+						win.d2d_device_context->PushAxisAlignedClip(D2D1_RECT_F{
+						float(r.x_position), float(r.y_position),
+						float(r.x_position + r.width), float(r.y_position + r.height) }, D2D1_ANTIALIAS_MODE_ALIASED);
 						r.parent_object->render_foreground(r, win);
+						win.d2d_device_context->PopAxisAlignedClip();
+					}
+					
 					r.display_flags &= ~ui_rectangle::flag_needs_update;
 				}
 			}

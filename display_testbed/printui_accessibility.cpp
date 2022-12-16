@@ -2715,27 +2715,20 @@ namespace printui {
 				break;
 			case UIA_IsHiddenAttributeId:
 				if(val.boolVal == VARIANT_FALSE) {
-					if(!(parent->win.is_visible(control->l_id))) {
-						this->AddRef();
-						*pRetVal = this;
-					}
-				} else {
-					if(parent->win.is_visible(control->l_id)) {
-						this->AddRef();
-						*pRetVal = this;
-					}
+					this->AddRef();
+					*pRetVal = this;
 				}
 				break;
 			case UIA_IsItalicAttributeId:
 				break;
 			case UIA_IsReadOnlyAttributeId:
 				if(val.boolVal == VARIANT_FALSE) {
-					if(control->is_disabled() == false) {
+					if(control->is_read_only() == false) {
 						this->AddRef();
 						*pRetVal = this;
 					}
 				} else {
-					if(control->is_disabled() == true) {
+					if(control->is_read_only() == true) {
 						this->AddRef();
 						*pRetVal = this;
 					}
@@ -2919,10 +2912,7 @@ namespace printui {
 				break;
 			case UIA_IsHiddenAttributeId:
 				pRetVal->vt = VT_BOOL;
-				if(parent->win.is_visible(control->l_id))
-					pRetVal->boolVal = VARIANT_FALSE;
-				else
-					pRetVal->boolVal = VARIANT_TRUE;
+				pRetVal->boolVal = VARIANT_FALSE;
 				break;
 			case UIA_IsItalicAttributeId:
 				pRetVal->vt = VT_BOOL;
@@ -2933,7 +2923,7 @@ namespace printui {
 				break;
 			case UIA_IsReadOnlyAttributeId:
 				pRetVal->vt = VT_BOOL;
-				if(control->is_disabled() == true)
+				if(control->is_read_only() == true)
 					pRetVal->boolVal = VARIANT_TRUE;
 				else
 					pRetVal->boolVal = VARIANT_FALSE;
@@ -3289,7 +3279,7 @@ namespace printui {
 	// SIMPLE EDIT CONTROL PROVIDER
 	//
 
-	simple_edit_provider::simple_edit_provider(window_data& win, simple_editable_text& b) : disconnectable(win), control(&b), m_refCount(1) {
+	simple_edit_provider::simple_edit_provider(window_data& win, edit_interface* b, uint16_t name, uint16_t alt) : disconnectable(win), control(b), name(name), alt(alt), m_refCount(1) {
 	}
 
 	simple_edit_provider::~simple_edit_provider() {
@@ -3390,18 +3380,18 @@ namespace printui {
 				break;
 			case UIA_IsEnabledPropertyId:
 				pRetVal->vt = VT_BOOL;
-				pRetVal->boolVal = (control && control->is_disabled()) ? VARIANT_FALSE : VARIANT_TRUE;
+				pRetVal->boolVal = (control && control->is_read_only()) ? VARIANT_FALSE : VARIANT_TRUE;
 				break;
 			case UIA_NamePropertyId:
-				if(control->get_name() != uint16_t(-1)) {
-					auto resolved_text = win.text_data.instantiate_text(control->get_name()).text_content.text;
+				if(name != uint16_t(-1)) {
+					auto resolved_text = win.text_data.instantiate_text(name).text_content.text;
 					pRetVal->vt = VT_BSTR;
 					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
 				}
 				break;
 			case UIA_HelpTextPropertyId:
-				if(control->get_name() != uint16_t(-1)) {
-					auto resolved_text = win.text_data.instantiate_text(control->get_alt_text()).text_content.text;
+				if(alt != uint16_t(-1)) {
+					auto resolved_text = win.text_data.instantiate_text(alt).text_content.text;
 					pRetVal->vt = VT_BSTR;
 					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
 				}
@@ -3415,11 +3405,9 @@ namespace printui {
 					if(psa == nullptr) {
 						return E_OUTOFMEMORY;
 					}
-					auto window_rect = win.window_interface->get_window_location();
-					auto client_rect = control->l_id != layout_reference_none ?
-						win.get_current_location(control->l_id) :
+					auto client_rect = control->get_edit_bounds(win);
 						screen_space_rect{ 0,0,0,0 };
-					double uiarect[] = { double(window_rect.x + client_rect.x), double(window_rect.y + client_rect.y), double(client_rect.width), double(client_rect.height) };
+					double uiarect[] = { double(client_rect.x), double( client_rect.y), double(client_rect.width), double(client_rect.height) };
 					for(LONG i = 0; i < 4; i++) {
 						SafeArrayPutElement(psa, &i, (void*)&(uiarect[i]));
 					}
@@ -3428,6 +3416,11 @@ namespace printui {
 			case UIA_HasKeyboardFocusPropertyId:
 				pRetVal->vt = VT_BOOL;
 				pRetVal->boolVal = (control && win.keyboard_target == control) ? VARIANT_TRUE : VARIANT_FALSE;
+				break;
+			case UIA_ValueValuePropertyId:
+				auto resolved_text = control->get_text();
+				pRetVal->vt = VT_BSTR;
+				pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
 				break;
 		}
 		return S_OK;
@@ -3438,8 +3431,10 @@ namespace printui {
 
 		if(!control)
 			return UIA_E_ELEMENTNOTAVAILABLE;
-
-		return generic_navigate(direction, pRetVal, win, control->l_id);
+		auto li = control->get_layout_interface();
+		if(!li)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		return generic_navigate(direction, pRetVal, win, li->l_id);
 	}
 	IFACEMETHODIMP simple_edit_provider::GetRuntimeId(SAFEARRAY** pRetVal) {
 		if(pRetVal == NULL) {
@@ -3461,13 +3456,10 @@ namespace printui {
 	IFACEMETHODIMP simple_edit_provider::get_BoundingRectangle(UiaRect* pRetVal) {
 		if(!control)
 			return UIA_E_ELEMENTNOTAVAILABLE;
-		auto window_rect = win.window_interface->get_window_location();
-		auto client_rect = (control && control->l_id != layout_reference_none) ?
-			win.get_current_location(control->l_id) :
-			screen_space_rect{ 0,0,0,0 };
 
-		pRetVal->left = window_rect.x + client_rect.x;
-		pRetVal->top = window_rect.y + client_rect.y;
+		auto client_rect = control->get_edit_bounds(win);
+		pRetVal->left = client_rect.x;
+		pRetVal->top = client_rect.y;
 		pRetVal->width = client_rect.width;
 		pRetVal->height = client_rect.height;
 		return S_OK;
@@ -3479,7 +3471,7 @@ namespace printui {
 	IFACEMETHODIMP simple_edit_provider::SetFocus() {
 		if(!control)
 			return UIA_E_ELEMENTNOTAVAILABLE;
-		if(!control->is_disabled()) {
+		if(!control->is_read_only()) {
 			win.set_keyboard_focus(control);
 			return S_OK;
 		} else {
@@ -3501,7 +3493,7 @@ namespace printui {
 	IFACEMETHODIMP simple_edit_provider::SetValue(__RPC__in LPCWSTR val) {
 		if(!control)
 			return UIA_E_ELEMENTNOTAVAILABLE;
-		control->set_text(win, val);
+		control->insert_text(win, 0, control->get_text_length(), std::wstring_view(val, wcslen(val)));
 		return S_OK;
 	}
 	IFACEMETHODIMP simple_edit_provider::get_Value(__RPC__deref_out_opt BSTR* pRetVal) {
@@ -3516,7 +3508,7 @@ namespace printui {
 	IFACEMETHODIMP simple_edit_provider::get_IsReadOnly(__RPC__out BOOL* pRetVal) {
 		if(!control)
 			return UIA_E_ELEMENTNOTAVAILABLE;
-		*pRetVal = control->is_disabled() ? TRUE : FALSE;
+		*pRetVal = control->is_read_only() ? TRUE : FALSE;
 		return S_OK;
 	}
 
@@ -3625,6 +3617,271 @@ namespace printui {
 
 		*isActive = win.keyboard_target == control ? TRUE : FALSE;
 		*pRetVal = new simple_edit_range_provider(this, int32_t(control->get_cursor()), int32_t(control->get_cursor()));
+		return S_OK;
+	}
+
+	//
+	// NUMERIC EDIT CONTROL PROVIDER
+	//
+
+	numeric_edit_provider::numeric_edit_provider(window_data& win, editable_numeric_range& control) : disconnectable(win), control(&control), m_refCount(1) {
+	}
+
+	numeric_edit_provider::~numeric_edit_provider() {
+	}
+	IFACEMETHODIMP_(ULONG) numeric_edit_provider::AddRef() {
+		return InterlockedIncrement(&m_refCount);
+	}
+
+	IFACEMETHODIMP_(ULONG) numeric_edit_provider::Release() {
+		long val = InterlockedDecrement(&m_refCount);
+		if(val == 0) {
+			delete this;
+		}
+		return val;
+	}
+
+	IFACEMETHODIMP numeric_edit_provider::QueryInterface(REFIID riid, void** ppInterface) {
+		if(riid == __uuidof(IUnknown))
+			*ppInterface = static_cast<IRawElementProviderSimple*>(this);
+		else if(riid == __uuidof(IRawElementProviderSimple))
+			*ppInterface = static_cast<IRawElementProviderSimple*>(this);
+		else if(riid == __uuidof(IRawElementProviderFragment))
+			*ppInterface = static_cast<IRawElementProviderFragment*>(this);
+		else if(riid == __uuidof(IRangeValueProvider))
+			*ppInterface = static_cast<IRangeValueProvider*>(this);
+		else {
+			*ppInterface = NULL;
+			return E_NOINTERFACE;
+		}
+		(static_cast<IUnknown*>(*ppInterface))->AddRef();
+		return S_OK;
+	}
+
+	IFACEMETHODIMP numeric_edit_provider::get_ProviderOptions(ProviderOptions* pRetVal) {
+		*pRetVal = ProviderOptions_ServerSideProvider | ProviderOptions_RefuseNonClientSupport | ProviderOptions_UseComThreading;
+		return S_OK;
+	}
+
+	IFACEMETHODIMP numeric_edit_provider::get_HostRawElementProvider(IRawElementProviderSimple** pRetVal) {
+		*pRetVal = nullptr;
+		return S_OK;
+	}
+
+	IFACEMETHODIMP numeric_edit_provider::GetPatternProvider(PATTERNID iid, IUnknown** pRetVal) {
+		*pRetVal = nullptr;
+		if(iid == UIA_RangeValuePatternId) {
+			*pRetVal = static_cast<IRangeValueProvider*>(this);
+			AddRef();
+		}
+		return S_OK;
+	}
+
+	IFACEMETHODIMP numeric_edit_provider::GetPropertyValue(PROPERTYID propertyId, VARIANT* pRetVal) {
+		VariantInit(pRetVal);
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		switch(propertyId) {
+			case UIA_ControlTypePropertyId:
+				pRetVal->vt = VT_I4;
+				pRetVal->lVal = UIA_EditControlTypeId;
+				break;
+			case UIA_IsKeyboardFocusablePropertyId:
+				pRetVal->vt = VT_BOOL;
+				pRetVal->boolVal = VARIANT_TRUE;
+				break;
+			case UIA_IsContentElementPropertyId:
+				pRetVal->vt = VT_BOOL;
+				pRetVal->boolVal = VARIANT_TRUE;
+				break;
+			case UIA_IsControlElementPropertyId:
+				pRetVal->vt = VT_BOOL;
+				pRetVal->boolVal = VARIANT_TRUE;
+				break;
+			case UIA_IsRangeValuePatternAvailablePropertyId:
+				pRetVal->vt = VT_BOOL;
+				pRetVal->boolVal = VARIANT_TRUE;
+				break;
+			case UIA_RangeValueIsReadOnlyPropertyId:
+				pRetVal->vt = VT_BOOL;
+				pRetVal->boolVal = (control && control->is_read_only()) ? VARIANT_TRUE : VARIANT_FALSE;
+				break;
+			case UIA_IsEnabledPropertyId:
+				pRetVal->vt = VT_BOOL;
+				pRetVal->boolVal = (control && control->is_read_only()) ? VARIANT_FALSE : VARIANT_TRUE;
+				break;
+			case UIA_NamePropertyId:
+				if(control->get_name() != uint16_t(-1)) {
+					auto resolved_text = win.text_data.instantiate_text(control->get_name()).text_content.text;
+					pRetVal->vt = VT_BSTR;
+					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
+				}
+				break;
+			case UIA_HelpTextPropertyId:
+				if(control->get_alt_text() != uint16_t(-1)) {
+					auto resolved_text = win.text_data.instantiate_text(control->get_alt_text()).text_content.text;
+					pRetVal->vt = VT_BSTR;
+					pRetVal->bstrVal = SysAllocString(resolved_text.c_str());
+				}
+				break;
+			case UIA_BoundingRectanglePropertyId:
+			{
+				pRetVal->vt = VT_R8 | VT_ARRAY;
+				SAFEARRAY* psa = SafeArrayCreateVector(VT_R8, 0, 4);
+				pRetVal->parray = psa;
+
+				if(psa == nullptr) {
+					return E_OUTOFMEMORY;
+				}
+				auto client_rect = control->get_edit_bounds(win);
+				screen_space_rect{ 0,0,0,0 };
+				double uiarect[] = { double(client_rect.x), double(client_rect.y), double(client_rect.width), double(client_rect.height) };
+				for(LONG i = 0; i < 4; i++) {
+					SafeArrayPutElement(psa, &i, (void*)&(uiarect[i]));
+				}
+			}
+			break;
+			case UIA_HasKeyboardFocusPropertyId:
+				pRetVal->vt = VT_BOOL;
+				pRetVal->boolVal = (control && win.keyboard_target == control) ? VARIANT_TRUE : VARIANT_FALSE;
+				break;
+			case UIA_RangeValueValuePropertyId:
+				pRetVal->vt = VT_R8;
+				pRetVal->dblVal = double(control->get_value(win));
+				break;
+			case UIA_RangeValueLargeChangePropertyId:
+				pRetVal->vt = VT_R8;
+				pRetVal->dblVal = 1.0;
+				break;
+			case UIA_RangeValueSmallChangePropertyId:
+				pRetVal->vt = VT_R8;
+				pRetVal->dblVal = 1.0 / std::pow(10, control->precision);
+				break;
+			case UIA_RangeValueMaximumPropertyId:
+				pRetVal->vt = VT_R8;
+				pRetVal->dblVal = double(control->maximum);
+				break;
+			case UIA_RangeValueMinimumPropertyId:
+				pRetVal->vt = VT_R8;
+				pRetVal->dblVal = double(control->minimum);
+				break;
+		}
+		return S_OK;
+	}
+
+	IFACEMETHODIMP numeric_edit_provider::Navigate(NavigateDirection direction, IRawElementProviderFragment** pRetVal) {
+		*pRetVal = nullptr;
+
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		return generic_navigate(direction, pRetVal, win, control->l_id);
+	}
+	IFACEMETHODIMP numeric_edit_provider::GetRuntimeId(SAFEARRAY** pRetVal) {
+		if(pRetVal == NULL) {
+			return E_INVALIDARG;
+		}
+		size_t ptr_value = reinterpret_cast<size_t>(control);
+		int rId[] = { UiaAppendRuntimeId, int32_t(ptr_value & 0xFFFFFFFF), int32_t(ptr_value >> 32) };
+		SAFEARRAY* psa = SafeArrayCreateVector(VT_I4, 0, 3);
+		if(psa == NULL) {
+			return E_OUTOFMEMORY;
+		}
+		for(LONG i = 0; i < 3; i++) {
+			SafeArrayPutElement(psa, &i, (void*)&(rId[i]));
+		}
+
+		*pRetVal = psa;
+		return S_OK;
+	}
+	IFACEMETHODIMP numeric_edit_provider::get_BoundingRectangle(UiaRect* pRetVal) {
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+
+		auto client_rect = control->get_edit_bounds(win);
+		pRetVal->left = client_rect.x;
+		pRetVal->top = client_rect.y;
+		pRetVal->width = client_rect.width;
+		pRetVal->height = client_rect.height;
+		return S_OK;
+	}
+	IFACEMETHODIMP numeric_edit_provider::GetEmbeddedFragmentRoots(SAFEARRAY** pRetVal) {
+		*pRetVal = nullptr;
+		return S_OK;
+	}
+	IFACEMETHODIMP numeric_edit_provider::SetFocus() {
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		if(!control->is_read_only()) {
+			win.set_keyboard_focus(control);
+			return S_OK;
+		} else {
+			return E_FAIL;
+		}
+	}
+	IFACEMETHODIMP numeric_edit_provider::get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal) {
+		if(auto root = win.accessibility_interface->peek_root_window_provider(); root) {
+			return root->get_FragmentRoot(pRetVal);
+		} else {
+			*pRetVal = nullptr;
+			return S_OK;
+		}
+	}
+	void numeric_edit_provider::disconnect() {
+		control = nullptr;
+	}
+
+	IFACEMETHODIMP numeric_edit_provider::SetValue(double val) {
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		control->set_value(win, float(val));
+		return S_OK;
+	}
+	IFACEMETHODIMP numeric_edit_provider::get_Value(__RPC__out double* pRetVal) {
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		if(!pRetVal)
+			return E_INVALIDARG;
+		*pRetVal = double(control->get_value(win));
+		return S_OK;
+	}
+	IFACEMETHODIMP numeric_edit_provider::get_IsReadOnly(__RPC__out BOOL* pRetVal) {
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		if(!pRetVal)
+			return E_INVALIDARG;
+		*pRetVal = control->is_read_only() ? TRUE : FALSE;
+		return S_OK;
+	}
+	IFACEMETHODIMP numeric_edit_provider::get_Maximum(__RPC__out double* pRetVal) {
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		if(!pRetVal)
+			return E_INVALIDARG;
+		*pRetVal = double(control->maximum);
+		return S_OK;
+	}
+	IFACEMETHODIMP numeric_edit_provider::get_Minimum(__RPC__out double* pRetVal) {
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		if(!pRetVal)
+			return E_INVALIDARG;
+		*pRetVal = double(control->minimum);
+		return S_OK;
+	}
+	IFACEMETHODIMP numeric_edit_provider::get_LargeChange(__RPC__out double* pRetVal) {
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		if(!pRetVal)
+			return E_INVALIDARG;
+		*pRetVal = 1.0;
+		return S_OK;
+	}
+	IFACEMETHODIMP numeric_edit_provider::get_SmallChange(__RPC__out double* pRetVal) {
+		if(!control)
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		if(!pRetVal)
+			return E_INVALIDARG;
+		*pRetVal = 1.0 / std::pow(10, control->precision);
 		return S_OK;
 	}
 
@@ -3771,11 +4028,14 @@ namespace printui {
 		auto iunk = static_cast<disconnectable*>(new plain_text_provider(w, b, t, is_content));
 		return (accessibility_object*)iunk;
 	}
-	accessibility_object* win32_accessibility::make_simple_text_accessibility_interface(window_data& w, simple_editable_text& control) {
-		auto iunk = static_cast<disconnectable*>(new simple_edit_provider(w, control));
+	accessibility_object* win32_accessibility::make_simple_text_accessibility_interface(window_data& w, edit_interface* control, uint16_t name, uint16_t alt) {
+		auto iunk = static_cast<disconnectable*>(new simple_edit_provider(w, control, name, alt));
 		return (accessibility_object*)iunk;
 	}
-
+	accessibility_object* win32_accessibility::make_numeric_range_accessibility_interface(window_data& w, editable_numeric_range& control) {
+		auto iunk = static_cast<disconnectable*>(new numeric_edit_provider(w, control));
+		return (accessibility_object*)iunk;
+	}
 
 	void win32_accessibility::on_invoke(accessibility_object* b) {
 		auto iunk = accessibility_object_to_iunk(b);
@@ -3860,6 +4120,25 @@ namespace printui {
 
 				provider->GetPropertyValue(UIA_ValueValuePropertyId, &new_state);
 				UiaRaiseAutomationPropertyChangedEvent(provider, UIA_ValueValuePropertyId, old_state, new_state);
+
+				provider->Release();
+			}
+		}
+	}
+
+	void win32_accessibility::on_text_numeric_value_changed(accessibility_object* b) {
+		auto iunk = accessibility_object_to_iunk(b);
+		IRawElementProviderSimple* provider = nullptr;
+		if(UiaClientsAreListening() && window_interface) {
+			iunk->QueryInterface(IID_PPV_ARGS(&provider));
+			if(provider) {
+				VARIANT old_state;
+				VARIANT new_state;
+				VariantInit(&old_state);
+				VariantInit(&new_state);
+
+				provider->GetPropertyValue(UIA_RangeValueValuePropertyId, &new_state);
+				UiaRaiseAutomationPropertyChangedEvent(provider, UIA_RangeValueValuePropertyId, old_state, new_state);
 
 				provider->Release();
 			}
