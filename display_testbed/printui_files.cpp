@@ -44,6 +44,8 @@ namespace printui {
 				}
 				CloseHandle(file_handle);
 
+				win.layout_size = int32_t(std::round(win.dynamic_settings.global_size_multiplier * float(win.dynamic_settings.layout_base_size) * win.dpi / 96.0f));
+				win.window_border = int32_t(std::round(float(win.dynamic_settings.window_border) * win.dpi / 96.0f));
 				if(win.dynamic_settings.locale_is_default) {
 					win.text_data.default_locale(win, false);
 				} else {
@@ -51,6 +53,8 @@ namespace printui {
 				}
 			} 
 		} else {
+			win.layout_size = int32_t(std::round(win.dynamic_settings.global_size_multiplier * float(win.dynamic_settings.layout_base_size) * win.dpi / 96.0f));
+			win.window_border = int32_t(std::round(float(win.dynamic_settings.window_border) * win.dpi / 96.0f));
 			win.text_data.default_locale(win, true);
 		}
 	}

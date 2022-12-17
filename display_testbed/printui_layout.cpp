@@ -900,29 +900,32 @@ namespace printui {
 	}
 
 	void window_data::change_size_multiplier(float v) {
-		dynamic_settings.global_size_multiplier = v;
-		layout_out_of_date = true;
-		stop_ui_animations();
+		if(dynamic_settings.global_size_multiplier != v) {
+			dynamic_settings.global_size_multiplier = v;
+			layout_out_of_date = true;
+			stop_ui_animations();
 
-		++text_data.text_generation;
-		info_popup.currently_visible = false;
+			++text_data.text_generation;
+			info_popup.currently_visible = false;
 
-		intitialize_fonts();
-		init_layout_graphics();
-		common_icons.redraw_icons(*this);
-		create_interactiable_tags();
+			layout_size = int32_t(std::round(dynamic_settings.global_size_multiplier * float(dynamic_settings.layout_base_size) * dpi / 96.0f));
 
-		reset_layout();
-		get_layout();
+			text_interface->initialize_fonts(*this);
+			common_icons.redraw_icons(*this);
+			create_interactiable_tags();
 
-		update_window_focus();
+			reset_layout();
+			get_layout();
 
-		if(minimum_ui_width > ui_width || minimum_ui_height > ui_height) {
-			expand_to_fit_content();
-		} else {
-			window_interface->invalidate_window();
+			update_window_focus();
+
+			if(minimum_ui_width > ui_width || minimum_ui_height > ui_height) {
+				expand_to_fit_content();
+			} else {
+				window_interface->invalidate_window();
+			}
+			accessibility_interface->on_window_layout_changed();
 		}
-		accessibility_interface->on_window_layout_changed();
 	}
 	void window_data::change_orientation(layout_orientation o) {
 		orientation = o;
@@ -933,7 +936,6 @@ namespace printui {
 		++text_data.text_generation;
 		info_popup.currently_visible = false;
 
-		init_layout_graphics();
 		common_icons.redraw_icons(*this);
 		create_interactiable_tags();
 

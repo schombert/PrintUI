@@ -247,7 +247,7 @@ namespace printui {
 		input_mode_list.quiet_select_option_by_value(win, size_t(win.dynamic_settings.imode));
 
 		auto result_to_str = win.text_data.format_double(win.dynamic_settings.global_size_multiplier, 2);
-		ui_scale_e.set_text(win, result_to_str.text_content.text);
+		ui_scale_e.quiet_set_text(win, result_to_str.text_content.text);
 
 		page_layout_specification page_spec;
 		page_spec.header = &header;
@@ -392,7 +392,7 @@ namespace printui {
 			win.dynamic_settings.settings_changed = true;
 		}
 		auto result_to_str = win.text_data.format_double(win.dynamic_settings.global_size_multiplier, 2);
-		set_text(win, result_to_str.text_content.text);
+		quiet_set_text(win, result_to_str.text_content.text);
 	}
 }
 

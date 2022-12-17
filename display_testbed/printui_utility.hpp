@@ -14,14 +14,6 @@
 #include <chrono>
 #include "unordered_dense.h"
 
-struct IDWriteFontFallback;
-struct IDWriteFontSetBuilder2;
-struct IDWriteFontFallbackBuilder;
-struct IDWriteFontCollection1;
-struct IDWriteFactory6;
-struct IDWriteFont;
-struct IDWriteTextLayout;
-struct IDWriteTextFormat3;
 struct ID2D1DeviceContext5;
 struct ID2D1SolidColorBrush;
 struct ID2D1StrokeStyle;
@@ -29,14 +21,12 @@ struct ID2D1Brush;
 struct ID2D1Bitmap;
 struct ID2D1Bitmap1;
 struct ID2D1Factory6;
-struct IDWriteFontCollection2;
 struct IWICImagingFactory;
 struct ID3D11Device;
 struct IDXGIDevice1;
 struct ID2D1Device5;
 struct ID3D11DeviceContext;
 struct IDXGISwapChain1;
-struct IDWriteTypography;
 struct IDXGIFactory2;
 struct D2D_RECT_F;
 struct DXGI_SWAP_CHAIN_DESC1;
@@ -121,7 +111,48 @@ namespace printui {
 
 		struct text_services_object;
 		void release_text_services_object(text_services_object* ptr);
+
+		struct arranged_text;
+		void release_arranged_text(arranged_text* ptr);
 	}
+
+	class arranged_text_ptr {
+		text::arranged_text* ptr = nullptr;
+	public:
+		arranged_text_ptr() noexcept {
+		}
+		arranged_text_ptr(text::arranged_text* ptr) noexcept : ptr(ptr) {
+		}
+		arranged_text_ptr(arranged_text_ptr&& o) noexcept {
+			ptr = o.ptr;
+			o.ptr = nullptr;
+		}
+		~arranged_text_ptr() {
+			if(ptr)
+				text::release_arranged_text(ptr);
+			ptr = nullptr;
+		}
+		arranged_text_ptr& operator=(arranged_text_ptr const& o) = delete;
+		arranged_text_ptr& operator=(arranged_text_ptr&& o) noexcept {
+			if(ptr)
+				text::release_arranged_text(ptr);
+			ptr = o.ptr;
+			o.ptr = nullptr;
+			return *this;
+		}
+		arranged_text_ptr& operator=(text::arranged_text* o) noexcept {
+			if(ptr)
+				text::release_arranged_text(ptr);
+			ptr = o;
+			return *this;
+		}
+		operator bool() const noexcept {
+			return ptr != nullptr;
+		}
+		operator text::arranged_text* () const noexcept {
+			return ptr;
+		}
+	};
 
 	class text_analysis_ptr {
 		text::text_analysis_object* ptr = nullptr;
@@ -935,7 +966,7 @@ namespace printui {
 
 	struct stored_text {
 	private:
-		IDWriteTextLayout* formatted_text = nullptr;
+		arranged_text_ptr formatted_text;
 		std::variant<std::monostate, std::wstring, wrapped_text_instance> text_content = std::monostate{};
 	public:
 		layout_position resolved_text_size{ 0,1 };
@@ -1123,7 +1154,7 @@ namespace printui {
 		accessibility_object_ptr acc_obj;
 		text_services_ptr ts_obj;
 		text_analysis_ptr analysis_obj;
-		IDWriteTextLayout* formatted_text = nullptr;
+		arranged_text_ptr formatted_text;
 
 		std::wstring text;
 		
@@ -1233,6 +1264,7 @@ namespace printui {
 		void set_disabled(window_data& win, bool v);
 		void set_alt_text(window_data& win, uint16_t alt);
 		void set_text(window_data& win, std::wstring const&);
+		void quiet_set_text(window_data& win, std::wstring const&);
 		uint16_t get_alt_text() const;
 		uint16_t get_name() const;
 		virtual content_alignment get_alignment() const override {
@@ -1936,11 +1968,6 @@ namespace printui {
 	};
 
 	namespace text {
-		void load_fonts_from_directory(window_data const& win, std::wstring const& directory, IDWriteFontSetBuilder2* bldr);
-		void load_fallbacks_by_type(std::vector<font_fallback> const& fb, font_type type, IDWriteFontFallbackBuilder* bldr, IDWriteFontCollection1* collection, IDWriteFactory6* dwrite_factory);
-		void update_font_metrics(font_description& desc, IDWriteFactory6* dwrite_factory, wchar_t const* locale, float target_pixels, float dpi_scale, IDWriteFont* font);
-		void create_font_collection(window_data& win);
-
 		enum class extra_formatting : uint8_t {
 			none, small_caps, italic, old_numbers, tabular_numbers, bold
 		};
@@ -1970,6 +1997,54 @@ namespace printui {
 				return position < o.position;
 			}
 		};
+
+		struct arranged_text;
+		struct text_format_ptr;
+
+		struct text_format {
+			text_format_ptr* ptr;
+			float baseline;
+		};
+
+		struct arrangement_result {
+			arranged_text* ptr = nullptr;
+			int32_t width_used = 0;
+			int32_t lines_used = 0;
+		};
+
+		
+		struct text_metrics {
+			uint32_t textPosition;
+			uint32_t length;
+			float left;
+			float top;
+			float width;
+			float height;
+			uint32_t bidiLevel;
+		};
+		struct hit_test_metrics {
+			text_metrics metrics;
+			bool is_inside;
+			bool is_trailing;
+		};
+
+		struct wrapper {
+			virtual ~wrapper() { }
+			virtual void initialize_fonts(window_data& win) = 0;
+			virtual void initialize_font_fallbacks(window_data& win) = 0;
+
+			virtual void create_font_collection(window_data& win) = 0;
+			virtual arrangement_result create_text_arragement(window_data const& win, std::wstring_view text, content_alignment text_alignment, bool standard_size, bool single_line, int32_t max_width, std::vector<format_marker> const* formatting = nullptr) = 0;
+			virtual text_format create_text_format(wchar_t const* name, int32_t capheight) = 0;
+			virtual void release_text_format(text_format fmt) = 0;
+		};
+
+		int32_t get_height(window_data const& win, arranged_text* txt, bool standard_size);
+		bool appropriate_directionality(window_data const& win, arranged_text* txt);
+		void adjust_layout_region(arranged_text* txt, int32_t width, int32_t height);
+		std::vector<text_metrics> get_metrics_for_range(arranged_text* txt, uint32_t position, uint32_t length);
+		text_metrics get_metrics_at_position(arranged_text* txt, uint32_t position);
+		hit_test_metrics hit_test_text(arranged_text* txt, int32_t x, int32_t y);
 
 		struct replaceable_instance;
 		struct static_text_with_formatting;
@@ -2135,16 +2210,6 @@ namespace printui {
 			friend int32_t right_visual_cursor_position(text_analysis_object* ptr, int32_t position, std::wstring const& str, bool ltr, text_manager const& tm);
 		};
 
-		void apply_default_vertical_options(IDWriteTypography* t);
-		void apply_default_ltr_options(IDWriteTypography* t);
-		void apply_default_rtl_options(IDWriteTypography* t);
-
-		void apply_old_style_figures_options(IDWriteTypography* t);
-		void apply_lining_figures_options(IDWriteTypography* t);
-		void apply_small_caps_options(IDWriteTypography* t);
-
-		void apply_formatting(IDWriteTextLayout* target, std::vector<format_marker> const& formatting, std::vector<font_description> const& named_fonts, IDWriteFactory6* dwrite_factory);
-
 		struct language_description {
 			std::wstring language;
 			std::wstring region;
@@ -2261,7 +2326,7 @@ namespace printui {
 		virtual void minimize(window_data&) = 0;
 		virtual void restore(window_data&) = 0;
 		virtual void close(window_data&) = 0;
-		virtual void set_text_rendering_parameters(ID2D1DeviceContext5* dc, IDWriteFactory6* fac) = 0;
+		virtual void set_text_rendering_parameters(ID2D1DeviceContext5* dc, text::wrapper* fac) = 0;
 		virtual void set_window_title(wchar_t const* t) = 0;
 		virtual bool window_has_focus() const = 0;
 		virtual os_direct_access_base* get_os_access(os_handle_type) = 0;
@@ -2372,16 +2437,8 @@ namespace printui {
 		launch_settings dynamic_settings;
 
 		ID2D1Factory6* d2d_factory = nullptr;
-		IDWriteFactory6* dwrite_factory = nullptr;
+		
 		IWICImagingFactory* wic_factory = nullptr;
-
-		IDWriteFontCollection2* font_collection = nullptr;
-
-		IDWriteTextFormat3* common_text_format = nullptr;
-		IDWriteTextFormat3* small_text_format = nullptr;
-
-		IDWriteFontFallback* font_fallbacks = nullptr;
-		IDWriteFontFallback* small_font_fallbacks = nullptr;
 
 		ID2D1SolidColorBrush* dummy_brush = nullptr;
 		ID2D1StrokeStyle* plain_strokes = nullptr;
@@ -2425,6 +2482,7 @@ namespace printui {
 		std::unique_ptr<accessibility_framework_wrapper> accessibility_interface;
 		std::shared_ptr<text::text_services_wrapper> text_services_interface;
 		std::unique_ptr<file_system_wrapper> file_system;
+		std::unique_ptr<text::wrapper> text_interface;
 
 		uint32_t ui_width = 0;
 		uint32_t ui_height = 0;
@@ -2507,7 +2565,7 @@ namespace printui {
 		decltype(std::chrono::steady_clock::now()) in_place_animation_start;
 		animation_status_struct animation_status;
 
-		window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai, std::shared_ptr<text::text_services_wrapper> const& ts, std::unique_ptr<file_system_wrapper>&& file_system);
+		window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai, std::shared_ptr<text::text_services_wrapper> const& ts, std::unique_ptr<file_system_wrapper>&& file_system, std::unique_ptr<text::wrapper>&& text_interface);
 		virtual ~window_data();
 
 		virtual void load_default_dynamic_settings() = 0;
@@ -2528,7 +2586,6 @@ namespace printui {
 		// OTHER
 
 		void create_persistent_resources();
-		void initialize_font_fallbacks();
 		void message_loop();
 
 		void create_window();
@@ -2555,7 +2612,6 @@ namespace printui {
 		void hide_settings_panel();
 
 		void expand_to_fit_content();
-		void intitialize_fonts();
 
 		void remove_references_to(layout_interface* l);
 		bool is_title_set() const {
@@ -2584,7 +2640,6 @@ namespace printui {
 		void resize_item(layout_reference id, int32_t new_width, int32_t new_height);
 		void set_window_title(std::wstring const& title);
 		wchar_t const* get_window_title() const;
-		void init_layout_graphics();
 
 		void release_all() {
 			prepared_layout.clear();

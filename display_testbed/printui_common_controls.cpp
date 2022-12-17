@@ -117,121 +117,23 @@ namespace printui {
 		}
 	}
 
-	layout_position common_prepare_base_text_layout(window_data const& win, IDWriteTextLayout*& formatted_text, std::wstring const& text, content_alignment text_alignment, bool use_large_size) {
-		layout_position result;
-
-		auto text_format = use_large_size ? win.common_text_format : win.small_text_format;
-		auto& font = use_large_size ? win.dynamic_settings.primary_font : win.dynamic_settings.small_font;
-		auto const line_width = use_large_size ? win.dynamic_settings.line_width : win.dynamic_settings.small_width;
-
-		text_format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-		text_format->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
-		text_format->SetReadingDirection(DWRITE_READING_DIRECTION(reading_direction_from_orientation(win.orientation)));
-		text_format->SetFlowDirection(DWRITE_FLOW_DIRECTION(flow_direction_from_orientation(win.orientation)));
-		text_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
-		text_format->SetOpticalAlignment(DWRITE_OPTICAL_ALIGNMENT_NO_SIDE_BEARINGS);
-
-		if(!horizontal(win.orientation)) {
-			text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, font.line_spacing, font.vertical_baseline);
-		} else {
-			text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, font.line_spacing, font.baseline);
-		}
-		if(horizontal(win.orientation)) {
-
-			win.dwrite_factory->CreateTextLayout(text.c_str(), uint32_t(text.length()), text_format, float(font.line_spacing), float(font.line_spacing), &formatted_text);
-
-			DWRITE_TEXT_METRICS text_metrics;
-			formatted_text->GetMetrics(&text_metrics);
-
-			result.x = int16_t(std::ceil((text_metrics.width) / float(win.layout_size)));
-
-			if(result.x <= line_width) {
-				formatted_text->SetMaxWidth(float(result.x * win.layout_size));
-				formatted_text->SetMaxHeight(float(font.line_spacing));
-				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
-				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
-				result.y = 1;
-			} else {
-				formatted_text->SetMaxWidth(float(line_width * win.layout_size));
-				formatted_text->SetMaxHeight(float(100 * font.line_spacing));
-				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
-
-				formatted_text->GetMetrics(&text_metrics);
-				result.y = int16_t(std::ceil(text_metrics.lineCount * font.line_spacing / float(win.layout_size)));
-				result.x = int16_t(line_width);
-				formatted_text->SetMaxHeight(float(text_metrics.lineCount * font.line_spacing));
-				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
-			}
-
-		} else {
-			win.dwrite_factory->CreateTextLayout(text.c_str(), uint32_t(text.length()), text_format, float(font.line_spacing), float(font.line_spacing), &formatted_text);
-
-			DWRITE_TEXT_METRICS text_metrics;
-			formatted_text->GetMetrics(&text_metrics);
-
-			result.x = int16_t(std::ceil(text_metrics.height / float(win.layout_size)));
-			if(result.x <= line_width) {
-				formatted_text->SetMaxHeight(float(result.x * font.line_spacing));
-				formatted_text->SetMaxWidth(float(font.line_spacing));
-				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
-				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
-				result.y = 1;
-			} else {
-				formatted_text->SetMaxHeight(float(line_width * win.layout_size));
-				formatted_text->SetMaxWidth(float(100 * font.line_spacing));
-				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
-
-				formatted_text->GetMetrics(&text_metrics);
-				result.y = int16_t(std::ceil(text_metrics.lineCount * font.line_spacing / float(win.layout_size)));
-				result.x = int16_t(line_width);
-				formatted_text->SetMaxWidth(float(text_metrics.lineCount * font.line_spacing));
-				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
-			}
-		}
-
-		return result;
-	}
-
 	int32_t stored_text::get_lines_height(window_data const& win) const {
 		if(formatted_text) {
-			DWRITE_TEXT_METRICS text_metrics;
-			formatted_text->GetMetrics(&text_metrics);
-			return int32_t(text_metrics.lineCount * (draw_standard_size ? win.dynamic_settings.primary_font.line_spacing : win.dynamic_settings.small_font.line_spacing));
+			return text::get_height(win, formatted_text, draw_standard_size);
 		} else {
 			return 0;
 		}
 
 	}
 	stored_text::~stored_text() {
-		safe_release(formatted_text);
 	}
 	void stored_text::invalidate() {
-		safe_release(formatted_text);
+		formatted_text = nullptr;
 	}
 	void stored_text::relayout_text(window_data const& win, screen_space_point sz) {
 		if(!std::holds_alternative<std::monostate>(text_content)) {
-			if(std::holds_alternative<wrapped_text_instance>(text_content)) {
-				if(std::get<wrapped_text_instance>(text_content).text_generation != win.text_data.text_generation) {
-					safe_release(formatted_text);
-					std::get<wrapped_text_instance>(text_content).text_generation = win.text_data.text_generation;
-				}
-			} else if(std::holds_alternative<std::wstring>(text_content)) {
-				if(formatted_text) {
-					if(formatted_text->GetReadingDirection() !=
-						DWRITE_READING_DIRECTION(reading_direction_from_orientation(win.orientation)) ||
-						formatted_text->GetFlowDirection() != DWRITE_FLOW_DIRECTION(flow_direction_from_orientation(win.orientation))) {
-						safe_release(formatted_text);
-					}
-				}
-			}
-
-			if(!formatted_text) {
-				prepare_text(win);
-			}
-			if(formatted_text->GetMaxWidth() != float(sz.x))
-				formatted_text->SetMaxWidth(float(sz.x));
-			if(formatted_text->GetMaxHeight() != float(sz.y))
-				formatted_text->SetMaxHeight(float(sz.y));
+			prepare_text(win);
+			text::adjust_layout_region(formatted_text, sz.x, sz.y);
 		}
 	}
 
@@ -239,17 +141,13 @@ namespace printui {
 
 		if(std::holds_alternative<wrapped_text_instance>(text_content)) {
 			if(std::get<wrapped_text_instance>(text_content).text_generation != win.text_data.text_generation) {
-				safe_release(formatted_text);
+				formatted_text = nullptr;
 				std::get<wrapped_text_instance>(text_content).text_generation = win.text_data.text_generation;
 			}
 
 		} else if(std::holds_alternative<std::wstring>(text_content)) {
-			if(formatted_text) {
-				if(formatted_text->GetReadingDirection() !=
-					DWRITE_READING_DIRECTION(reading_direction_from_orientation(win.orientation)) ||
-					formatted_text->GetFlowDirection() != DWRITE_FLOW_DIRECTION(flow_direction_from_orientation(win.orientation))) {
-					safe_release(formatted_text);
-				}
+			if(formatted_text && !text::appropriate_directionality(win, formatted_text)) {
+				formatted_text = nullptr;
 			}
 		}
 
@@ -257,16 +155,20 @@ namespace printui {
 			if(std::holds_alternative<wrapped_text_instance>(text_content)) {
 				auto text_with_format = win.text_data.instantiate_text(std::get<wrapped_text_instance>(text_content).text_id, std::get<wrapped_text_instance>(text_content).stored_params, std::get<wrapped_text_instance>(text_content).stored_params + std::get<wrapped_text_instance>(text_content).params_count).text_content;
 
-				resolved_text_size = common_prepare_base_text_layout(win, formatted_text, text_with_format.text, text_alignment, draw_standard_size);
-
-				text::apply_formatting(formatted_text, text_with_format.formatting, win.dynamic_settings.named_fonts, win.dwrite_factory);
+				auto arrangement = win.text_interface->create_text_arragement(win, text_with_format.text, text_alignment, draw_standard_size, false, draw_standard_size ? win.dynamic_settings.line_width : win.dynamic_settings.small_width, &(text_with_format.formatting));
+				formatted_text = arrangement.ptr;
+				resolved_text_size = layout_position{int16_t(arrangement.width_used), int16_t(arrangement.lines_used) };
+				
 			} else if(std::holds_alternative<std::wstring>(text_content)) {
-				resolved_text_size = common_prepare_base_text_layout(win, formatted_text, std::get<std::wstring>(text_content), text_alignment, draw_standard_size);
+
+				auto arrangement = win.text_interface->create_text_arragement(win, std::get<std::wstring>(text_content), text_alignment, draw_standard_size, false, draw_standard_size ? win.dynamic_settings.line_width : win.dynamic_settings.small_width);
+				formatted_text = arrangement.ptr;
+				resolved_text_size = layout_position{ int16_t(arrangement.width_used), int16_t(arrangement.lines_used) };
 			}
 		}
 	}
 	void stored_text::draw_text(window_data const& win, int32_t x, int32_t y) const {
-		win.d2d_device_context->DrawTextLayout(D2D1_POINT_2F{ float(x), float(y) }, formatted_text, win.dummy_brush, 0 /*D2D1_DRAW_TEXT_OPTIONS_CLIP*/);
+		win.d2d_device_context->DrawTextLayout(D2D1_POINT_2F{ float(x), float(y) }, (IDWriteTextLayout*)(formatted_text.operator printui::text::arranged_text*()), win.dummy_brush, 0 /*D2D1_DRAW_TEXT_OPTIONS_CLIP*/);
 	}
 	void stored_text::set_text(std::wstring const& v) {
 		invalidate();
@@ -306,7 +208,6 @@ namespace printui {
 		ts_obj = win.text_services_interface->create_text_service_object(win, *this);
 	}
 	simple_editable_text::~simple_editable_text() {
-		safe_release(formatted_text);
 	}
 
 	void simple_editable_text::get_range_bounds(window_data& win, uint32_t position_start, uint32_t position_end, std::vector<screen_space_rect>& rects) {
@@ -318,12 +219,8 @@ namespace printui {
 		auto selection_end = std::max(position_start, position_end);
 
 		prepare_text(win);
-
-		uint32_t metrics_size = 0;
-		formatted_text->HitTestTextRange(selection_start, selection_end - selection_start, 0, 0, nullptr, 0, &metrics_size);
-
-		std::vector<DWRITE_HIT_TEST_METRICS> mstorage(metrics_size);
-		formatted_text->HitTestTextRange(selection_start, selection_end - selection_start, 0, 0, mstorage.data(), metrics_size, &metrics_size);
+;
+		auto mstorage = text::get_metrics_for_range(formatted_text, selection_start, selection_end - selection_start);
 
 		auto& node = win.get_node(l_id);
 		auto location = win.get_current_location(l_id);
@@ -346,16 +243,13 @@ namespace printui {
 		}
 	}
 
-	void make_regions_for_range(std::vector<simple_editable_text::selection_run>& cached_selection_region, IDWriteTextLayout* formatted_text, int32_t selection_start, int32_t selection_end, bool horizontal, text::text_analysis_object* analysis_obj) {
+	void make_regions_for_range(std::vector<simple_editable_text::selection_run>& cached_selection_region, text::arranged_text* formatted_text, int32_t selection_start, int32_t selection_end, bool horizontal, text::text_analysis_object* analysis_obj) {
 		
 		bool have_seen_end = false;
 		bool have_seen_start = false;
 
-		uint32_t metrics_size = 0;
-		formatted_text->HitTestTextRange(selection_start, selection_end - selection_start, 0, 0, nullptr, 0, &metrics_size);
 
-		std::vector<DWRITE_HIT_TEST_METRICS> mstorage(metrics_size);
-		formatted_text->HitTestTextRange(selection_start, selection_end - selection_start, 0, 0, mstorage.data(), metrics_size, &metrics_size);
+		auto mstorage = text::get_metrics_for_range(formatted_text, selection_start, selection_end - selection_start);
 
 		for(auto& r : mstorage) {
 			bool left_to_right_section = (r.bidiLevel % 2) == 0;
@@ -364,10 +258,7 @@ namespace printui {
 
 			if(int32_t(r.textPosition) < selection_start && selection_start < int32_t(r.textPosition + r.length)) {
 				//  selection start is strictly within region
-				DWRITE_HIT_TEST_METRICS curmetrics{};
-				float xout = 0;
-				float yout = 0;
-				formatted_text->HitTestTextPosition(selection_start, FALSE, &xout, &yout, &curmetrics);
+				auto curmetrics = text::get_metrics_at_position(formatted_text, selection_start);
 
 				int32_t num_positions_in_metrics = std::max(text::number_of_cursor_positions_in_range(analysis_obj, curmetrics.textPosition, curmetrics.length), 1);
 				int32_t num_positions_after_cursor = text::number_of_cursor_positions_in_range(analysis_obj, selection_start, (curmetrics.textPosition + curmetrics.length) - selection_start);
@@ -383,10 +274,7 @@ namespace printui {
 			if(int32_t(r.textPosition) < selection_end && selection_end < int32_t(r.textPosition + r.length)) {
 				//  selection end is strictly within region
 
-				DWRITE_HIT_TEST_METRICS curmetrics{};
-				float xout = 0;
-				float yout = 0;
-				formatted_text->HitTestTextPosition(selection_end, FALSE, &xout, &yout, &curmetrics);
+				auto curmetrics = text::get_metrics_at_position(formatted_text, selection_end);
 
 				int32_t num_positions_in_metrics = std::max(text::number_of_cursor_positions_in_range(analysis_obj, curmetrics.textPosition, curmetrics.length), 1);
 				int32_t num_positions_after_cursor = text::number_of_cursor_positions_in_range(analysis_obj, selection_end, (curmetrics.textPosition + curmetrics.length) - selection_end);
@@ -399,18 +287,16 @@ namespace printui {
 				}
 			}
 
-			if(int32_t(r.textPosition) <= selection_end && selection_end < +int32_t(r.textPosition + r.length))
+			if(int32_t(r.textPosition) <= selection_end - 1 && selection_end - 1 < int32_t(r.textPosition + r.length))
 				have_seen_end = true;
-			if(int32_t(r.textPosition) <= selection_start && selection_start < +int32_t(r.textPosition + r.length))
+			if(int32_t(r.textPosition) <= selection_start && selection_start < int32_t(r.textPosition + r.length))
 				have_seen_start = true;
 
 			cached_selection_region.push_back(simple_editable_text::selection_run{ selection_start_coord, selection_end_coord });
 		}
 		if(!have_seen_end) { // missing end of the selection, (why isn't it in the hittest region???)
-			DWRITE_HIT_TEST_METRICS curmetrics{};
-			float xout = 0;
-			float yout = 0;
-			formatted_text->HitTestTextPosition(selection_end, FALSE, &xout, &yout, &curmetrics);
+
+			auto curmetrics = text::get_metrics_at_position(formatted_text, selection_end - 1);
 
 			bool left_to_right_section = (curmetrics.bidiLevel % 2) == 0;
 			int32_t num_positions_in_metrics = std::max(text::number_of_cursor_positions_in_range(analysis_obj, curmetrics.textPosition, curmetrics.length), 1);
@@ -441,10 +327,7 @@ namespace printui {
 		}
 
 		if(!have_seen_start) { // missing end of the selection, (why isn't it in the hittest region???)
-			DWRITE_HIT_TEST_METRICS curmetrics{};
-			float xout = 0;
-			float yout = 0;
-			formatted_text->HitTestTextPosition(selection_start, FALSE, &xout, &yout, &curmetrics);
+			auto curmetrics = text::get_metrics_at_position(formatted_text, selection_start);
 
 			bool left_to_right_section = (curmetrics.bidiLevel % 2) == 0;
 			int32_t num_positions_in_metrics = std::max(text::number_of_cursor_positions_in_range(analysis_obj, curmetrics.textPosition, curmetrics.length), 1);
@@ -498,15 +381,8 @@ namespace printui {
 
 			cached_cursor_postion = 0;
 			if(formatted_text) {
-				DWRITE_HIT_TEST_METRICS curmetrics{};
-				float xout = 0.0f;
-				float yout = 0.0f;
-
 				bool is_at_text_end = cursor_position == text.length();
-				formatted_text->HitTestTextPosition(
-					is_at_text_end ? cursor_position - 1 :
-					cursor_position, FALSE,
-					&xout, &yout, &curmetrics);
+				auto curmetrics = text::get_metrics_at_position(formatted_text, is_at_text_end ? cursor_position - 1 : cursor_position);
 
 				float coff_pos = 0.0f;
 				bool left_to_right_section = (curmetrics.bidiLevel % 2) == 0;
@@ -569,7 +445,7 @@ namespace printui {
 	}
 
 	void simple_editable_text::internal_on_text_changed(window_data& win) {
-		safe_release(formatted_text);
+		formatted_text = nullptr;
 		analysis_out_of_date = true;
 		selection_out_of_date = true;
 		changes_made = true;
@@ -595,58 +471,40 @@ namespace printui {
 		if(win.is_visible(l_id)) {
 			win.window_interface->invalidate_window();
 
-			auto& node = win.get_node(l_id);
-			auto location = win.get_current_location(l_id);
-			ui_rectangle temp;
-			temp.x_position = uint16_t(location.x);
-			temp.y_position = uint16_t(location.y);
-			temp.width = uint16_t(location.width);
-			temp.height = uint16_t(location.height);
+			if(win.keyboard_target == this) {
+				auto& node = win.get_node(l_id);
+				auto location = win.get_current_location(l_id);
+				ui_rectangle temp;
+				temp.x_position = uint16_t(location.x);
+				temp.y_position = uint16_t(location.y);
+				temp.width = uint16_t(location.width);
+				temp.height = uint16_t(location.height);
 
-			auto new_content_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin() + node.right_margin()), 1, temp);
+				auto new_content_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin() + node.right_margin()), 1, temp);
 
-			D2D1_RECT_F adjusted_content_rect{
-				float(new_content_rect.x), float(new_content_rect.y),
-				float(new_content_rect.x + new_content_rect.width), float(new_content_rect.y + new_content_rect.height)
-			};
+				D2D1_RECT_F adjusted_content_rect{
+					float(new_content_rect.x), float(new_content_rect.y),
+					float(new_content_rect.x + new_content_rect.width), float(new_content_rect.y + new_content_rect.height)
+				};
 
-			if(horizontal(win.orientation))
-				win.window_interface->move_system_caret(int32_t(cached_cursor_postion + adjusted_content_rect.left), int32_t(adjusted_content_rect.top));
-			else
-				win.window_interface->move_system_caret(int32_t(adjusted_content_rect.left), int32_t(cached_cursor_postion + adjusted_content_rect.top));
+				if(horizontal(win.orientation))
+					win.window_interface->move_system_caret(int32_t(cached_cursor_postion + adjusted_content_rect.left), int32_t(adjusted_content_rect.top));
+				else
+					win.window_interface->move_system_caret(int32_t(adjusted_content_rect.left), int32_t(cached_cursor_postion + adjusted_content_rect.top));
+			}
 
 			win.text_services_interface->on_selection_change(ts_obj);
 		}
 	}
 
 	void simple_editable_text::prepare_text(window_data const& win) {
-		if(formatted_text) {
-			if(formatted_text->GetReadingDirection() !=
-				DWRITE_READING_DIRECTION(reading_direction_from_orientation(win.orientation)) ||
-				formatted_text->GetFlowDirection() != DWRITE_FLOW_DIRECTION(flow_direction_from_orientation(win.orientation))) {
-				safe_release(formatted_text);
-				analysis_out_of_date = true;
-				selection_out_of_date = true;
-			}
+		if(formatted_text && !text::appropriate_directionality(win, formatted_text)) {
+			formatted_text = nullptr;
+			analysis_out_of_date = true;
+			selection_out_of_date = true;
 		}
 
 		if(!formatted_text) {
-			auto text_format = win.common_text_format;
-			auto& font = win.dynamic_settings.primary_font;
-
-			text_format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-			text_format->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
-			text_format->SetReadingDirection(DWRITE_READING_DIRECTION(reading_direction_from_orientation(win.orientation)));
-			text_format->SetFlowDirection(DWRITE_FLOW_DIRECTION(flow_direction_from_orientation(win.orientation)));
-			text_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
-			text_format->SetOpticalAlignment(DWRITE_OPTICAL_ALIGNMENT_NO_SIDE_BEARINGS);
-
-			if(!horizontal(win.orientation)) {
-				text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, font.line_spacing, font.vertical_baseline);
-			} else {
-				text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, font.line_spacing, font.baseline);
-			}
-
 			// if the text ends in a space, a zero-width non joiner is placed at the end
 			// this "fixes" direct-write's problem of ignoring spaces for alignment
 			// UNRESOLVED: there may still be problems if the text is left-aligned and begins
@@ -656,41 +514,15 @@ namespace printui {
 			if(temp_text.length() > 0 && text::is_space(temp_text.back()))
 				temp_text += wchar_t(0x200C);
 
-			if(horizontal(win.orientation)) {
-				win.dwrite_factory->CreateTextLayout(temp_text.c_str(), uint32_t(temp_text.length()), text_format, 100.0f, float(font.line_spacing), &formatted_text);
-				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
-			} else {
-				win.dwrite_factory->CreateTextLayout(temp_text.c_str(), uint32_t(temp_text.length()), text_format, float(font.line_spacing), 100.0f, &formatted_text);
-				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
-			}
+			formatted_text = win.text_interface->create_text_arragement(win, temp_text, text_alignment, true, true, 100, nullptr).ptr;
 		}
 	}
 	void simple_editable_text::relayout_text(window_data const& win, screen_space_point sz) {
-		if(formatted_text) {
-			if(formatted_text->GetReadingDirection() !=
-				DWRITE_READING_DIRECTION(reading_direction_from_orientation(win.orientation)) ||
-				formatted_text->GetFlowDirection() != DWRITE_FLOW_DIRECTION(flow_direction_from_orientation(win.orientation))) {
-				safe_release(formatted_text);
-				analysis_out_of_date = true;
-				selection_out_of_date = true;
-			}
-		}
-
-
-		if(!formatted_text) {
-			prepare_text(win);
-		}
-		if(formatted_text->GetMaxWidth() != float(sz.x)) {
-			formatted_text->SetMaxWidth(float(sz.x));
-			selection_out_of_date = true;
-		}
-		if(formatted_text->GetMaxHeight() != float(sz.y)) {
-			formatted_text->SetMaxHeight(float(sz.y));
-			selection_out_of_date = true;
-		}
+		prepare_text(win);
+		text::adjust_layout_region(formatted_text, sz.x, sz.y);
 	}
 	void simple_editable_text::draw_text(window_data const& win, int32_t x, int32_t y) const {
-		win.d2d_device_context->DrawTextLayout(D2D1_POINT_2F{ float(x), float(y) }, formatted_text, win.dummy_brush, 0 /*D2D1_DRAW_TEXT_OPTIONS_CLIP*/);
+		win.d2d_device_context->DrawTextLayout(D2D1_POINT_2F{ float(x), float(y) }, (IDWriteTextLayout*)((text::arranged_text*)formatted_text), win.dummy_brush, 0 /*D2D1_DRAW_TEXT_OPTIONS_CLIP*/);
 	}
 
 	ui_rectangle simple_editable_text::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
@@ -870,22 +702,19 @@ namespace printui {
 
 		relayout_text(win, screen_space_point{ new_content_rect.width, new_content_rect.height });
 
-		BOOL is_trailing = FALSE;
-		BOOL is_inside = FALSE;
-		DWRITE_HIT_TEST_METRICS curmetrics{};
-		auto adj_x = float(pt.x - new_content_rect.x);
-		auto adj_y = float(pt.y - new_content_rect.y);
-		formatted_text->HitTestPoint(adj_x, adj_y, &is_trailing, &is_inside, &curmetrics);
+		auto adj_x = pt.x - new_content_rect.x;
+		auto adj_y = pt.y - new_content_rect.y;
+		auto ht = text::hit_test_text(formatted_text, adj_x, adj_y);
 
-		if(is_inside == FALSE) {
-			if(is_trailing == TRUE) {
-				return mouse_test_result{ std::min(curmetrics.textPosition + curmetrics.length, uint32_t(text.length())), 3 };
+		if(ht.is_inside == false) {
+			if(ht.is_trailing) {
+				return mouse_test_result{ std::min(ht.metrics.textPosition + ht.metrics.length, uint32_t(text.length())), 3 };
 			} else {
-				return mouse_test_result{ curmetrics.textPosition, 0};
+				return mouse_test_result{ ht.metrics.textPosition, 0};
 			}
-		} else if(curmetrics.length == 1) {
-			auto percentage = horizontal(win.orientation) ? (adj_x - curmetrics.left) / curmetrics.width : (adj_y - curmetrics.top) / curmetrics.height;
-			bool right_to_left_section = (curmetrics.bidiLevel % 2) != 0;
+		} else if(ht.metrics.length == 1) {
+			auto percentage = horizontal(win.orientation) ? (adj_x - ht.metrics.left) / ht.metrics.width : (adj_y - ht.metrics.top) / ht.metrics.height;
+			bool right_to_left_section = (ht.metrics.bidiLevel % 2) != 0;
 			if(right_to_left_section)
 				percentage = 1.0f - percentage;
 			uint32_t quadrent = 0;
@@ -899,18 +728,18 @@ namespace printui {
 				quadrent = 1;
 			}
 
-			return mouse_test_result{ curmetrics.textPosition + ((is_trailing == TRUE) != (right_to_left_section == true) ? 1 : 0), quadrent };
+			return mouse_test_result{ ht.metrics.textPosition + (ht.is_trailing != (right_to_left_section == true) ? 1 : 0), quadrent };
 		} else {
-			bool right_to_left_section = (curmetrics.bidiLevel % 2) != 0;
+			bool right_to_left_section = (ht.metrics.bidiLevel % 2) != 0;
 
-			auto percentage = horizontal(win.orientation) ? (adj_x - curmetrics.left) / curmetrics.width : (adj_y - curmetrics.top) / curmetrics.height;
+			auto percentage = horizontal(win.orientation) ? (adj_x - ht.metrics.left) / ht.metrics.width : (adj_y - ht.metrics.top) / ht.metrics.height;
 
 			prepare_analysis(win);
-			int32_t num_positions_in_metrics = std::max(text::number_of_cursor_positions_in_range(analysis_obj, curmetrics.textPosition, curmetrics.length), 1);
+			int32_t num_positions_in_metrics = std::max(text::number_of_cursor_positions_in_range(analysis_obj, ht.metrics.textPosition, ht.metrics.length), 1);
 
-			auto temp_text_pos = curmetrics.textPosition;
+			auto temp_text_pos = ht.metrics.textPosition;
 			int32_t count = 0;
-			while(temp_text_pos < curmetrics.textPosition + curmetrics.length) {
+			while(temp_text_pos < ht.metrics.textPosition + ht.metrics.length) {
 				auto next_pos = text::get_next_cursor_position(analysis_obj, temp_text_pos);
 
 				if(percentage < float(count + 1) / float(num_positions_in_metrics)) {
@@ -962,42 +791,38 @@ namespace printui {
 			auto adjusted_x = pt.x - (new_content_rect.x - temp.x_position);
 			auto adjusted_y = pt.y - (new_content_rect.y - temp.y_position);
 
-			BOOL is_trailing = FALSE;
-			BOOL is_inside = FALSE;
-			DWRITE_HIT_TEST_METRICS curmetrics{};
-			formatted_text->HitTestPoint(float(adjusted_x), float(adjusted_y), &is_trailing, &is_inside, &curmetrics);
-
-			if(is_inside == FALSE) {
-				if(is_trailing == TRUE) {
-					return std::min(curmetrics.textPosition + curmetrics.length, uint32_t(text.length()));
+			auto ht = text::hit_test_text(formatted_text, adjusted_x, adjusted_y);
+			if(ht.is_inside == false) {
+				if(ht.is_trailing) {
+					return std::min(ht.metrics.textPosition + ht.metrics.length, uint32_t(text.length()));
 				} else {
-					return curmetrics.textPosition;
+					return ht.metrics.textPosition;
 				}
-			} else if(curmetrics.length == 1) {
-				if(is_trailing == TRUE) {
-					return std::min(curmetrics.textPosition + 1, uint32_t(text.length()));
+			} else if(ht.metrics.length == 1) {
+				if(ht.is_trailing) {
+					return std::min(ht.metrics.textPosition + 1, uint32_t(text.length()));
 				} else {
-					return curmetrics.textPosition;
+					return ht.metrics.textPosition;
 				}
 			} else {
 				prepare_analysis(win);
-				int32_t num_positions_in_metrics = std::max(text::number_of_cursor_positions_in_range(analysis_obj, curmetrics.textPosition, curmetrics.length), 1);
+				int32_t num_positions_in_metrics = std::max(text::number_of_cursor_positions_in_range(analysis_obj, ht.metrics.textPosition, ht.metrics.length), 1);
 
 				if(num_positions_in_metrics == 1) {
-					if(is_trailing == TRUE) {
-						return std::min(curmetrics.textPosition + curmetrics.length, uint32_t(text.length()));
+					if(ht.is_trailing) {
+						return std::min(ht.metrics.textPosition + ht.metrics.length, uint32_t(text.length()));
 					} else {
-						return curmetrics.textPosition;
+						return ht.metrics.textPosition;
 					}
 				} else {
-					bool left_to_right_section = (curmetrics.bidiLevel % 2) == 0;
-					float percentage_in_region = horizontal(win.orientation) ? ((adjusted_x - curmetrics.left) / curmetrics.width) : ((adjusted_y - curmetrics.top) / curmetrics.height);
+					bool left_to_right_section = (ht.metrics.bidiLevel % 2) == 0;
+					float percentage_in_region = horizontal(win.orientation) ? ((adjusted_x - ht.metrics.left) / ht.metrics.width) : ((adjusted_y - ht.metrics.top) / ht.metrics.height);
 					if(!left_to_right_section)
 						percentage_in_region = 1.0f - percentage_in_region;
 					float section_size = 1.0f / float(num_positions_in_metrics);
 					float running_total = section_size / 2.0f;
 
-					auto temp_text_pos = curmetrics.textPosition;
+					auto temp_text_pos = ht.metrics.textPosition;
 					[&]() {
 						if(percentage_in_region <= running_total) {
 							return;
@@ -1010,7 +835,7 @@ namespace printui {
 							}
 							temp_text_pos = text::get_next_cursor_position(analysis_obj, temp_text_pos);
 						}
-						temp_text_pos = int32_t(std::min(curmetrics.textPosition + curmetrics.length, uint32_t(text.length())));
+						temp_text_pos = int32_t(std::min(ht.metrics.textPosition + ht.metrics.length, uint32_t(text.length())));
 					}();
 					return temp_text_pos;
 				}
@@ -1039,42 +864,39 @@ namespace printui {
 					auto adjusted_x = x - (new_content_rect.x - temp.x_position);
 					auto adjusted_y = y - (new_content_rect.y - temp.y_position);
 
-					BOOL is_trailing = FALSE;
-					BOOL is_inside = FALSE;
-					DWRITE_HIT_TEST_METRICS curmetrics{};
-					formatted_text->HitTestPoint(float(adjusted_x), float(adjusted_y), &is_trailing, &is_inside, &curmetrics);
+					auto ht = text::hit_test_text(formatted_text, adjusted_x, adjusted_y);
 
-					if(is_inside == FALSE) {
-						if(is_trailing == TRUE) {
-							cursor_position = int32_t(std::min(curmetrics.textPosition + curmetrics.length, uint32_t(text.length())));
+					if(ht.is_inside == false) {
+						if(ht.is_trailing) {
+							cursor_position = int32_t(std::min(ht.metrics.textPosition + ht.metrics.length, uint32_t(text.length())));
 						} else {
-							cursor_position = int32_t(curmetrics.textPosition);
+							cursor_position = int32_t(ht.metrics.textPosition);
 						}
-					} else if(curmetrics.length == 1) {
-						if(is_trailing == TRUE) {
-							cursor_position = int32_t(std::min(curmetrics.textPosition + 1, uint32_t(text.length())));
+					} else if(ht.metrics.length == 1) {
+						if(ht.is_trailing) {
+							cursor_position = int32_t(std::min(ht.metrics.textPosition + 1, uint32_t(text.length())));
 						} else {
-							cursor_position = int32_t(curmetrics.textPosition);
+							cursor_position = int32_t(ht.metrics.textPosition);
 						}
 					} else {
 						prepare_analysis(win);
-						int32_t num_positions_in_metrics = std::max(text::number_of_cursor_positions_in_range(analysis_obj, curmetrics.textPosition, curmetrics.length), 1);
+						int32_t num_positions_in_metrics = std::max(text::number_of_cursor_positions_in_range(analysis_obj, ht.metrics.textPosition, ht.metrics.length), 1);
 
 						if(num_positions_in_metrics == 1) {
-							if(is_trailing == TRUE) {
-								cursor_position = int32_t(std::min(curmetrics.textPosition + curmetrics.length, uint32_t(text.length())));
+							if(ht.is_trailing) {
+								cursor_position = int32_t(std::min(ht.metrics.textPosition + ht.metrics.length, uint32_t(text.length())));
 							} else {
-								cursor_position = int32_t(curmetrics.textPosition);
+								cursor_position = int32_t(ht.metrics.textPosition);
 							}
 						} else {
-							bool left_to_right_section = (curmetrics.bidiLevel % 2) == 0;
-							float percentage_in_region = horizontal(win.orientation) ? ((adjusted_x - curmetrics.left) / curmetrics.width) : ((adjusted_y - curmetrics.top) / curmetrics.height);
+							bool left_to_right_section = (ht.metrics.bidiLevel % 2) == 0;
+							float percentage_in_region = horizontal(win.orientation) ? ((adjusted_x - ht.metrics.left) / ht.metrics.width) : ((adjusted_y - ht.metrics.top) / ht.metrics.height);
 							if(!left_to_right_section)
 								percentage_in_region = 1.0f - percentage_in_region;
 							float section_size = 1.0f / float(num_positions_in_metrics);
 							float running_total = section_size / 2.0f;
 
-							cursor_position = int32_t(curmetrics.textPosition);
+							cursor_position = int32_t(ht.metrics.textPosition);
 							[&]() {
 								if(percentage_in_region <= running_total) {
 									return;
@@ -1087,7 +909,7 @@ namespace printui {
 									}
 									cursor_position = text::get_next_cursor_position(analysis_obj, cursor_position);
 								}
-								cursor_position = int32_t(std::min(curmetrics.textPosition + curmetrics.length, uint32_t(text.length())));
+								cursor_position = int32_t(std::min(ht.metrics.textPosition + ht.metrics.length, uint32_t(text.length())));
 							}();
 						}
 					}
@@ -1618,10 +1440,6 @@ namespace printui {
 		if(l_id == layout_reference_none || !formatted_text)
 			return screen_space_rect{ 0,0,0,0 };
 
-		DWRITE_HIT_TEST_METRICS curmetrics{};
-		float xout = 0.0f;
-		float yout = 0.0f;
-
 		auto& node = win.get_node(l_id);
 		auto location = win.get_current_location(l_id);
 		ui_rectangle temp;
@@ -1632,10 +1450,9 @@ namespace printui {
 
 		auto new_content_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin() + node.right_margin()), 1, temp);
 
-		formatted_text->HitTestTextPosition(
-			position,  FALSE, &xout, &yout, &curmetrics);
+		auto m = text::get_metrics_at_position(formatted_text, position);
 
-		return screen_space_rect{ int32_t(new_content_rect.x + curmetrics.left), int32_t(new_content_rect.y + curmetrics.top), int32_t(curmetrics.width), int32_t(curmetrics.height) };
+		return screen_space_rect{ int32_t(new_content_rect.x + m.left), int32_t(new_content_rect.y + m.top), int32_t(m.width), int32_t(m.height) };
 	}
 
 	void simple_editable_text::set_disabled(window_data& win, bool v) {
@@ -1711,6 +1528,31 @@ namespace printui {
 		internal_on_text_changed(win);
 		win.text_services_interface->on_text_change(ts_obj, uint32_t(0), uint32_t(old_length), uint32_t(text.length()));
 		win.window_interface->invalidate_window();
+	}
+	void simple_editable_text::quiet_set_text(window_data& win, std::wstring const& t) {
+		auto old_length = text.length();
+		text = t;
+		cursor_position = int32_t(t.length());
+		anchor_position = int32_t(t.length());
+
+		internal_on_selection_changed(win);
+		win.text_services_interface->on_text_change(ts_obj, uint32_t(0), uint32_t(old_length), uint32_t(text.length()));
+
+		formatted_text = nullptr;
+		analysis_out_of_date = true;
+		selection_out_of_date = true;
+		changes_made = true;
+		win.flag_for_update_from_interface(this);
+		if(acc_obj && win.is_visible(l_id)) {
+			win.accessibility_interface->on_text_content_changed(acc_obj);
+			if(edit_type != edit_contents::number)
+				win.accessibility_interface->on_text_value_changed(acc_obj);
+			else
+				win.accessibility_interface->on_text_numeric_value_changed(acc_obj);
+		}
+
+		if(win.is_visible(l_id))
+			win.window_interface->invalidate_window();
 	}
 	uint16_t simple_editable_text::get_alt_text() const {
 		return alt_text;

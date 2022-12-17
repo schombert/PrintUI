@@ -329,7 +329,7 @@ namespace printui {
 				win.repopulate_interactable_statuses();
 
 			win.d2d_device_context->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
-			win.window_interface->set_text_rendering_parameters(win.d2d_device_context, win.dwrite_factory);
+			win.window_interface->set_text_rendering_parameters(win.d2d_device_context, win.text_interface.get());
 
 			win.d2d_device_context->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
 
@@ -420,7 +420,7 @@ namespace printui {
 			ID2D1Geometry* old_rects = nullptr;
 
 			win.d2d_device_context->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
-			win.window_interface->set_text_rendering_parameters(win.d2d_device_context, win.dwrite_factory);
+			win.window_interface->set_text_rendering_parameters(win.d2d_device_context, win.text_interface.get());
 
 			win.d2d_device_context->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
 
@@ -455,7 +455,7 @@ namespace printui {
 		void foregrounds(std::vector<ui_rectangle>& uirects, window_data& win) {
 
 			win.d2d_device_context->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
-			win.window_interface->set_text_rendering_parameters(win.d2d_device_context, win.dwrite_factory);
+			win.window_interface->set_text_rendering_parameters(win.d2d_device_context, win.text_interface.get());
 
 			win.d2d_device_context->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
 
@@ -597,9 +597,6 @@ namespace printui {
 		}
 	}
 
-	void window_data::init_layout_graphics() {
-	}
-
 	void standard_icons::redraw_icons(window_data& win) {
 		for(uint32_t i = 0; i < standard_icons::final_icon; ++i) {
 			icons[i].redraw_image(win);
@@ -623,33 +620,7 @@ namespace printui {
 
 	void window_data::create_interactiable_tags() {
 
-		IDWriteTextFormat3* label_format;
-
-		DWRITE_FONT_AXIS_VALUE fax[] = {
-			DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WEIGHT, DWRITE_FONT_WEIGHT_BOLD},
-			DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WIDTH, 100.0f } ,
-			DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_ITALIC, 0.0f } };
-
-		float target_pixels = float(layout_size) * 0.70f;
-
-		IDWriteFont3* label_font = nullptr;
-
-		IDWriteFontList2* fl;
-		font_collection->GetMatchingFonts(L"Arial", fax, 3, &fl);
-		fl->GetFont(0, &label_font);
-		safe_release(fl);
-
-		DWRITE_FONT_METRICS label_metrics;
-		label_font->GetMetrics(&label_metrics);
-		safe_release(label_font);
-
-		auto font_size = float(label_metrics.designUnitsPerEm) * target_pixels / float(label_metrics.ascent + label_metrics.descent + label_metrics.lineGap);
-		auto unscaled_font_size = float(label_metrics.designUnitsPerEm) * float(layout_size) / float(label_metrics.ascent + label_metrics.descent + label_metrics.lineGap);
-		auto baseline = float(label_metrics.ascent) * ((font_size * 2.0f + unscaled_font_size) / 3.0f) / (float(label_metrics.designUnitsPerEm));
-
-		dwrite_factory->CreateTextFormat(L"Arial", font_collection, fax, 3, font_size, L"", &label_format);
-		label_format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
-		label_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
+		auto label_format = text_interface->create_text_format(L"Arial", (layout_size * 15) / 32);
 
 		load_base_interactable_tags(*this);
 
@@ -670,9 +641,8 @@ namespace printui {
 			d2d_device_context->BeginDraw();
 			d2d_device_context->Clear(D2D1_COLOR_F{ 0.0f,0.0f,0.0f,0.0f });
 
-			d2d_device_context->DrawTextW(keyname, length, label_format,
-				D2D1_RECT_F{ 0.0f, dynamic_settings.primary_font.baseline - baseline, float(layout_size), dynamic_settings.primary_font.baseline - baseline + float(layout_size) },
-				dummy_brush);
+			d2d_device_context->DrawTextW(keyname, length, (IDWriteTextFormat3*)(label_format.ptr),
+				D2D1_RECT_F{ 0.0f, (float(layout_size) * 47.0f) / 64.0f - label_format.baseline, float(layout_size), float(layout_size) }, dummy_brush);
 
 			d2d_device_context->EndDraw();
 		}
@@ -693,9 +663,8 @@ namespace printui {
 			d2d_device_context->BeginDraw();
 			d2d_device_context->Clear(D2D1_COLOR_F{ 0.0f,0.0f,0.0f,0.0f });
 
-			d2d_device_context->DrawTextW(button_names + i, 1, label_format,
-				D2D1_RECT_F{ 0.0f, dynamic_settings.primary_font.baseline - baseline, float(layout_size), dynamic_settings.primary_font.baseline - baseline + float(layout_size) },
-				dummy_brush);
+			d2d_device_context->DrawTextW(button_names + i, 1, (IDWriteTextFormat3*)(label_format.ptr),
+				D2D1_RECT_F{ 0.0f, (float(layout_size) * 5.0f) / 6.0f - label_format.baseline, float(layout_size), float(layout_size) }, dummy_brush);
 
 			d2d_device_context->EndDraw();
 		}
@@ -799,7 +768,7 @@ namespace printui {
 			safe_release(button_text_bitmaps[i]);
 		}
 
-		safe_release(label_format);
+		text_interface->release_text_format(label_format);
 	}
 
 

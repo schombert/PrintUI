@@ -23,6 +23,7 @@
 #include <UIAutomation.h>
 #include "printui_windows_definitions.hpp"
 #include "printui_accessibility_definitions.hpp"
+#include "printui_text_definitions.hpp"
 
 #define XINPUT_ON_GAMEINPUT_NO_XINPUTENABLE
 
@@ -301,17 +302,19 @@ namespace printui {
 		SetWindowText((HWND)(m_hwnd), t);
 	}
 
-	void os_win32_wrapper::set_text_rendering_parameters(ID2D1DeviceContext5* dc, IDWriteFactory6* fac) {
+	void os_win32_wrapper::set_text_rendering_parameters(ID2D1DeviceContext5* dc, text::wrapper* fac) {
+		auto real_ptr = (text::direct_write_text*)(fac);
+
 		IDWriteRenderingParams* rparams = nullptr;
 		auto monitor_handle = MonitorFromWindow((HWND)(m_hwnd), MONITOR_DEFAULTTOPRIMARY);
-		fac->CreateMonitorRenderingParams(monitor_handle, &rparams);
+		real_ptr->dwrite_factory->CreateMonitorRenderingParams(monitor_handle, &rparams);
 		if(rparams) {
 			dc->SetTextRenderingParams(rparams);
 			safe_release(rparams);
 		}
 	}
 
-	window_data::window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai, std::shared_ptr<text::text_services_wrapper> const& ts, std::unique_ptr<file_system_wrapper>&& file_system) : window_bar(*this, mn, mx, settings, setting_items), window_interface(std::move(wi)), accessibility_interface(std::move(ai)), text_services_interface(ts), file_system(std::move(file_system)) {
+	window_data::window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai, std::shared_ptr<text::text_services_wrapper> const& ts, std::unique_ptr<file_system_wrapper>&& file_system, std::unique_ptr<text::wrapper>&& text_interface) : window_bar(*this, mn, mx, settings, setting_items), window_interface(std::move(wi)), accessibility_interface(std::move(ai)), text_services_interface(ts), file_system(std::move(file_system)), text_interface(std::move(text_interface)) {
 		horizontal_interactable_bg.file_name = L"left_select_i.svg";
 		horizontal_interactable_bg.edge_padding = 0.0f;
 		vertical_interactable_bg.file_name = L"top_select_i.svg";
@@ -375,12 +378,7 @@ namespace printui {
 			dynamic_settings.settings_changed = false;
 		}
 
-		safe_release(common_text_format);
-		safe_release(small_text_format);
-		safe_release(font_fallbacks);
-		safe_release(small_font_fallbacks);
 		safe_release(d2d_factory);
-		safe_release(dwrite_factory);
 		safe_release(wic_factory);
 
 		safe_release(light_selected);
@@ -397,7 +395,6 @@ namespace printui {
 		safe_release(animation_foreground);
 		safe_release(animation_background);
 
-		safe_release(font_collection);
 
 		for(uint32_t i = 0; i < 12; ++i) {
 			safe_release(horizontal_interactable[i]);
@@ -449,125 +446,14 @@ namespace printui {
 		);
 	}
 
-	void window_data::intitialize_fonts() {
+
+	void window_data::on_dpi_change() {
 		layout_size = int32_t(std::round(dynamic_settings.global_size_multiplier * float(dynamic_settings.layout_base_size) * dpi / 96.0f));
 		window_border = int32_t(std::round(float(dynamic_settings.window_border) * dpi / 96.0f));
 
-		// metrics
-		{
-			IDWriteFont3* f = nullptr;
-			IDWriteFont3* f2 = nullptr;
-
-			IDWriteFontList2* fl;
-			DWRITE_FONT_AXIS_VALUE fax[] = {
-				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WEIGHT,
-					to_font_weight(dynamic_settings.primary_font.is_bold)},
-				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WIDTH,
-					to_font_span(dynamic_settings.primary_font.span) } ,
-				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_ITALIC,
-					to_font_style(dynamic_settings.primary_font.is_oblique) },
-				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_OPTICAL_SIZE,
-					float(layout_size) * 0.9f * 96.0f / dpi } };
-
-			font_collection->GetMatchingFonts(dynamic_settings.primary_font.name.c_str(), fax, 4, &fl);
-			fl->GetFont(0, &f);
-			safe_release(fl);
-
-			IDWriteFontList2* fl2;
-			DWRITE_FONT_AXIS_VALUE fax2[] = {
-				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WEIGHT,
-					to_font_weight(dynamic_settings.small_font.is_bold)},
-				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WIDTH,
-					to_font_span(dynamic_settings.small_font.span) } ,
-				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_ITALIC,
-					to_font_style(dynamic_settings.small_font.is_oblique) },
-				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_OPTICAL_SIZE,
-					float(layout_size) * 0.9f * 0.75f * 96.0f / dpi } };
-
-			font_collection->GetMatchingFonts(dynamic_settings.small_font.name.c_str(), fax2, 4, &fl2);
-			fl2->GetFont(0, &f2);
-			safe_release(fl2);
-
-			text::update_font_metrics(dynamic_settings.primary_font, dwrite_factory, text_data.locale_string(), float(layout_size), dynamic_settings.global_size_multiplier * dpi / 96.0f, f);
-			text::update_font_metrics(dynamic_settings.small_font, dwrite_factory, text_data.locale_string(), std::round(float(layout_size) * 3.0f / 4.0f), dynamic_settings.global_size_multiplier * dpi / 96.0f, f2);
-
-			safe_release(f2);
-			safe_release(f);
-		}
-
-		// text formats
-		{
-			safe_release(common_text_format);
-
-			DWRITE_FONT_AXIS_VALUE fax[] = {
-				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WEIGHT,
-					to_font_weight(dynamic_settings.primary_font.is_bold)},
-				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WIDTH,
-					to_font_span(dynamic_settings.primary_font.span) } ,
-				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_ITALIC,
-					to_font_style(dynamic_settings.primary_font.is_oblique) } ,
-				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_OPTICAL_SIZE,
-					dynamic_settings.primary_font.font_size * 96.0f / dpi } };
-
-			dwrite_factory->CreateTextFormat(dynamic_settings.primary_font.name.c_str(), font_collection, fax, 4, dynamic_settings.primary_font.font_size, L"", &common_text_format);
-			common_text_format->SetFontFallback(font_fallbacks);
-			common_text_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
-			common_text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, dynamic_settings.primary_font.line_spacing, dynamic_settings.primary_font.baseline);
-			common_text_format->SetAutomaticFontAxes(DWRITE_AUTOMATIC_FONT_AXES_OPTICAL_SIZE);
-			
-		}
-		{
-			safe_release(small_text_format);
-
-			DWRITE_FONT_AXIS_VALUE fax[] = {
-				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WEIGHT,
-					to_font_weight(dynamic_settings.small_font.is_bold)},
-				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WIDTH,
-					to_font_span(dynamic_settings.small_font.span) } ,
-				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_ITALIC,
-					to_font_style(dynamic_settings.small_font.is_oblique) },
-				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_OPTICAL_SIZE,
-					dynamic_settings.small_font.font_size * 96.0f / dpi} };
-
-			dwrite_factory->CreateTextFormat(dynamic_settings.small_font.name.c_str(), font_collection, fax, 4, dynamic_settings.small_font.font_size, L"", &small_text_format);
-			small_text_format->SetFontFallback(small_font_fallbacks);
-
-			small_text_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
-			small_text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, dynamic_settings.small_font.line_spacing, dynamic_settings.small_font.baseline);
-			small_text_format->SetAutomaticFontAxes(DWRITE_AUTOMATIC_FONT_AXES_OPTICAL_SIZE);
-		}
-	}
-
-	void window_data::initialize_font_fallbacks() {
-		file_system->load_global_font_fallbacks(dynamic_settings);
-
-		{
-			safe_release(font_fallbacks);
-			IDWriteFontFallbackBuilder* bldr = nullptr;
-			dwrite_factory->CreateFontFallbackBuilder(&bldr);
-
-			text::load_fallbacks_by_type(dynamic_settings.fallbacks, dynamic_settings.primary_font.type, bldr, font_collection, dwrite_factory);
-
-			bldr->CreateFontFallback(&font_fallbacks);
-			safe_release(bldr);
-		}
-		{
-			safe_release(small_font_fallbacks);
-			IDWriteFontFallbackBuilder* bldr = nullptr;
-			dwrite_factory->CreateFontFallbackBuilder(&bldr);
-
-			text::load_fallbacks_by_type(dynamic_settings.fallbacks, dynamic_settings.small_font.type, bldr, font_collection, dwrite_factory);
-
-			bldr->CreateFontFallback(&small_font_fallbacks);
-			safe_release(bldr);
-		}
-	}
-
-	void window_data::on_dpi_change() {
-		intitialize_fonts();
+		text_interface->initialize_fonts(*this);
 
 		//todo: icons.
-		init_layout_graphics();
 		common_icons.redraw_icons(*this);
 		create_interactiable_tags();
 
@@ -578,9 +464,7 @@ namespace printui {
 	void window_data::create_persistent_resources() {
 		D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &d2d_factory);
 		CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_IWICImagingFactory, reinterpret_cast<void**>(&wic_factory));
-		DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(dwrite_factory), reinterpret_cast<IUnknown**>(&dwrite_factory));
-
-		//load_launch_settings(dynamic_settings, text_data.font_name_to_index);
+		
 
 		{
 			D2D1_STROKE_STYLE_PROPERTIES style_prop;
@@ -595,7 +479,7 @@ namespace printui {
 		}
 
 		//fonts
-		text::create_font_collection(*this);
+		text_interface->create_font_collection(*this);
 	}
 
 	void window_data::expand_to_fit_content() {

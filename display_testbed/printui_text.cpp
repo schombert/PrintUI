@@ -26,113 +26,6 @@
 #pragma comment(lib, "Usp10.lib")
 
 namespace printui::text {
-	void load_fallbacks_by_type(std::vector<font_fallback> const& fb, font_type type, IDWriteFontFallbackBuilder* bldr, IDWriteFontCollection1* collection, IDWriteFactory6* dwrite_factory) {
-		for(auto& f : fb) {
-			if(f.type == type) {
-				WCHAR const* fn[] = { f.name.c_str() };
-				std::vector<DWRITE_UNICODE_RANGE> ranges;
-				for(auto& r : f.ranges) {
-					ranges.push_back(DWRITE_UNICODE_RANGE{ r.start, r.end });
-				}
-
-				bldr->AddMapping(ranges.data(), uint32_t(ranges.size()), fn, 1, collection, nullptr, nullptr, f.scale);
-			}
-		}
-
-		IDWriteFontFallback* system_fallback;
-		dwrite_factory->GetSystemFontFallback(&system_fallback);
-		bldr->AddMappings(system_fallback);
-		safe_release(system_fallback);
-	}
-
-	void load_fonts_from_directory(window_data const& win, std::wstring const& directory, IDWriteFontSetBuilder2* bldr) {
-		win.file_system->for_each_filtered_file(directory + L"\\*.otf", [bldr, &directory](std::wstring const& name) {
-			std::wstring fname = directory + L"\\" + name;
-			bldr->AddFontFile(fname.c_str());
-		});
-		win.file_system->for_each_filtered_file(directory + L"\\*.ttf", [bldr, &directory](std::wstring const& name) {
-			std::wstring fname = directory + L"\\" + name;
-			bldr->AddFontFile(fname.c_str());
-		});
-	}
-
-	void update_font_metrics(font_description& desc, IDWriteFactory6* dwrite_factory, wchar_t const* locale, float target_pixels, float dpi_scale, IDWriteFont* font) {
-
-		DWRITE_FONT_METRICS metrics;
-		font->GetMetrics(&metrics);
-
-		
-		desc.line_spacing = target_pixels;
-
-		auto top_lead = std::floor(desc.top_leading * dpi_scale);
-		auto bottom_lead = std::floor(desc.bottom_leading * dpi_scale);
-
-		// try to get cap height an integral number of pixels
-		auto temp_font_size = float(metrics.designUnitsPerEm) * (target_pixels - (top_lead + bottom_lead)) / float(metrics.ascent + metrics.descent + metrics.lineGap);
-		auto temp_cap_height = float(metrics.capHeight) * temp_font_size / (float(metrics.designUnitsPerEm));
-		auto desired_cap_height = std::round(temp_cap_height);
-		auto adjusted_size = (metrics.capHeight > 0 && metrics.capHeight <= metrics.ascent) ? desired_cap_height * float(metrics.designUnitsPerEm) / float(metrics.capHeight) : temp_font_size;
-
-		desc.font_size = adjusted_size;
-		desc.baseline = std::round(top_lead + float(metrics.ascent + metrics.lineGap / 2) * temp_font_size / (float(metrics.designUnitsPerEm)));
-
-		desc.descender = float(metrics.descent) * desc.font_size / (float(metrics.designUnitsPerEm));
-
-		IDWriteTextAnalyzer* analyzer_base = nullptr;
-		IDWriteTextAnalyzer1* analyzer = nullptr;
-		auto hr = dwrite_factory->CreateTextAnalyzer(&analyzer_base);
-
-		desc.vertical_baseline = std::round(target_pixels / 2.0f);
-
-		if(SUCCEEDED(hr)) {
-			hr = analyzer_base->QueryInterface(IID_PPV_ARGS(&analyzer));
-		}
-		if(SUCCEEDED(hr)) {
-			IDWriteFontFace* face = nullptr;
-			font->CreateFontFace(&face);
-
-			BOOL vert_exists_out = FALSE;
-			int32_t vert_base_out = 0;
-			analyzer->GetBaseline(face, DWRITE_BASELINE_CENTRAL, TRUE, TRUE, DWRITE_SCRIPT_ANALYSIS{}, locale, &vert_base_out, &vert_exists_out);
-
-			desc.vertical_baseline = std::round(top_lead + float(vert_base_out) * desc.font_size / (float(metrics.designUnitsPerEm)));
-
-			safe_release(face);
-		}
-		safe_release(analyzer);
-		safe_release(analyzer_base);
-	}
-
-
-	void create_font_collection(window_data& win) {
-		safe_release(win.font_collection);
-
-		IDWriteFontSetBuilder2* bldr = nullptr;
-		win.dwrite_factory->CreateFontSetBuilder(&bldr);
-
-		{
-			auto root = win.file_system->get_root_directory();
-			auto font_dir = root + win.dynamic_settings.font_directory;
-			load_fonts_from_directory(win, font_dir, bldr);
-		}
-		{
-			auto root = win.file_system->get_common_printui_directory();
-			auto font_dir = root + win.dynamic_settings.font_directory;
-			load_fonts_from_directory(win, font_dir, bldr);
-		}
-
-		IDWriteFontSet* sysfs = nullptr;
-		win.dwrite_factory->GetSystemFontSet(&sysfs);
-		if(sysfs) bldr->AddFontSet(sysfs);
-
-		IDWriteFontSet* fs = nullptr;
-		bldr->CreateFontSet(&fs);
-		win.dwrite_factory->CreateFontCollectionFromFontSet(fs, DWRITE_FONT_FAMILY_MODEL_TYPOGRAPHIC, &win.font_collection);
-
-		safe_release(fs);
-		safe_release(sysfs);
-		safe_release(bldr);
-	}
 
 	struct param_id_position_pair {
 		int32_t param_id;
@@ -1177,8 +1070,8 @@ namespace printui::text {
 		}
 
 		win.dynamic_settings.fallbacks.clear();
-		win.initialize_font_fallbacks();
-		win.intitialize_fonts();
+		win.text_interface->initialize_font_fallbacks(win);
+		win.text_interface->initialize_fonts(win);
 
 		// load text from files
 		populate_text_content(win);
@@ -2097,199 +1990,6 @@ namespace printui::text {
 
 	void apply_small_caps_options(IDWriteTypography* t) {
 		t->AddFontFeature(DWRITE_FONT_FEATURE{ DWRITE_FONT_FEATURE_TAG_SMALL_CAPITALS, 1 });
-	}
-
-
-
-	void apply_formatting(IDWriteTextLayout* target, std::vector<format_marker> const& formatting, std::vector<font_description> const& named_fonts, IDWriteFactory6* dwrite_factory) {
-
-		{
-			//apply fonts
-			std::vector<uint32_t> font_stack;
-			uint32_t font_start = 0;
-
-			for(auto f : formatting) {
-				format_marker j;
-				if(std::holds_alternative<font_id>(f.format)) {
-					auto fid = std::get<font_id>(f.format);
-					if(fid.id < named_fonts.size()) {
-						if(font_stack.empty()) {
-							font_stack.push_back(fid.id);
-							font_start = f.position;
-
-						} else if(font_stack.back() != fid.id) {
-							target->SetFontFamilyName(named_fonts[font_stack.back()].name.c_str(), DWRITE_TEXT_RANGE{ font_start, f.position });
-							if(named_fonts[font_stack.back()].is_bold) {
-								target->SetFontWeight(DWRITE_FONT_WEIGHT_BOLD, DWRITE_TEXT_RANGE{ font_start, f.position });
-							}
-							if(named_fonts[font_stack.back()].is_oblique) {
-								target->SetFontStyle(DWRITE_FONT_STYLE_OBLIQUE, DWRITE_TEXT_RANGE{ font_start, f.position });
-							}
-
-							font_stack.push_back(fid.id);
-							font_start = f.position;
-
-						} else {
-							target->SetFontFamilyName(named_fonts[fid.id].name.c_str(), DWRITE_TEXT_RANGE{ font_start, f.position });
-							if(named_fonts[fid.id].is_bold) {
-								target->SetFontWeight(DWRITE_FONT_WEIGHT_BOLD, DWRITE_TEXT_RANGE{ font_start, f.position });
-							}
-							if(named_fonts[fid.id].is_oblique) {
-								target->SetFontStyle(DWRITE_FONT_STYLE_OBLIQUE, DWRITE_TEXT_RANGE{ font_start, f.position });
-							}
-
-							font_stack.pop_back();
-							font_start = f.position;
-						}
-					}
-				}
-			}
-		}
-
-		{
-			//apply bold
-			bool bold_is_applied = false;
-			uint32_t bold_start = 0;
-			for(auto f : formatting) {
-				format_marker j;
-				if(std::holds_alternative<extra_formatting>(f.format)) {
-					if(std::get<extra_formatting>(f.format) == extra_formatting::bold) {
-						if(bold_is_applied) {
-							target->SetFontWeight(DWRITE_FONT_WEIGHT_BOLD, DWRITE_TEXT_RANGE{ bold_start, f.position });
-							bold_is_applied = false;
-						} else {
-							bold_start = f.position;
-							bold_is_applied = true;
-						}
-					}
-				}
-			}
-		}
-
-		{
-			//apply italics
-			bool italic_is_applied = false;
-			uint32_t italic_start = 0;
-			for(auto f : formatting) {
-				format_marker j;
-				if(std::holds_alternative<extra_formatting>(f.format)) {
-					if(std::get<extra_formatting>(f.format) == extra_formatting::italic) {
-						if(italic_is_applied) {
-							target->SetFontStyle(DWRITE_FONT_STYLE_ITALIC, DWRITE_TEXT_RANGE{ italic_start, f.position });
-							italic_is_applied = false;
-						} else {
-							italic_start = f.position;
-							italic_is_applied = true;
-						}
-					}
-				}
-			}
-		}
-
-		{
-			//apply small caps
-			IDWriteTypography* t = nullptr;
-
-			bool typo_applied = false;
-			uint32_t typo_start = 0;
-			for(auto f : formatting) {
-				format_marker j;
-				if(std::holds_alternative<extra_formatting>(f.format)) {
-					if(std::get<extra_formatting>(f.format) == extra_formatting::small_caps) {
-						if(typo_applied) {
-							if(!t) {
-								dwrite_factory->CreateTypography(&t);
-								if(auto dir = target->GetReadingDirection(); dir == DWRITE_READING_DIRECTION_LEFT_TO_RIGHT) {
-									apply_default_ltr_options(t);
-								} else if(dir == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT) {
-									apply_default_rtl_options(t);
-								} else {
-									apply_default_vertical_options(t);
-								}
-								apply_small_caps_options(t);
-							}
-							target->SetTypography(t, DWRITE_TEXT_RANGE{ typo_start, f.position });
-							typo_applied = false;
-						} else {
-							typo_start = f.position;
-							typo_applied = true;
-						}
-					}
-				}
-			}
-
-			safe_release(t);
-		}
-
-		{
-			//apply tabular numbers
-			IDWriteTypography* t = nullptr;
-
-			bool typo_applied = false;
-			uint32_t typo_start = 0;
-			for(auto f : formatting) {
-				format_marker j;
-				if(std::holds_alternative<extra_formatting>(f.format)) {
-					if(std::get<extra_formatting>(f.format) == extra_formatting::tabular_numbers) {
-						if(typo_applied) {
-							if(!t) {
-								dwrite_factory->CreateTypography(&t);
-								if(auto dir = target->GetReadingDirection(); dir == DWRITE_READING_DIRECTION_LEFT_TO_RIGHT) {
-									apply_default_ltr_options(t);
-								} else if(dir == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT) {
-									apply_default_rtl_options(t);
-								} else {
-									apply_default_vertical_options(t);
-								}
-								apply_lining_figures_options(t);
-							}
-							target->SetTypography(t, DWRITE_TEXT_RANGE{ typo_start, f.position });
-							typo_applied = false;
-						} else {
-							typo_start = f.position;
-							typo_applied = true;
-						}
-					}
-				}
-			}
-
-			safe_release(t);
-		}
-
-		{
-			//apply old style numbers
-			IDWriteTypography* t = nullptr;
-
-			bool typo_applied = false;
-			uint32_t typo_start = 0;
-			for(auto f : formatting) {
-				format_marker j;
-				if(std::holds_alternative<extra_formatting>(f.format)) {
-					if(std::get<extra_formatting>(f.format) == extra_formatting::old_numbers) {
-						if(typo_applied) {
-							if(!t) {
-								dwrite_factory->CreateTypography(&t);
-								if(auto dir = target->GetReadingDirection(); dir == DWRITE_READING_DIRECTION_LEFT_TO_RIGHT) {
-									apply_default_ltr_options(t);
-								} else if(dir == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT) {
-									apply_default_rtl_options(t);
-								} else {
-									apply_default_vertical_options(t);
-								}
-								apply_old_style_figures_options(t);
-							}
-							target->SetTypography(t, DWRITE_TEXT_RANGE{ typo_start, f.position });
-							typo_applied = false;
-						} else {
-							typo_start = f.position;
-							typo_applied = true;
-						}
-					}
-				}
-			}
-
-			safe_release(t);
-		}
 	}
 
 	
@@ -4045,5 +3745,610 @@ namespace printui::text {
 
 	text_services_object* win32_text_services::create_text_service_object(window_data& win, edit_interface& ei) {
 		return new text_services_object(manager_ptr, client_id, win, &ei);
+	}
+
+	void direct_write_text::load_fonts_from_directory(window_data const& win, std::wstring const& directory, IDWriteFontSetBuilder2* bldr) {
+		win.file_system->for_each_filtered_file(directory + L"\\*.otf", [bldr, &directory](std::wstring const& name) {
+			std::wstring fname = directory + L"\\" + name;
+		bldr->AddFontFile(fname.c_str());
+			});
+		win.file_system->for_each_filtered_file(directory + L"\\*.ttf", [bldr, &directory](std::wstring const& name) {
+			std::wstring fname = directory + L"\\" + name;
+		bldr->AddFontFile(fname.c_str());
+			});
+	}
+
+	void direct_write_text::load_fallbacks_by_type(std::vector<font_fallback> const& fb, font_type type, IDWriteFontFallbackBuilder* bldr, IDWriteFontCollection1* collection) {
+		for(auto& f : fb) {
+			if(f.type == type) {
+				WCHAR const* fn[] = { f.name.c_str() };
+				std::vector<DWRITE_UNICODE_RANGE> ranges;
+				for(auto& r : f.ranges) {
+					ranges.push_back(DWRITE_UNICODE_RANGE{ r.start, r.end });
+				}
+
+				bldr->AddMapping(ranges.data(), uint32_t(ranges.size()), fn, 1, collection, nullptr, nullptr, f.scale);
+			}
+		}
+
+		IDWriteFontFallback* system_fallback;
+		dwrite_factory->GetSystemFontFallback(&system_fallback);
+		bldr->AddMappings(system_fallback);
+		safe_release(system_fallback);
+	}
+
+	void direct_write_text::initialize_font_fallbacks(window_data& win) {
+		win.file_system->load_global_font_fallbacks(win.dynamic_settings);
+
+		{
+			safe_release(font_fallbacks);
+			IDWriteFontFallbackBuilder* bldr = nullptr;
+			dwrite_factory->CreateFontFallbackBuilder(&bldr);
+
+			load_fallbacks_by_type(win.dynamic_settings.fallbacks, win.dynamic_settings.primary_font.type, bldr, font_collection);
+
+			bldr->CreateFontFallback(&font_fallbacks);
+			safe_release(bldr);
+		}
+		{
+			safe_release(small_font_fallbacks);
+			IDWriteFontFallbackBuilder* bldr = nullptr;
+			dwrite_factory->CreateFontFallbackBuilder(&bldr);
+
+			load_fallbacks_by_type(win.dynamic_settings.fallbacks, win.dynamic_settings.small_font.type, bldr, font_collection);
+
+			bldr->CreateFontFallback(&small_font_fallbacks);
+			safe_release(bldr);
+		}
+	}
+
+	direct_write_text::direct_write_text() {
+		DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(dwrite_factory), reinterpret_cast<IUnknown**>(&dwrite_factory));
+	}
+
+	void direct_write_text::create_font_collection(window_data& win) {
+		safe_release(font_collection);
+
+		IDWriteFontSetBuilder2* bldr = nullptr;
+		dwrite_factory->CreateFontSetBuilder(&bldr);
+
+		{
+			auto root = win.file_system->get_root_directory();
+			auto font_dir = root + win.dynamic_settings.font_directory;
+			load_fonts_from_directory(win, font_dir, bldr);
+		}
+		{
+			auto root = win.file_system->get_common_printui_directory();
+			auto font_dir = root + win.dynamic_settings.font_directory;
+			load_fonts_from_directory(win, font_dir, bldr);
+		}
+
+		IDWriteFontSet* sysfs = nullptr;
+		dwrite_factory->GetSystemFontSet(&sysfs);
+		if(sysfs) bldr->AddFontSet(sysfs);
+
+		IDWriteFontSet* fs = nullptr;
+		bldr->CreateFontSet(&fs);
+		dwrite_factory->CreateFontCollectionFromFontSet(fs, DWRITE_FONT_FAMILY_MODEL_TYPOGRAPHIC, &font_collection);
+
+		safe_release(fs);
+		safe_release(sysfs);
+		safe_release(bldr);
+	}
+
+	void direct_write_text::initialize_fonts(window_data& win) {
+		// metrics
+		{
+			IDWriteFont3* f = nullptr;
+			IDWriteFont3* f2 = nullptr;
+
+			IDWriteFontList2* fl;
+			DWRITE_FONT_AXIS_VALUE fax[] = {
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WEIGHT,
+					to_font_weight(win.dynamic_settings.primary_font.is_bold)},
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WIDTH,
+					to_font_span(win.dynamic_settings.primary_font.span) } ,
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_ITALIC,
+					to_font_style(win.dynamic_settings.primary_font.is_oblique) },
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_OPTICAL_SIZE,
+					float(win.layout_size) * 96.0f / win.dpi } };
+
+			font_collection->GetMatchingFonts(win.dynamic_settings.primary_font.name.c_str(), fax, 4, &fl);
+			fl->GetFont(0, &f);
+			safe_release(fl);
+
+			IDWriteFontList2* fl2;
+			DWRITE_FONT_AXIS_VALUE fax2[] = {
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WEIGHT,
+					to_font_weight(win.dynamic_settings.small_font.is_bold)},
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WIDTH,
+					to_font_span(win.dynamic_settings.small_font.span) } ,
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_ITALIC,
+					to_font_style(win.dynamic_settings.small_font.is_oblique) },
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_OPTICAL_SIZE,
+					float(win.layout_size) * 0.75f * 96.0f / win.dpi } };
+
+			font_collection->GetMatchingFonts(win.dynamic_settings.small_font.name.c_str(), fax2, 4, &fl2);
+			fl2->GetFont(0, &f2);
+			safe_release(fl2);
+
+			update_font_metrics(win.dynamic_settings.primary_font, win.text_data.locale_string(), float(win.layout_size), win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f, f);
+			update_font_metrics(win.dynamic_settings.small_font, win.text_data.locale_string(), std::round(float(win.layout_size) * 3.0f / 4.0f), win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f, f2);
+
+			safe_release(f2);
+			safe_release(f);
+		}
+
+		auto locale_str = win.text_data.locale_string() != nullptr ? win.text_data.locale_string() : L"";
+		// text formats
+		{
+			safe_release(common_text_format);
+
+			DWRITE_FONT_AXIS_VALUE fax[] = {
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WEIGHT,
+					to_font_weight(win.dynamic_settings.primary_font.is_bold)},
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WIDTH,
+					to_font_span(win.dynamic_settings.primary_font.span) } ,
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_ITALIC,
+					to_font_style(win.dynamic_settings.primary_font.is_oblique) } ,
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_OPTICAL_SIZE,
+					win.dynamic_settings.primary_font.font_size * 96.0f / win.dpi } };
+
+			dwrite_factory->CreateTextFormat(win.dynamic_settings.primary_font.name.c_str(), font_collection, fax, 4, win.dynamic_settings.primary_font.font_size, locale_str, &common_text_format);
+			common_text_format->SetFontFallback(font_fallbacks);
+			common_text_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
+			common_text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, win.dynamic_settings.primary_font.line_spacing, win.dynamic_settings.primary_font.baseline);
+			common_text_format->SetAutomaticFontAxes(DWRITE_AUTOMATIC_FONT_AXES_OPTICAL_SIZE);
+
+		}
+		{
+			safe_release(small_text_format);
+
+			DWRITE_FONT_AXIS_VALUE fax[] = {
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WEIGHT,
+					to_font_weight(win.dynamic_settings.small_font.is_bold)},
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WIDTH,
+					to_font_span(win.dynamic_settings.small_font.span) } ,
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_ITALIC,
+					to_font_style(win.dynamic_settings.small_font.is_oblique) },
+				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_OPTICAL_SIZE,
+					win.dynamic_settings.small_font.font_size * 96.0f / win.dpi} };
+
+			dwrite_factory->CreateTextFormat(win.dynamic_settings.small_font.name.c_str(), font_collection, fax, 4, win.dynamic_settings.small_font.font_size, locale_str, &small_text_format);
+			small_text_format->SetFontFallback(small_font_fallbacks);
+
+			small_text_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
+			small_text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, win.dynamic_settings.small_font.line_spacing, win.dynamic_settings.small_font.baseline);
+			small_text_format->SetAutomaticFontAxes(DWRITE_AUTOMATIC_FONT_AXES_OPTICAL_SIZE);
+		}
+	}
+
+	void direct_write_text::update_font_metrics(font_description& desc, wchar_t const* locale, float target_pixels, float dpi_scale, IDWriteFont* font) {
+
+		DWRITE_FONT_METRICS metrics;
+		font->GetMetrics(&metrics);
+
+
+		desc.line_spacing = target_pixels;
+
+		auto top_lead = std::floor(desc.top_leading * dpi_scale);
+		auto bottom_lead = std::floor(desc.bottom_leading * dpi_scale);
+
+		// try to get cap height an integral number of pixels
+		auto temp_font_size = float(metrics.designUnitsPerEm) * (target_pixels - (top_lead + bottom_lead)) / float(metrics.ascent + metrics.descent + metrics.lineGap);
+		auto temp_cap_height = float(metrics.capHeight) * temp_font_size / (float(metrics.designUnitsPerEm));
+		auto desired_cap_height = std::round(temp_cap_height);
+		auto adjusted_size = (metrics.capHeight > 0 && metrics.capHeight <= metrics.ascent) ? desired_cap_height * float(metrics.designUnitsPerEm) / float(metrics.capHeight) : temp_font_size;
+
+		desc.font_size = adjusted_size;
+		desc.baseline = std::round(top_lead + float(metrics.ascent + metrics.lineGap / 2) * temp_font_size / (float(metrics.designUnitsPerEm)));
+
+		desc.descender = float(metrics.descent) * desc.font_size / (float(metrics.designUnitsPerEm));
+
+		IDWriteTextAnalyzer* analyzer_base = nullptr;
+		IDWriteTextAnalyzer1* analyzer = nullptr;
+		auto hr = dwrite_factory->CreateTextAnalyzer(&analyzer_base);
+
+		desc.vertical_baseline = std::round(target_pixels / 2.0f);
+
+		if(SUCCEEDED(hr)) {
+			hr = analyzer_base->QueryInterface(IID_PPV_ARGS(&analyzer));
+		}
+		if(SUCCEEDED(hr)) {
+			IDWriteFontFace* face = nullptr;
+			font->CreateFontFace(&face);
+
+			BOOL vert_exists_out = FALSE;
+			int32_t vert_base_out = 0;
+			analyzer->GetBaseline(face, DWRITE_BASELINE_CENTRAL, TRUE, TRUE, DWRITE_SCRIPT_ANALYSIS{}, locale, &vert_base_out, &vert_exists_out);
+
+			desc.vertical_baseline = std::round(top_lead + float(vert_base_out) * desc.font_size / (float(metrics.designUnitsPerEm)));
+
+			safe_release(face);
+		}
+		safe_release(analyzer);
+		safe_release(analyzer_base);
+	}
+
+	void release_arranged_text(arranged_text* ptr) {
+		auto p = (IDWriteTextLayout*)(ptr);
+		p->Release();
+	}
+
+	void direct_write_text::apply_formatting(IDWriteTextLayout* target, std::vector<format_marker> const& formatting, std::vector<font_description> const& named_fonts) {
+		{
+			//apply fonts
+			std::vector<uint32_t> font_stack;
+			uint32_t font_start = 0;
+
+			for(auto f : formatting) {
+				format_marker j;
+				if(std::holds_alternative<font_id>(f.format)) {
+					auto fid = std::get<font_id>(f.format);
+					if(fid.id < named_fonts.size()) {
+						if(font_stack.empty()) {
+							font_stack.push_back(fid.id);
+							font_start = f.position;
+
+						} else if(font_stack.back() != fid.id) {
+							target->SetFontFamilyName(named_fonts[font_stack.back()].name.c_str(), DWRITE_TEXT_RANGE{ font_start, f.position });
+							if(named_fonts[font_stack.back()].is_bold) {
+								target->SetFontWeight(DWRITE_FONT_WEIGHT_BOLD, DWRITE_TEXT_RANGE{ font_start, f.position });
+							}
+							if(named_fonts[font_stack.back()].is_oblique) {
+								target->SetFontStyle(DWRITE_FONT_STYLE_OBLIQUE, DWRITE_TEXT_RANGE{ font_start, f.position });
+							}
+
+							font_stack.push_back(fid.id);
+							font_start = f.position;
+
+						} else {
+							target->SetFontFamilyName(named_fonts[fid.id].name.c_str(), DWRITE_TEXT_RANGE{ font_start, f.position });
+							if(named_fonts[fid.id].is_bold) {
+								target->SetFontWeight(DWRITE_FONT_WEIGHT_BOLD, DWRITE_TEXT_RANGE{ font_start, f.position });
+							}
+							if(named_fonts[fid.id].is_oblique) {
+								target->SetFontStyle(DWRITE_FONT_STYLE_OBLIQUE, DWRITE_TEXT_RANGE{ font_start, f.position });
+							}
+
+							font_stack.pop_back();
+							font_start = f.position;
+						}
+					}
+				}
+			}
+		}
+
+		{
+			//apply bold
+			bool bold_is_applied = false;
+			uint32_t bold_start = 0;
+			for(auto f : formatting) {
+				format_marker j;
+				if(std::holds_alternative<extra_formatting>(f.format)) {
+					if(std::get<extra_formatting>(f.format) == extra_formatting::bold) {
+						if(bold_is_applied) {
+							target->SetFontWeight(DWRITE_FONT_WEIGHT_BOLD, DWRITE_TEXT_RANGE{ bold_start, f.position });
+							bold_is_applied = false;
+						} else {
+							bold_start = f.position;
+							bold_is_applied = true;
+						}
+					}
+				}
+			}
+		}
+
+		{
+			//apply italics
+			bool italic_is_applied = false;
+			uint32_t italic_start = 0;
+			for(auto f : formatting) {
+				format_marker j;
+				if(std::holds_alternative<extra_formatting>(f.format)) {
+					if(std::get<extra_formatting>(f.format) == extra_formatting::italic) {
+						if(italic_is_applied) {
+							target->SetFontStyle(DWRITE_FONT_STYLE_ITALIC, DWRITE_TEXT_RANGE{ italic_start, f.position });
+							italic_is_applied = false;
+						} else {
+							italic_start = f.position;
+							italic_is_applied = true;
+						}
+					}
+				}
+			}
+		}
+
+		{
+			//apply small caps
+			IDWriteTypography* t = nullptr;
+
+			bool typo_applied = false;
+			uint32_t typo_start = 0;
+			for(auto f : formatting) {
+				format_marker j;
+				if(std::holds_alternative<extra_formatting>(f.format)) {
+					if(std::get<extra_formatting>(f.format) == extra_formatting::small_caps) {
+						if(typo_applied) {
+							if(!t) {
+								dwrite_factory->CreateTypography(&t);
+								if(auto dir = target->GetReadingDirection(); dir == DWRITE_READING_DIRECTION_LEFT_TO_RIGHT) {
+									apply_default_ltr_options(t);
+								} else if(dir == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT) {
+									apply_default_rtl_options(t);
+								} else {
+									apply_default_vertical_options(t);
+								}
+								apply_small_caps_options(t);
+							}
+							target->SetTypography(t, DWRITE_TEXT_RANGE{ typo_start, f.position });
+							typo_applied = false;
+						} else {
+							typo_start = f.position;
+							typo_applied = true;
+						}
+					}
+				}
+			}
+
+			safe_release(t);
+		}
+
+		{
+			//apply tabular numbers
+			IDWriteTypography* t = nullptr;
+
+			bool typo_applied = false;
+			uint32_t typo_start = 0;
+			for(auto f : formatting) {
+				format_marker j;
+				if(std::holds_alternative<extra_formatting>(f.format)) {
+					if(std::get<extra_formatting>(f.format) == extra_formatting::tabular_numbers) {
+						if(typo_applied) {
+							if(!t) {
+								dwrite_factory->CreateTypography(&t);
+								if(auto dir = target->GetReadingDirection(); dir == DWRITE_READING_DIRECTION_LEFT_TO_RIGHT) {
+									apply_default_ltr_options(t);
+								} else if(dir == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT) {
+									apply_default_rtl_options(t);
+								} else {
+									apply_default_vertical_options(t);
+								}
+								apply_lining_figures_options(t);
+							}
+							target->SetTypography(t, DWRITE_TEXT_RANGE{ typo_start, f.position });
+							typo_applied = false;
+						} else {
+							typo_start = f.position;
+							typo_applied = true;
+						}
+					}
+				}
+			}
+
+			safe_release(t);
+		}
+
+		{
+			//apply old style numbers
+			IDWriteTypography* t = nullptr;
+
+			bool typo_applied = false;
+			uint32_t typo_start = 0;
+			for(auto f : formatting) {
+				format_marker j;
+				if(std::holds_alternative<extra_formatting>(f.format)) {
+					if(std::get<extra_formatting>(f.format) == extra_formatting::old_numbers) {
+						if(typo_applied) {
+							if(!t) {
+								dwrite_factory->CreateTypography(&t);
+								if(auto dir = target->GetReadingDirection(); dir == DWRITE_READING_DIRECTION_LEFT_TO_RIGHT) {
+									apply_default_ltr_options(t);
+								} else if(dir == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT) {
+									apply_default_rtl_options(t);
+								} else {
+									apply_default_vertical_options(t);
+								}
+								apply_old_style_figures_options(t);
+							}
+							target->SetTypography(t, DWRITE_TEXT_RANGE{ typo_start, f.position });
+							typo_applied = false;
+						} else {
+							typo_start = f.position;
+							typo_applied = true;
+						}
+					}
+				}
+			}
+
+			safe_release(t);
+		}
+	}
+
+
+	arrangement_result direct_write_text::create_text_arragement(window_data const& win, std::wstring_view text, content_alignment text_alignment, bool large_text, bool single_line, int32_t max_width, std::vector<format_marker> const* formatting) {
+
+		IDWriteTextLayout* formatted_text = nullptr;
+		arrangement_result result;
+
+		auto text_format = large_text ? common_text_format : small_text_format;
+		auto& font = large_text ? win.dynamic_settings.primary_font : win.dynamic_settings.small_font;
+
+		text_format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+		text_format->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+		text_format->SetReadingDirection(DWRITE_READING_DIRECTION(reading_direction_from_orientation(win.orientation)));
+		text_format->SetFlowDirection(DWRITE_FLOW_DIRECTION(flow_direction_from_orientation(win.orientation)));
+		text_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
+		text_format->SetOpticalAlignment(DWRITE_OPTICAL_ALIGNMENT_NO_SIDE_BEARINGS);
+
+		if(!horizontal(win.orientation)) {
+			text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, font.line_spacing, font.vertical_baseline);
+		} else {
+			text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, font.line_spacing, font.baseline);
+		}
+		if(horizontal(win.orientation)) {
+
+			dwrite_factory->CreateTextLayout(text.data(), uint32_t(text.length()), text_format, float(font.line_spacing), float(font.line_spacing), &formatted_text);
+
+			if(formatting)
+				apply_formatting(formatted_text, *formatting, win.dynamic_settings.named_fonts);
+
+			DWRITE_TEXT_METRICS text_metrics;
+			formatted_text->GetMetrics(&text_metrics);
+
+			result.width_used = int32_t(std::ceil((text_metrics.width) / float(win.layout_size)));
+
+			if(single_line || result.width_used <= max_width) {
+				formatted_text->SetMaxWidth(float(result.width_used * win.layout_size));
+				formatted_text->SetMaxHeight(float(font.line_spacing));
+				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
+				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
+				result.lines_used = 1;
+			} else {
+				formatted_text->SetMaxWidth(float(max_width * win.layout_size));
+				formatted_text->SetMaxHeight(float(100 * font.line_spacing));
+				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
+
+				formatted_text->GetMetrics(&text_metrics);
+				result.lines_used = int32_t(std::ceil(text_metrics.lineCount * font.line_spacing / float(win.layout_size)));
+				result.width_used = max_width;
+				formatted_text->SetMaxHeight(float(text_metrics.lineCount * font.line_spacing));
+				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
+			}
+
+		} else {
+			dwrite_factory->CreateTextLayout(text.data(), uint32_t(text.length()), text_format, float(font.line_spacing), float(font.line_spacing), &formatted_text);
+
+			if(formatting)
+				apply_formatting(formatted_text, *formatting, win.dynamic_settings.named_fonts);
+
+			DWRITE_TEXT_METRICS text_metrics;
+			formatted_text->GetMetrics(&text_metrics);
+
+			result.width_used = int32_t(std::ceil(text_metrics.height / float(win.layout_size)));
+			if(single_line || result.width_used <= max_width) {
+				formatted_text->SetMaxHeight(float(result.width_used * font.line_spacing));
+				formatted_text->SetMaxWidth(float(font.line_spacing));
+				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
+				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
+				result.lines_used = 1;
+			} else {
+				formatted_text->SetMaxHeight(float(max_width * win.layout_size));
+				formatted_text->SetMaxWidth(float(100 * font.line_spacing));
+				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
+
+				formatted_text->GetMetrics(&text_metrics);
+				result.lines_used = int32_t(std::ceil(text_metrics.lineCount * font.line_spacing / float(win.layout_size)));
+				result.width_used = max_width;
+				formatted_text->SetMaxWidth(float(text_metrics.lineCount * font.line_spacing));
+				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
+			}
+		}
+		result.ptr = (arranged_text*)(formatted_text);
+		return result;
+	}
+
+	int32_t get_height(window_data const& win, arranged_text* txt, bool standard_size) {
+		DWRITE_TEXT_METRICS text_metrics;
+		IDWriteTextLayout* formatted_text = (IDWriteTextLayout*)txt;
+		formatted_text->GetMetrics(&text_metrics);
+		return int32_t(text_metrics.lineCount * (standard_size ? win.dynamic_settings.primary_font.line_spacing : win.dynamic_settings.small_font.line_spacing));
+	}
+	bool appropriate_directionality(window_data const& win, arranged_text* txt) {
+		IDWriteTextLayout* formatted_text = (IDWriteTextLayout*)txt;
+
+		if(formatted_text->GetReadingDirection() !=
+				DWRITE_READING_DIRECTION(reading_direction_from_orientation(win.orientation))
+			|| formatted_text->GetFlowDirection() !=
+				DWRITE_FLOW_DIRECTION(flow_direction_from_orientation(win.orientation))) {
+			return false;
+		} else {
+			return true;
+		}
+	}
+
+	void adjust_layout_region(arranged_text* txt, int32_t width, int32_t height) {
+		IDWriteTextLayout* formatted_text = (IDWriteTextLayout*)txt;
+
+		if(formatted_text->GetMaxWidth() != float(width))
+			formatted_text->SetMaxWidth(float(width));
+		if(formatted_text->GetMaxHeight() != float(height))
+			formatted_text->SetMaxHeight(float(height));
+	}
+
+	std::vector<text_metrics> get_metrics_for_range(arranged_text* txt, uint32_t position, uint32_t length) {
+		IDWriteTextLayout* formatted_text = (IDWriteTextLayout*)txt;
+
+		uint32_t metrics_size = 0;
+		formatted_text->HitTestTextRange(position, length, 0, 0, nullptr, 0, &metrics_size);
+
+		std::vector<DWRITE_HIT_TEST_METRICS> mstorage(metrics_size);
+		formatted_text->HitTestTextRange(position, length, 0, 0, mstorage.data(), metrics_size, &metrics_size);
+
+		std::vector<text_metrics> result;
+		result.reserve(metrics_size);
+
+		for(auto& r : mstorage) {
+			result.push_back(text_metrics{r.textPosition, r.length, r.left, r.top, r.width, r.height, r.bidiLevel});
+		}
+
+		return result;
+	}
+
+	text_metrics get_metrics_at_position(arranged_text* txt, uint32_t position) {
+		IDWriteTextLayout* formatted_text = (IDWriteTextLayout*)txt;
+
+		DWRITE_HIT_TEST_METRICS r;
+		memset(&r, 0, sizeof(DWRITE_HIT_TEST_METRICS));
+		float xout = 0;
+		float yout = 0;
+		formatted_text->HitTestTextPosition(position, FALSE, &xout, &yout, &r);
+		return text_metrics{ r.textPosition, r.length, r.left, r.top, r.width, r.height, r.bidiLevel };
+	}
+
+	hit_test_metrics hit_test_text(arranged_text* txt, int32_t x, int32_t y) {
+		IDWriteTextLayout* formatted_text = (IDWriteTextLayout*)txt;
+		BOOL is_trailing = FALSE;
+		BOOL is_inside = FALSE;
+		DWRITE_HIT_TEST_METRICS r;
+		memset(&r, 0, sizeof(DWRITE_HIT_TEST_METRICS));
+		formatted_text->HitTestPoint(float(x), float(y), &is_trailing, &is_inside, &r);
+		return hit_test_metrics{ text_metrics{ r.textPosition, r.length, r.left, r.top, r.width, r.height, r.bidiLevel } ,
+			is_inside == TRUE, is_trailing == TRUE };
+	}
+
+	text_format direct_write_text::create_text_format(wchar_t const* name, int32_t capheight) {
+		IDWriteTextFormat3* label_format;
+
+		DWRITE_FONT_AXIS_VALUE fax[] = {
+			DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WEIGHT, DWRITE_FONT_WEIGHT_BOLD},
+			DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WIDTH, 100.0f } ,
+			DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_ITALIC, 0.0f } };
+
+		IDWriteFont3* label_font = nullptr;
+
+		IDWriteFontList2* fl;
+		font_collection->GetMatchingFonts(name, fax, 3, &fl);
+		fl->GetFont(0, &label_font);
+		safe_release(fl);
+
+		DWRITE_FONT_METRICS metrics;
+		label_font->GetMetrics(&metrics);
+		safe_release(label_font);
+
+		auto adjusted_size = (metrics.capHeight > 0 && metrics.capHeight <= metrics.ascent) ? (capheight * float(metrics.designUnitsPerEm) / float(metrics.capHeight)) : (capheight * float(metrics.designUnitsPerEm) / float(metrics.ascent));
+
+		auto baseline = float(metrics.ascent) * (adjusted_size) / (float(metrics.designUnitsPerEm));
+
+		dwrite_factory->CreateTextFormat(L"Arial", font_collection, fax, 3, adjusted_size, L"", &label_format);
+		label_format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+		label_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
+		label_format->SetAutomaticFontAxes(DWRITE_AUTOMATIC_FONT_AXES_OPTICAL_SIZE);
+
+		return text_format{(text_format_ptr*)(label_format), baseline };
+	}
+	void direct_write_text::release_text_format(text_format fmt) {
+		IDWriteTextFormat3* label_format = (IDWriteTextFormat3*)(fmt.ptr);
+		label_format->Release();
 	}
 }

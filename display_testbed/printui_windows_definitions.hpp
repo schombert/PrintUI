@@ -45,7 +45,7 @@ namespace printui {
 		virtual void minimize(window_data&) override;
 		virtual void restore(window_data&) override;
 		virtual void close(window_data&) override;
-		virtual void set_text_rendering_parameters(ID2D1DeviceContext5* dc, IDWriteFactory6* fac) override;
+		virtual void set_text_rendering_parameters(ID2D1DeviceContext5* dc, text::wrapper* fac) override;
 		virtual void set_window_title(wchar_t const* t) override;
 		virtual bool window_has_focus() const override;
 		virtual os_direct_access_base* get_os_access(os_handle_type) override;
