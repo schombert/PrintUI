@@ -10,13 +10,8 @@
 #include <Windows.h>
 
 namespace printui {
-	struct hwnd_direct_access_base : public os_direct_access_base {
-		HWND m_hwnd = nullptr;
-	};
 
 	struct os_win32_wrapper : public window_wrapper {
-		hwnd_direct_access_base stored_direct_access;
-
 		HWND m_hwnd = nullptr;
 		bool cursor_visible = false;
 
@@ -38,17 +33,15 @@ namespace printui {
 		virtual uint32_t get_window_dpi() const override;
 		virtual bool create_window(window_data& wd) override;
 		virtual void display_fatal_error_message(wchar_t const*) override;
-		virtual long create_swap_chain(IDXGIFactory2* fac, ID3D11Device* dev, DXGI_SWAP_CHAIN_DESC1 const* desc, IDXGISwapChain1** out) override;
 		virtual bool is_maximized() const override;
 		virtual bool is_minimized() const override;
 		virtual void maximize(window_data&) override;
 		virtual void minimize(window_data&) override;
 		virtual void restore(window_data&) override;
 		virtual void close(window_data&) override;
-		virtual void set_text_rendering_parameters(ID2D1DeviceContext5* dc, text::wrapper* fac) override;
 		virtual void set_window_title(wchar_t const* t) override;
 		virtual bool window_has_focus() const override;
-		virtual os_direct_access_base* get_os_access(os_handle_type) override;
+		virtual void* get_hwnd() override;
 		virtual void text_to_clipboard(std::wstring_view txt) override;
 		virtual std::wstring text_from_clipboard() override;
 		virtual void create_system_caret(int32_t width, int32_t height) override;

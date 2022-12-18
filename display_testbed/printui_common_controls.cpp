@@ -51,21 +51,14 @@ namespace printui {
 			float(rect.x_position), float(rect.y_position),
 			float(rect.x_position + rect.width), float(rect.y_position + rect.height) };
 
-		render::background_rectangle(content_rect, win, rect.display_flags, rect.background_index, under_mouse);
+		win.rendering_interface->background_rectangle(rect, rect.display_flags, rect.background_index, under_mouse, win);
 
-		auto new_content_top_left = screen_topleft_from_layout_in_ui(win,
-			2, 0, 2, 1, rect);
+		auto new_content = screen_rectangle_from_layout_in_ui(win, 2, 0, win.get_node(l_id).width - 4, 1, rect);
 
-		D2D1_RECT_F adjusted_content_rect{
-			float(new_content_top_left.x), float(new_content_top_left.y),
-			content_rect.right - float(new_content_top_left.x - rect.x_position),
-			content_rect.bottom
-		};
-
-		win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.foreground_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, adjusted_content_rect, adjusted_content_rect);
+		win.rendering_interface->fill_from_foreground(new_content, rect.foreground_index, true);
 
 		auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, 0, 1, 1, rect);
-		render::interactable(win, win.d2d_device_context, new_top_left, saved_state, rect.foreground_index, true);
+		win.rendering_interface->interactable(win, new_top_left, saved_state, rect.foreground_index, true);
 
 		if(saved_state.holds_key()) {
 			// TODO
@@ -106,7 +99,7 @@ namespace printui {
 	}
 	void single_line_empty_header::render_composite(ui_rectangle const& rect, window_data& win, bool) {
 		auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, 0, 1, 1, rect);
-		render::interactable(win, win.d2d_device_context, new_top_left, saved_state, rect.foreground_index, true);
+		win.rendering_interface->interactable(win, new_top_left, saved_state, rect.foreground_index, true);
 
 		if(saved_state.holds_key()) {
 			// TODO
@@ -168,7 +161,7 @@ namespace printui {
 		}
 	}
 	void stored_text::draw_text(window_data const& win, int32_t x, int32_t y) const {
-		win.d2d_device_context->DrawTextLayout(D2D1_POINT_2F{ float(x), float(y) }, (IDWriteTextLayout*)(formatted_text.operator printui::text::arranged_text*()), win.dummy_brush, 0 /*D2D1_DRAW_TEXT_OPTIONS_CLIP*/);
+		win.rendering_interface->text(win, formatted_text, x, y);
 	}
 	void stored_text::set_text(std::wstring const& v) {
 		invalidate();
@@ -277,7 +270,7 @@ namespace printui {
 				auto curmetrics = text::get_metrics_at_position(formatted_text, selection_end);
 
 				int32_t num_positions_in_metrics = std::max(text::number_of_cursor_positions_in_range(analysis_obj, curmetrics.textPosition, curmetrics.length), 1);
-				int32_t num_positions_after_cursor = text::number_of_cursor_positions_in_range(analysis_obj, selection_end, (curmetrics.textPosition + curmetrics.length) - selection_end);
+				int32_t num_positions_after_cursor = text::number_of_cursor_positions_in_range(analysis_obj, selection_end , (curmetrics.textPosition + curmetrics.length) - selection_end);
 				float percentage_through_region = float(num_positions_in_metrics - num_positions_after_cursor) / float(num_positions_in_metrics);
 
 				if(horizontal) {
@@ -522,7 +515,7 @@ namespace printui {
 		text::adjust_layout_region(formatted_text, sz.x, sz.y);
 	}
 	void simple_editable_text::draw_text(window_data const& win, int32_t x, int32_t y) const {
-		win.d2d_device_context->DrawTextLayout(D2D1_POINT_2F{ float(x), float(y) }, (IDWriteTextLayout*)((text::arranged_text*)formatted_text), win.dummy_brush, 0 /*D2D1_DRAW_TEXT_OPTIONS_CLIP*/);
+		win.rendering_interface->text(win, formatted_text, x, y);
 	}
 
 	ui_rectangle simple_editable_text::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
@@ -572,26 +565,17 @@ namespace printui {
 	}
 
 	void simple_editable_text::render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) {
-		D2D1_RECT_F content_rect{
-			float(rect.x_position), float(rect.y_position),
-			float(rect.x_position + rect.width), float(rect.y_position + rect.height) };
-
-		render::background_rectangle(content_rect, win, rect.display_flags,
-			rect.background_index, under_mouse && !disabled);
+		win.rendering_interface->background_rectangle(rect, rect.display_flags,
+			rect.background_index, under_mouse && !disabled, win);
 
 		if(!disabled) {
 			auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, 0, 1, 1, rect);
-			render::interactable_or_foreground(win, win.d2d_device_context, new_top_left, saved_state, rect.foreground_index, false);
+			win.rendering_interface->interactable_or_foreground(win, new_top_left, saved_state, rect.foreground_index, false);
 		}
 
 		auto& node = win.get_node(l_id);
 
 		auto new_content_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin() + node.right_margin()), 1, rect);
-
-		D2D1_RECT_F adjusted_content_rect{
-			float(new_content_rect.x), float(new_content_rect.y),
-			float(new_content_rect.x + new_content_rect.width), float(new_content_rect.y + new_content_rect.height)
-		};
 
 		if(!disabled) {
 			prepare_analysis(win);
@@ -600,28 +584,19 @@ namespace printui {
 			// render text
 			{
 				auto text_and_margin = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin()), 1, rect);
-
-				D2D1_RECT_F text_and_margin_r{
-					float(text_and_margin.x), float(text_and_margin.y),
-					float(text_and_margin.x + text_and_margin.width), float(text_and_margin.y + text_and_margin.height)
-				};
-				win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.foreground_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, text_and_margin_r, text_and_margin_r);
+				win.rendering_interface->fill_from_foreground(text_and_margin, rect.foreground_index, true);
 			}
 			// render selection, if any
 			if((anchor_position != cursor_position || temp_text_length != 0) && formatted_text) {
 				for(auto& rng : cached_selection_region) {
 					if(horizontal(win.orientation)) {
-						D2D1_RECT_F section_rect{
-							float(rng.start + adjusted_content_rect.left), float(rect.y_position),
-							float(rng.end + adjusted_content_rect.left), float(rect.y_position + rect.height) };
-						render::background_rectangle(section_rect, win, 0, rect.foreground_index, false);
-						win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.background_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, section_rect, section_rect);
+						auto range_rect = screen_space_rect{ rng.start + new_content_rect.x, new_content_rect.y, rng.end - rng.start,  new_content_rect.height };
+						win.rendering_interface->background_rectangle(range_rect, 0, rect.foreground_index, false, win);
+						win.rendering_interface->fill_from_foreground(range_rect, rect.foreground_index, true);
 					} else {
-						D2D1_RECT_F section_rect{
-							float(rect.x_position), float(rng.start + adjusted_content_rect.top),
-							float(rect.x_position + rect.width), float(rng.end + adjusted_content_rect.top) };
-						render::background_rectangle(section_rect, win, 0, rect.foreground_index, false);
-						win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.background_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, section_rect, section_rect);
+						auto range_rect = screen_space_rect{ new_content_rect.x, rng.start + new_content_rect.y, new_content_rect.width, rng.end - rng.start };
+						win.rendering_interface->background_rectangle(range_rect, 0, rect.foreground_index, false, win);
+						win.rendering_interface->fill_from_foreground(range_rect, rect.foreground_index, true);
 					}
 				}
 			}
@@ -629,47 +604,41 @@ namespace printui {
 			// render cursor
 			if(cursor_visible && formatted_text) {
 				if(win.dynamic_settings.caret_blink)
-					win.register_in_place_animation();
+					win.rendering_interface->register_in_place_animation();
 	
-				auto ms_in_cycle = win.in_place_animation_running_ms() % win.caret_blink_ms;
+				auto ms_in_cycle = win.rendering_interface->in_place_animation_running_ms() % win.caret_blink_ms;
 				float in_cycle_length = float(ms_in_cycle) * 2.0f * 3.1415f / float(win.caret_blink_ms);
 				float intensity = win.dynamic_settings.caret_blink ? (cos(in_cycle_length) + 1.0f) * 0.5f : 1.0f;
 
 				auto is_light = win.dynamic_settings.brushes[rect.foreground_index].is_light_color;
-				auto resolved_brush = is_light ?
+				auto resolved_brush = uint8_t(is_light ?
 					(win.dynamic_settings.light_interactable_brush >= 0 ? win.dynamic_settings.light_interactable_brush : rect.foreground_index) :
-					(win.dynamic_settings.dark_interactable_brush >= 0 ? win.dynamic_settings.dark_interactable_brush : rect.foreground_index);
+					(win.dynamic_settings.dark_interactable_brush >= 0 ? win.dynamic_settings.dark_interactable_brush : rect.foreground_index));
 
-				win.palette[resolved_brush]->SetOpacity(intensity);
+				win.rendering_interface->set_brush_opacity(resolved_brush, intensity);
 				if(horizontal(win.orientation)) {
-					D2D_RECT_F cursorrect{
-						cached_cursor_postion + adjusted_content_rect.left,
-						adjusted_content_rect.top,
-						std::ceil(cached_cursor_postion + adjusted_content_rect.left + 1.0f * win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f),
-						adjusted_content_rect.bottom };
-					win.d2d_device_context->FillRectangle(cursorrect, win.palette[resolved_brush]);
+					win.rendering_interface->fill_rectangle(
+						screen_space_rect{
+							cached_cursor_postion + new_content_rect.x, new_content_rect.y,
+							int32_t(std::ceil(1.0f * win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f)),
+							new_content_rect.height }, resolved_brush);
 				} else {
-					D2D_RECT_F cursorrect{
-						adjusted_content_rect.left,
-						cached_cursor_postion + adjusted_content_rect.top,
-						adjusted_content_rect.right ,
-						std::ceil(cached_cursor_postion + adjusted_content_rect.top + 1.0f * win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f) };
-					win.d2d_device_context->FillRectangle(cursorrect, win.palette[resolved_brush]);
+					win.rendering_interface->fill_rectangle(
+						screen_space_rect{
+							 new_content_rect.x, cached_cursor_postion + new_content_rect.y,
+							 new_content_rect.width,
+							int32_t(std::ceil(1.0f * win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f))
+							 }, resolved_brush);
 				}
-				win.palette[resolved_brush]->SetOpacity(1.0f);
+				win.rendering_interface->set_brush_opacity(resolved_brush, 1.0f);
 			}
 		} else { // case: disabled
-			win.palette[rect.foreground_index]->SetOpacity(0.6f);
+			win.rendering_interface->set_brush_opacity(rect.foreground_index, 0.6f);
 			{
 				auto text_and_margin = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin()), 1, rect);
-
-				D2D1_RECT_F text_and_margin_r{
-					float(text_and_margin.x), float(text_and_margin.y),
-					float(text_and_margin.x + text_and_margin.width), float(text_and_margin.y + text_and_margin.height)
-				};
-				win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.foreground_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, text_and_margin_r, text_and_margin_r);
+				win.rendering_interface->fill_from_foreground(text_and_margin, rect.foreground_index, true);
 			}
-			win.palette[rect.foreground_index]->SetOpacity(1.0f);
+			win.rendering_interface->set_brush_opacity(rect.foreground_index, 1.0f);
 		}
 	}
 	void simple_editable_text::render_foreground(ui_rectangle const& rect, window_data& win) {
@@ -678,8 +647,8 @@ namespace printui {
 		relayout_text(win, horizontal(win.orientation) ? screen_space_point{ rect.width - (node.left_margin() + node.right_margin()) * win.layout_size, rect.height } : screen_space_point{ rect.width, rect.height - (node.left_margin() + node.right_margin()) * win.layout_size });
 
 		auto icon_location = screen_topleft_from_layout_in_ui(win, 0, 0, 1, 1, rect);
-		win.common_icons.icons[standard_icons::control_text].present_image(float(icon_location.x), float(icon_location.y), win.d2d_device_context, win.dummy_brush);
-
+		win.rendering_interface->draw_icon_to_foreground(icon_location.x, icon_location.y, standard_icons::control_text);
+		
 		// get sub layout positions
 		auto text_bounding_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin() + node.right_margin()), 1, rect);
 		draw_text(win, text_bounding_rect.x, text_bounding_rect.y);
@@ -1657,19 +1626,11 @@ namespace printui {
 	void label_control::render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) {
 		auto& node = win.get_node(l_id);
 
-		D2D1_RECT_F bg_rect{
-			float(rect.x_position), float(rect.y_position),
-			float(rect.x_position + rect.width), float(rect.y_position + rect.height) };
-
-		render::background_rectangle(bg_rect, win, rect.display_flags, rect.background_index, under_mouse);
+		win.rendering_interface->background_rectangle(rect, rect.display_flags, rect.background_index, under_mouse, win);
 		
 		auto text_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin()), label_text.resolved_text_size.y, rect);
 
-		D2D1_RECT_F content_rect{
-			float(text_rect.x), float(text_rect.y),
-			float(text_rect.x + text_rect.width), float(text_rect.y + text_rect.height) };
-
-		win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.foreground_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, content_rect, content_rect);
+		win.rendering_interface->fill_from_foreground(text_rect, rect.foreground_index, true);
 	}
 	void label_control::on_right_click(window_data& win, uint32_t, uint32_t) {
 		auto& node = win.get_node(l_id);
@@ -1753,34 +1714,25 @@ namespace printui {
 		if(selected)
 			std::swap(fg_index, bg_index);
 
-		D2D1_RECT_F content_rect{
-			float(rect.x_position), float(rect.y_position),
-			float(rect.x_position + rect.width), float(rect.y_position + rect.height) };
-
-		render::background_rectangle(content_rect, win,
+		win.rendering_interface->background_rectangle(rect,
 			selected ? (rect.display_flags & ~ui_rectangle::flag_skip_bg) : rect.display_flags,
-			bg_index, under_mouse && !disabled);
+			bg_index, under_mouse && !disabled, win);
 
 		if(!disabled && !selected) {
 			auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, ((button_text.resolved_text_size.y - 1) / 2), 1, (((button_text.resolved_text_size.y - 1) / 2) + 1), rect);
-			render::interactable_or_foreground(win, win.d2d_device_context, new_top_left, saved_state, fg_index, false);
+			win.rendering_interface->interactable_or_foreground(win, new_top_left, saved_state, fg_index, false);
 		}
 
 		auto& node = win.get_node(l_id);
 
 		auto new_content_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin()), button_text.resolved_text_size.y, rect);
 
-		D2D1_RECT_F adjusted_content_rect{
-			float(new_content_rect.x), float(new_content_rect.y),
-			float(new_content_rect.x + new_content_rect.width), float(new_content_rect.y + new_content_rect.height)
-		};
-
 		if(!disabled) {
-			win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[fg_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, adjusted_content_rect, adjusted_content_rect);
+			win.rendering_interface->fill_from_foreground(new_content_rect, rect.foreground_index, true);
 		} else {
-			win.palette[fg_index]->SetOpacity(0.6f);
-			win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[fg_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, adjusted_content_rect, adjusted_content_rect);
-			win.palette[fg_index]->SetOpacity(1.0f);
+			win.rendering_interface->set_brush_opacity(rect.foreground_index, 0.6f);
+			win.rendering_interface->fill_from_foreground(new_content_rect, rect.foreground_index, true);
+			win.rendering_interface->set_brush_opacity(rect.foreground_index, 1.0f);
 		}
 	}
 	void button_control_base::render_foreground(ui_rectangle const& rect, window_data& win) {
@@ -1790,19 +1742,11 @@ namespace printui {
 
 		auto icon_location = screen_topleft_from_layout_in_ui(win, 0, ((button_text.resolved_text_size.y - 1) / 2), 1, (((button_text.resolved_text_size.y - 1) / 2) + 1), rect);
 
-		win.d2d_device_context->SetTransform(D2D1::Matrix3x2F::Translation(float(icon_location.x), float(icon_location.y)));
-
-		win.d2d_device_context->FillOpacityMask(
-			win.common_icons.icons[icon].rendered_layer,
-			win.dummy_brush,
-			D2D1_OPACITY_MASK_CONTENT_GRAPHICS);
-
-		win.d2d_device_context->SetTransform(D2D1::Matrix3x2F::Identity());
+		win.rendering_interface->draw_icon_to_foreground(icon_location.x, icon_location.y, icon);
 
 		// get sub layout positions
 
 		auto text_bounding_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin() + node.right_margin()), button_text.resolved_text_size.y, rect);
-
 
 		button_text.draw_text(win, text_bounding_rect.x, text_bounding_rect.y);
 	}
@@ -1964,8 +1908,9 @@ namespace printui {
 	simple_layout_specification icon_button_base::get_specification(window_data& win) {
 		simple_layout_specification spec;
 
-		spec.minimum_page_size = uint16_t(display_vertically ? win.common_icons.icons[ico].ysize + 1 : win.common_icons.icons[ico].ysize);
-		spec.minimum_line_size = uint16_t(display_vertically ? win.common_icons.icons[ico].xsize : win.common_icons.icons[ico].xsize + 1);
+		auto icon_sz = win.rendering_interface->get_icon_size(ico);
+		spec.minimum_page_size = uint16_t(display_vertically ? icon_sz.y + 1 : icon_sz.y);
+		spec.minimum_line_size = uint16_t(display_vertically ? icon_sz.x : icon_sz.x + 1);
 		spec.page_flags = size_flags::none;
 		spec.line_flags = size_flags::none;
 
@@ -1982,35 +1927,33 @@ namespace printui {
 		if(is_toggled())
 			std::swap(fg_index, bg_index);
 
-		D2D1_RECT_F content_rect{
-			float(rect.x_position), float(rect.y_position),
-			float(rect.x_position + rect.width), float(rect.y_position + rect.height) };
-
-		render::background_rectangle(content_rect, win,
+		win.rendering_interface->background_rectangle(rect,
 			is_toggled() ? (rect.display_flags & ~ui_rectangle::flag_skip_bg) : rect.display_flags,
-			bg_index, under_mouse && !is_disabled(win));
+			bg_index, under_mouse && !is_disabled(win), win);
+
+		auto icon_sz = win.rendering_interface->get_icon_size(ico);
 
 		if(!is_disabled(win) && saved_state.holds_key()) {
 			auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, 0,
-				display_vertically ? win.common_icons.icons[ico].xsize : 1, 
-				display_vertically ? 1 : win.common_icons.icons[ico].ysize,
+				display_vertically ? icon_sz.x : 1,
+				display_vertically ? 1 : icon_sz.y,
 				rect);
-			auto center_amount = win.layout_size * ((display_vertically ? win.common_icons.icons[ico].xsize : win.common_icons.icons[ico].ysize) - 1) / 2;
+			auto center_amount = win.layout_size * ((display_vertically ? icon_sz.x : icon_sz.y) - 1) / 2;
 			if(horizontal(win.orientation)) {
-				render::interactable(win, win.d2d_device_context, screen_space_point{ new_top_left.x + center_amount, new_top_left.y }, saved_state, fg_index, display_vertically);
+				win.rendering_interface->interactable(win, screen_space_point{ new_top_left.x + center_amount, new_top_left.y }, saved_state, fg_index, display_vertically);
 			} else {
-				render::interactable(win, win.d2d_device_context, screen_space_point{ new_top_left.x, new_top_left.y + center_amount }, saved_state, fg_index, display_vertically);
+				win.rendering_interface->interactable(win, screen_space_point{ new_top_left.x, new_top_left.y + center_amount }, saved_state, fg_index, display_vertically);
 			}
 		}
 
 		{
-			auto new_top_left = screen_topleft_from_layout_in_ui(win, display_vertically ? 0 : 1, display_vertically ? 1 : 0, win.common_icons.icons[ico].xsize, win.common_icons.icons[ico].ysize, rect);
+			auto new_top_left = screen_topleft_from_layout_in_ui(win, display_vertically ? 0 : 1, display_vertically ? 1 : 0, icon_sz.x, icon_sz.y, rect);
 			if(is_disabled(win)) {
-				win.palette[rect.foreground_index]->SetOpacity(0.6f);
-				win.common_icons.icons[ico].present_image(float(new_top_left.x), float(new_top_left.y), win.d2d_device_context, win.palette[fg_index]);
-				win.palette[rect.foreground_index]->SetOpacity(1.0f);
+				win.rendering_interface->set_brush_opacity(fg_index, 0.6f);
+				win.rendering_interface->draw_icon(new_top_left.x, new_top_left.y, ico, fg_index);
+				win.rendering_interface->set_brush_opacity(fg_index, 1.0f);
 			} else {
-				win.common_icons.icons[ico].present_image(float(new_top_left.x), float(new_top_left.y), win.d2d_device_context, win.palette[fg_index]);
+				win.rendering_interface->draw_icon(new_top_left.x, new_top_left.y, ico, fg_index);
 			}
 		}
 	}
@@ -2147,18 +2090,18 @@ namespace printui {
 			return;
 
 		if(page_footer::page_turn_down.type != animation_type::none)
-				win.prepare_ui_animation();
+			win.rendering_interface->prepare_ui_animation(win);
 
 		parent_pginfo->subpage_offset -= 1ui16;
 
 		if(page_footer::page_turn_down.type != animation_type::none) {
 			if(page_footer::page_turn_down.type != animation_type::none) {
-				win.start_ui_animation(animation_description{
+				win.rendering_interface->start_ui_animation(animation_description{
 					win.get_current_location(l_id),
 					page_footer::page_turn_down.type,
 					win.get_default_animation_direction(l_id),
 					page_footer::page_turn_down.duration_seconds,
-					page_footer::page_turn_down.animate_in });
+					page_footer::page_turn_down.animate_in }, win);
 			}
 		}
 
@@ -2204,19 +2147,19 @@ namespace printui {
 		page_information* parent_pginfo = (page_container != layout_reference_none) ? win.get_node(page_container).page_info() : nullptr;
 
 		if(page_footer::page_turn_down.type != animation_type::none)
-			win.prepare_ui_animation();
+			win.rendering_interface->prepare_ui_animation(win);
 
 		auto int_amount = uint16_t(jump_size(win));
 		parent_pginfo->subpage_offset -= int_amount;
 
 		if(page_footer::page_turn_down.type != animation_type::none) {
 			if(page_footer::page_turn_down.type != animation_type::none) {
-				win.start_ui_animation(animation_description{
+				win.rendering_interface->start_ui_animation(animation_description{
 					win.get_current_location(l_id),
 					page_footer::page_turn_down.type,
 					win.get_default_animation_direction(l_id),
 					page_footer::page_turn_down.duration_seconds,
-					page_footer::page_turn_down.animate_in });
+					page_footer::page_turn_down.animate_in }, win);
 			}
 		}
 
@@ -2245,18 +2188,18 @@ namespace printui {
 			return;
 
 		if(page_footer::page_turn_up.type != animation_type::none)
-			win.prepare_ui_animation();
+			win.rendering_interface->prepare_ui_animation(win);
 
 		parent_pginfo->subpage_offset += 1ui16;
 
 		if(page_footer::page_turn_up.type != animation_type::none) {
 			if(page_footer::page_turn_up.type != animation_type::none) {
-				win.start_ui_animation(animation_description{
+				win.rendering_interface->start_ui_animation(animation_description{
 					win.get_current_location(l_id),
 					page_footer::page_turn_up.type,
 					win.get_default_animation_direction(l_id),
 					page_footer::page_turn_up.duration_seconds,
-					page_footer::page_turn_up.animate_in });
+					page_footer::page_turn_up.animate_in }, win);
 			}
 		}
 
@@ -2298,7 +2241,7 @@ namespace printui {
 			return;
 
 		if(page_footer::page_turn_up.type != animation_type::none)
-			win.prepare_ui_animation();
+			win.rendering_interface->prepare_ui_animation(win);
 
 		auto int_amount = uint16_t(jump_size(win));
 		auto page_container = win.get_containing_page(l_id);
@@ -2309,12 +2252,12 @@ namespace printui {
 
 		if(page_footer::page_turn_up.type != animation_type::none) {
 			if(page_footer::page_turn_up.type != animation_type::none) {
-				win.start_ui_animation(animation_description{
+				win.rendering_interface->start_ui_animation(animation_description{
 					win.get_current_location(l_id),
 					page_footer::page_turn_up.type,
 					win.get_default_animation_direction(l_id),
 					page_footer::page_turn_up.duration_seconds,
-					page_footer::page_turn_up.animate_in });
+					page_footer::page_turn_up.animate_in }, win);
 			}
 		}
 
@@ -2564,7 +2507,7 @@ namespace printui {
 	void list_control::open(window_data& win, bool move_focus) {
 		if(l_id != layout_reference_none) {
 			if(list_control::list_appearance.type != animation_type::none)
-				win.prepare_ui_animation();
+				win.rendering_interface->prepare_ui_animation(win);
 
 			list_is_open = true;
 			win.info_popup.currently_visible = false;
@@ -2583,12 +2526,12 @@ namespace printui {
 			}
 			
 			if(list_control::list_appearance.type != animation_type::none) {
-				win.start_ui_animation(animation_description{
+				win.rendering_interface->start_ui_animation(animation_description{
 					win.get_current_location(l_id),
 					list_control::list_appearance.type,
 					win.get_default_animation_direction(l_id),
 					list_control::list_appearance.duration_seconds,
-					list_control::list_appearance.animate_in });
+					list_control::list_appearance.animate_in }, win);
 			}
 
 			if(acc_obj)
@@ -2600,7 +2543,7 @@ namespace printui {
 		if(list_is_open && l_id != layout_reference_none) {
 			screen_space_rect loc{};
 			if(list_control::list_disappearance.type != animation_type::none) {
-				win.prepare_ui_animation();
+				win.rendering_interface->prepare_ui_animation(win);
 				loc = win.get_current_location(l_id);
 			}
 
@@ -2621,14 +2564,14 @@ namespace printui {
 			}
 
 			if(list_control::list_disappearance.type != animation_type::none) {
-				win.start_ui_animation(animation_description{
+				win.rendering_interface->start_ui_animation(animation_description{
 					loc,
 					list_control::list_disappearance.type,
 					win.get_default_animation_direction(l_id),
 					list_control::list_disappearance.duration_seconds,
-					list_control::list_disappearance.animate_in });
+					list_control::list_disappearance.animate_in }, win);
 			} else {
-				win.stop_ui_animations();
+				win.rendering_interface->stop_ui_animations(win);
 			}
 
 			if(acc_obj)
@@ -2874,7 +2817,7 @@ namespace printui {
 		if(l_id != layout_reference_none) {
 
 			if(menu_control::list_appearance.type != animation_type::none)
-				win.prepare_ui_animation();
+				win.rendering_interface->prepare_ui_animation(win);
 
 			list_is_open = true;
 			win.info_popup.currently_visible = false;
@@ -2893,12 +2836,12 @@ namespace printui {
 			}
 
 			if(menu_control::list_appearance.type != animation_type::none) {
-				win.start_ui_animation(animation_description{
+				win.rendering_interface->start_ui_animation(animation_description{
 					win.get_current_location(l_id),
 					menu_control::list_appearance.type,
 					win.get_default_animation_direction(l_id),
 					menu_control::list_appearance.duration_seconds,
-					menu_control::list_appearance.animate_in });
+					menu_control::list_appearance.animate_in }, win);
 			}
 
 			on_open(win);
@@ -2912,7 +2855,7 @@ namespace printui {
 			screen_space_rect loc{};
 
 			if(menu_control::list_disappearance.type != animation_type::none) {
-				win.prepare_ui_animation();
+				win.rendering_interface->prepare_ui_animation(win);
 				loc = win.get_current_location(l_id);
 			}
 
@@ -2933,14 +2876,14 @@ namespace printui {
 			}
 
 			if(menu_control::list_disappearance.type != animation_type::none) {
-				win.start_ui_animation(animation_description{
+				win.rendering_interface->start_ui_animation(animation_description{
 					loc,
 					menu_control::list_disappearance.type,
 					win.get_default_animation_direction(l_id),
 					menu_control::list_disappearance.duration_seconds,
-					menu_control::list_disappearance.animate_in });
+					menu_control::list_disappearance.animate_in }, win);
 			} else {
-				win.stop_ui_animations();
+				win.rendering_interface->stop_ui_animations(win);
 			}
 
 			on_close(win);
@@ -3105,7 +3048,7 @@ namespace printui {
 		if(!footer_is_open && l_id != layout_reference_none) {
 
 			if(page_footer::footer_appearance.type != animation_type::none)
-				win.prepare_ui_animation();
+				win.rendering_interface->prepare_ui_animation(win);
 
 			footer_is_open = true;
 
@@ -3126,12 +3069,12 @@ namespace printui {
 				auto nwidth = win.get_node(l_id).width;
 				auto loc = win.get_layout_rect_in_current_location(
 					layout_rect{ 0, 0, -1, (nwidth <= 8ui16) ? 2 : 1 }, l_id);
-				win.start_ui_animation(animation_description{
+				win.rendering_interface->start_ui_animation(animation_description{
 					loc, 
 					page_footer::footer_appearance.type,
 					animation_direction::bottom,
 					page_footer::footer_appearance.duration_seconds,
-					page_footer::footer_appearance.animate_in });
+					page_footer::footer_appearance.animate_in }, win);
 			}
 
 			if(acc_obj)
@@ -3145,7 +3088,7 @@ namespace printui {
 				auto nwidth = win.get_node(l_id).width;
 				loc = win.get_layout_rect_in_current_location(
 					layout_rect{0, 0, -1, (nwidth <= 8ui16) ? 2 : 1 }, l_id);
-				win.prepare_ui_animation();
+				win.rendering_interface->prepare_ui_animation(win);
 			}
 
 			footer_is_open = false;
@@ -3164,12 +3107,12 @@ namespace printui {
 			}
 
 			if(page_footer::footer_disappearance.type != animation_type::none) {
-				win.start_ui_animation(animation_description{
+				win.rendering_interface->start_ui_animation(animation_description{
 					loc,
 					page_footer::footer_disappearance.type,
 					animation_direction::bottom,
 					page_footer::footer_disappearance.duration_seconds,
-					page_footer::footer_disappearance.animate_in });
+					page_footer::footer_disappearance.animate_in }, win);
 			}
 
 			if(acc_obj)

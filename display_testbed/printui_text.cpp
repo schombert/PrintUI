@@ -3729,10 +3729,10 @@ namespace printui::text {
 	void win32_text_services::set_focus(window_data& win, text_services_object* o) {
 		//manager_ptr->SetFocus(o->document);
 
-		hwnd_direct_access_base* b = static_cast<hwnd_direct_access_base*>(win.window_interface->get_os_access(os_handle_type::windows_hwnd));
-		if(b) {
+		auto hwnd = win.window_interface->get_hwnd();
+		if(hwnd) {
 			ITfDocumentMgr* old_doc = nullptr;
-			manager_ptr->AssociateFocus(b->m_hwnd, o ? o->document : nullptr, &old_doc);
+			manager_ptr->AssociateFocus((HWND)hwnd, o ? o->document : nullptr, &old_doc);
 			safe_release(old_doc);
 		} 
 	}
@@ -4348,7 +4348,19 @@ namespace printui::text {
 		return text_format{(text_format_ptr*)(label_format), baseline };
 	}
 	void direct_write_text::release_text_format(text_format fmt) {
-		IDWriteTextFormat3* label_format = (IDWriteTextFormat3*)(fmt.ptr);
-		label_format->Release();
+		IDWriteTextFormat3* format = (IDWriteTextFormat3*)(fmt.ptr);
+		format->Release();
+	}
+	void* direct_write_text::to_dwrite_format(text_format fmt) {
+		IDWriteTextFormat3* format = (IDWriteTextFormat3*)(fmt.ptr);
+		return (void*)format;
+	}
+	void* direct_write_text::to_dwrite_layout(arranged_text* ptr) {
+		IDWriteTextLayout* formatted_text = (IDWriteTextLayout*)ptr;
+		return (void*)formatted_text;
+	}
+
+	void* direct_write_text::get_dwrite_factory() {
+		return (void*)dwrite_factory;
 	}
 }

@@ -38,6 +38,9 @@ namespace printui::text {
 		virtual arrangement_result create_text_arragement(window_data const& win, std::wstring_view text, content_alignment text_alignment, bool large_text, bool single_line, int32_t max_width, std::vector<format_marker> const* formatting) override;
 		virtual text_format create_text_format(wchar_t const* name, int32_t capheight) override;
 		virtual void release_text_format(text_format fmt) override;
+		virtual void* to_dwrite_format(text_format fmt) override;
+		virtual void* to_dwrite_layout(arranged_text* ptr) override;
+		virtual void* get_dwrite_factory() override;
 
 		void update_font_metrics(font_description& desc, wchar_t const* locale, float target_pixels, float dpi_scale, IDWriteFont* font);
 		void load_fallbacks_by_type(std::vector<font_fallback> const& fb, font_type type, IDWriteFontFallbackBuilder* bldr, IDWriteFontCollection1* collection);

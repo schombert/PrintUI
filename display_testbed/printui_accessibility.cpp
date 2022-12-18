@@ -3945,9 +3945,8 @@ namespace printui {
 
 	root_window_provider* win32_accessibility::get_root_window_provider() {
 		if(!window_interface) {
-			hwnd_direct_access_base* b = static_cast<hwnd_direct_access_base*>(win.window_interface->get_os_access(os_handle_type::windows_hwnd));
-			if(b) {
-				window_interface = make_iunk<root_window_provider>(win, b->m_hwnd);
+			if(auto hwnd = win.window_interface->get_hwnd(); hwnd) {
+				window_interface = make_iunk<root_window_provider>(win, (HWND)hwnd);
 			} else {
 				return nullptr;
 			}

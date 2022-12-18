@@ -14,24 +14,6 @@
 #include <chrono>
 #include "unordered_dense.h"
 
-struct ID2D1DeviceContext5;
-struct ID2D1SolidColorBrush;
-struct ID2D1StrokeStyle;
-struct ID2D1Brush;
-struct ID2D1Bitmap;
-struct ID2D1Bitmap1;
-struct ID2D1Factory6;
-struct IWICImagingFactory;
-struct ID3D11Device;
-struct IDXGIDevice1;
-struct ID2D1Device5;
-struct ID3D11DeviceContext;
-struct IDXGISwapChain1;
-struct IDXGIFactory2;
-struct D2D_RECT_F;
-struct DXGI_SWAP_CHAIN_DESC1;
-struct IUnknown;
-
 // for text ids common to the shared prinui controls
 namespace text_id {
 	constexpr uint16_t ui_settings_name = 0;
@@ -461,27 +443,13 @@ namespace printui {
 	screen_space_rect screen_rectangle_from_layout(window_data const& win,
 		int32_t line_position, int32_t page_position, int32_t line_width, int32_t page_height);
 	screen_space_point screen_point_from_layout(layout_orientation o,
-		int32_t x_pos, int32_t y_pos, ui_rectangle const& in_rect);
-	screen_space_point screen_topleft_from_layout_in_ui(window_data const& win, int32_t line_position, int32_t page_position, int32_t line_width, int32_t page_height, ui_rectangle const& rect);
+		int32_t x_pos, int32_t y_pos, screen_space_rect const& in_rect);
+	screen_space_point screen_topleft_from_layout_in_ui(window_data const& win, int32_t line_position, int32_t page_position, int32_t line_width, int32_t page_height, screen_space_rect const& rect);
 	screen_space_rect screen_rectangle_from_layout_in_ui(window_data const& win,
 		int32_t line_position, int32_t page_position, int32_t line_width, int32_t page_height,
-		ui_rectangle const& rect);
+		screen_space_rect const& rect);
 	screen_space_rect reverse_screen_space_orientation(window_data const& win, screen_space_rect source);
 	screen_space_rect intersection(screen_space_rect a, screen_space_rect b);
-
-	struct icon {
-		std::wstring file_name;
-		ID2D1Bitmap1* rendered_layer = nullptr;
-
-		float edge_padding = 0.0f;
-
-		int8_t xsize = 1;
-		int8_t ysize = 1;
-
-		~icon();
-		void redraw_image(window_data const& win);
-		void present_image(float x, float y, ID2D1DeviceContext5* context, ID2D1Brush* dummy_brush);
-	};
 
 	struct standard_icons {
 		constexpr static uint8_t header_minimize = 0;
@@ -506,11 +474,6 @@ namespace printui {
 		constexpr static uint8_t control_text = 17;
 
 		constexpr static uint32_t final_icon = 18;
-
-		std::array<icon, final_icon> icons;
-
-		standard_icons();
-		void redraw_icons(window_data&);
 	};
 
 	enum class size_flags : uint8_t {
@@ -655,6 +618,9 @@ namespace printui {
 		ui_rectangle(uint8_t fg, uint8_t bg) : foreground_index(fg), background_index(bg) {
 		};
 
+		operator screen_space_rect() const {
+			return screen_space_rect{ x_position, y_position, width, height };
+		}
 		void rotate_borders(layout_orientation o);
 	};
 
@@ -2037,6 +2003,9 @@ namespace printui {
 			virtual arrangement_result create_text_arragement(window_data const& win, std::wstring_view text, content_alignment text_alignment, bool standard_size, bool single_line, int32_t max_width, std::vector<format_marker> const* formatting = nullptr) = 0;
 			virtual text_format create_text_format(wchar_t const* name, int32_t capheight) = 0;
 			virtual void release_text_format(text_format fmt) = 0;
+			virtual void* to_dwrite_format(text_format fmt) = 0;
+			virtual void* to_dwrite_layout(arranged_text* ptr) = 0;
+			virtual void* get_dwrite_factory() = 0;
 		};
 
 		int32_t get_height(window_data const& win, arranged_text* txt, bool standard_size);
@@ -2294,13 +2263,6 @@ namespace printui {
 
 	class root_window_provider;
 
-	enum class os_handle_type {
-		windows_hwnd
-	};
-
-	struct os_direct_access_base {
-	};
-
 	struct window_wrapper {
 		virtual ~window_wrapper() { }
 		virtual void invalidate_window() = 0;
@@ -2319,17 +2281,15 @@ namespace printui {
 		virtual uint32_t get_window_dpi() const = 0;
 		virtual bool create_window(window_data& wd) = 0;
 		virtual void display_fatal_error_message(wchar_t const*) = 0;
-		virtual long create_swap_chain(IDXGIFactory2* fac, ID3D11Device* dev, DXGI_SWAP_CHAIN_DESC1 const* desc, IDXGISwapChain1** out) = 0;
 		virtual bool is_maximized() const = 0;
 		virtual bool is_minimized() const = 0;
 		virtual void maximize(window_data&) = 0;
 		virtual void minimize(window_data&) = 0;
 		virtual void restore(window_data&) = 0;
 		virtual void close(window_data&) = 0;
-		virtual void set_text_rendering_parameters(ID2D1DeviceContext5* dc, text::wrapper* fac) = 0;
 		virtual void set_window_title(wchar_t const* t) = 0;
 		virtual bool window_has_focus() const = 0;
-		virtual os_direct_access_base* get_os_access(os_handle_type) = 0;
+		virtual void* get_hwnd() = 0;
 		virtual void text_to_clipboard(std::wstring_view txt) = 0;
 		virtual std::wstring text_from_clipboard() = 0;
 		virtual void create_system_caret(int32_t width, int32_t height) = 0;
@@ -2400,6 +2360,36 @@ namespace printui {
 		virtual void on_focus_returned_to_root() = 0;
 	};
 
+	namespace render {
+		
+
+		struct wrapper {
+			virtual ~wrapper() { }
+
+			virtual void render(window_data& win) = 0;
+			virtual void background_rectangle(screen_space_rect content_rect, uint8_t display_flags, uint8_t brush, bool under_mouse, window_data const& win) = 0;
+			virtual void interactable_or_icon(window_data const& win, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical, uint8_t icon_id) = 0;
+			virtual void interactable_or_foreground(window_data const& win, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical) = 0;
+			virtual void interactable(window_data const& win, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical) = 0;
+			virtual void text(window_data const& win, ::printui::text::arranged_text*, int32_t x, int32_t y) = 0;
+			virtual void fill_from_foreground(screen_space_rect location, uint8_t fg_brush, bool optimize_for_text) = 0;
+			virtual void create_palette(window_data const& win) = 0;
+			virtual void mark_for_complete_redraw() = 0;
+			virtual void stop_ui_animations(window_data const& win) = 0;
+			virtual void prepare_ui_animation(window_data& win) = 0;
+			virtual void start_ui_animation(animation_description description, window_data const& win) = 0;
+			virtual void register_in_place_animation() = 0;
+			virtual int64_t in_place_animation_running_ms() const = 0;
+			virtual void recreate_dpi_dependent_resource(window_data& win) = 0;
+			virtual void create_window_size_resources(window_data& win) = 0;
+			virtual void set_brush_opacity(uint8_t b, float o) = 0;
+			virtual void fill_rectangle(screen_space_rect location, uint8_t b) = 0;
+			virtual void draw_icon(int32_t x, int32_t y, uint8_t ico, uint8_t br) = 0;
+			virtual void draw_icon_to_foreground(int32_t x, int32_t y, uint8_t ico) = 0;
+			virtual layout_position get_icon_size(uint8_t ico) = 0;
+		};
+	}
+
 	struct window_data {
 	private:
 		layout_node_storage layout_nodes;
@@ -2418,7 +2408,7 @@ namespace printui {
 		bool has_window_title = false;
 		bool layout_out_of_date = true;
 		bool ui_rects_out_of_date = false;
-		bool redraw_completely_pending = false;
+		
 
 		void repopulate_ui_rects(layout_reference n, layout_position base, uint8_t parent_foreground, uint8_t parent_background, bool highlight_line = false, bool skip_bg = false);
 		void repopulate_ui_rects();
@@ -2436,53 +2426,12 @@ namespace printui {
 
 		launch_settings dynamic_settings;
 
-		ID2D1Factory6* d2d_factory = nullptr;
-		
-		IWICImagingFactory* wic_factory = nullptr;
-
-		ID2D1SolidColorBrush* dummy_brush = nullptr;
-		ID2D1StrokeStyle* plain_strokes = nullptr;
-
-		ID2D1SolidColorBrush* light_selected = nullptr;
-		ID2D1SolidColorBrush* light_line = nullptr;
-		ID2D1SolidColorBrush* light_selected_line = nullptr;
-
-		ID2D1SolidColorBrush* dark_selected = nullptr;
-		ID2D1SolidColorBrush* dark_line = nullptr;
-		ID2D1SolidColorBrush* dark_selected_line = nullptr;
-
-		ID2D1Bitmap1* foreground = nullptr;
-
-		ID2D1Bitmap1* animation_foreground = nullptr;
-		ID2D1Bitmap1* animation_background = nullptr;
-
-		icon horizontal_interactable_bg;
-		icon vertical_interactable_bg;
-
-		ID2D1Bitmap1* horizontal_interactable[12] = { nullptr };
-		ID2D1Bitmap1* vertical_interactable[12] = { nullptr };
-
-		ID2D1Bitmap1* horizontal_controller_interactable[7] = { nullptr };
-		ID2D1Bitmap1* vertical_controller_interactable[7] = { nullptr };
-
-		ID3D11Device* d3d_device = nullptr;
-		IDXGIDevice1* dxgi_device = nullptr;
-		ID2D1Device5* d2d_device = nullptr;
-
-		ID3D11DeviceContext* d3d_device_context = nullptr;
-		ID2D1DeviceContext5* d2d_device_context = nullptr;
-		IDXGISwapChain1* swap_chain = nullptr;
-
-		ID2D1Bitmap1* back_buffer_target = nullptr;
-
-		std::vector<ID2D1Brush*> palette;
-		std::vector<ID2D1Bitmap*> palette_bitmaps;
-
 		std::unique_ptr<window_wrapper> window_interface;
 		std::unique_ptr<accessibility_framework_wrapper> accessibility_interface;
 		std::shared_ptr<text::text_services_wrapper> text_services_interface;
 		std::unique_ptr<file_system_wrapper> file_system;
 		std::unique_ptr<text::wrapper> text_interface;
+		std::unique_ptr<render::wrapper> rendering_interface;
 
 		uint32_t ui_width = 0;
 		uint32_t ui_height = 0;
@@ -2557,15 +2506,9 @@ namespace printui {
 		uint8_t secondary_right_click_modifier_sc_up = 0x9Dui8; // right control (both are the same if we take only the lower byte)
 
 		bool is_sizeing = false;
-		bool is_suspended = false;
 		bool pending_right_click = false;
 
-		bool running_in_place_animation = false;
-		bool previous_frame_in_place_animation = false;
-		decltype(std::chrono::steady_clock::now()) in_place_animation_start;
-		animation_status_struct animation_status;
-
-		window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai, std::shared_ptr<text::text_services_wrapper> const& ts, std::unique_ptr<file_system_wrapper>&& file_system, std::unique_ptr<text::wrapper>&& text_interface);
+		window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai, std::shared_ptr<text::text_services_wrapper> const& ts, std::unique_ptr<file_system_wrapper>&& file_system, std::unique_ptr<text::wrapper>&& text_interface, std::unique_ptr<render::wrapper>&& rendering_interface);
 		virtual ~window_data();
 
 		virtual void load_default_dynamic_settings() = 0;
@@ -2585,28 +2528,10 @@ namespace printui {
 
 		// OTHER
 
-		void create_persistent_resources();
 		void message_loop();
 
 		void create_window();
 		void on_dpi_change();
-		
-
-		void create_device_resources();
-		void release_device_resources();
-
-		void create_window_size_resources(uint32_t nWidth, uint32_t nHeight);
-
-		void create_palette();
-		void release_palette();
-		
-		void refresh_foregound();
-		void render();
-
-		void composite_animation();
-		void stop_ui_animations();
-		void prepare_ui_animation();
-		void start_ui_animation(animation_description description);
 
 		void show_settings_panel();
 		void hide_settings_panel();
@@ -2724,9 +2649,6 @@ namespace printui {
 
 		void flag_for_update_from_interface(render_interface const* i);
 
-		void create_interactiable_tags();
-		void create_highlight_brushes();
-
 		screen_space_rect get_current_location(layout_reference r) const;
 		screen_space_rect get_layout_rect_in_current_location(layout_rect const& rect, layout_reference r) const;
 
@@ -2742,8 +2664,6 @@ namespace printui {
 		void immediate_add_child(layout_reference parent, layout_reference child);
 
 		void set_keyboard_focus(edit_interface* i);
-		void register_in_place_animation();
-		int64_t in_place_animation_running_ms() const;
 
 		void load_locale_settings(std::wstring const& directory);
 		void load_locale_fonts(std::wstring const& directory);
@@ -2762,15 +2682,4 @@ namespace printui {
 	}
 	uint32_t content_alignment_to_text_alignment(content_alignment align);
 	
-
-	namespace render {
-		void to_display(std::vector<ui_rectangle> const& uirects, window_data& win);
-		void foregrounds(std::vector<ui_rectangle>& uirects, window_data& win);
-		void update_foregrounds(std::vector<ui_rectangle>& uirects, window_data& win);
-		void background_rectangle(D2D_RECT_F content_rect, window_data const& win, uint8_t display_flags, uint8_t brush, bool under_mouse);
-
-		void interactable_or_icon(window_data& win, ID2D1DeviceContext5* dc, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical, icon const& ico);
-		void interactable_or_foreground(window_data& win, ID2D1DeviceContext5* dc, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical);
-		void interactable(window_data& win, ID2D1DeviceContext5* dc, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical);
-	}
 }

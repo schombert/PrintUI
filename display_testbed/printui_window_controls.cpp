@@ -259,13 +259,8 @@ namespace printui {
 		text.draw_text(win, std::min(top_left.x, bottom_right.x), std::min(top_left.y, bottom_right.y));
 	}
 	void info_window::render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) {
-		D2D1_RECT_F content_rect{
-			float(rect.x_position), float(rect.y_position),
-			float(rect.x_position + rect.width), float(rect.y_position + rect.height) };
-
-		render::background_rectangle(content_rect, win, rect.display_flags, rect.background_index, under_mouse);
-
-		win.d2d_device_context->FillOpacityMask(win.foreground, win.palette[rect.foreground_index], D2D1_OPACITY_MASK_CONTENT_TEXT_NATURAL, content_rect, content_rect);
+		win.rendering_interface->background_rectangle(rect, rect.display_flags, rect.background_index, under_mouse, win);
+		win.rendering_interface->fill_from_foreground(screen_rectangle_from_layout_in_ui(win, 0, 1, win.get_node(l_id).width, win.get_node(l_id).height - 1, rect), rect.foreground_index, true);
 	}
 	void info_window::recreate_contents(window_data& win, layout_node& n) {
 		auto const n_width = n.width;
@@ -283,7 +278,7 @@ namespace printui {
 	void info_window::open(window_data& win, parameters const& params) {
 		
 		if(info_window::info_appearance.type != animation_type::none)
-			win.prepare_ui_animation();
+			win.rendering_interface->prepare_ui_animation(win);
 
 		currently_visible = true;
 		
@@ -372,12 +367,12 @@ namespace printui {
 		
 
 		if(info_window::info_appearance.type != animation_type::none) {
-			win.start_ui_animation(animation_description{
+			win.rendering_interface->start_ui_animation(animation_description{
 				screen_rectangle_from_layout(win, self_node.x, self_node.y, self_node.width, self_node.height),
 				info_window::info_appearance.type,
 				appearance_direction,
 				info_window::info_appearance.duration_seconds,
-				info_window::info_appearance.animate_in });
+				info_window::info_appearance.animate_in }, win);
 		}
 		
 	}
@@ -385,7 +380,7 @@ namespace printui {
 		if(currently_visible && l_id != layout_reference_none) {
 			screen_space_rect loc{};
 			if(info_window::info_disappearance.type != animation_type::none) {
-				win.prepare_ui_animation();
+				win.rendering_interface->prepare_ui_animation(win);
 				loc = win.get_current_location(l_id);
 			}
 
@@ -401,12 +396,12 @@ namespace printui {
 			}
 
 			if(info_window::info_disappearance.type != animation_type::none) {
-				win.start_ui_animation(animation_description{
+				win.rendering_interface->start_ui_animation(animation_description{
 					loc,
 					info_window::info_disappearance.type,
 					appearance_direction,
 					info_window::info_disappearance.duration_seconds,
-					info_window::info_disappearance.animate_in });
+					info_window::info_disappearance.animate_in }, win);
 			}
 		}
 	}

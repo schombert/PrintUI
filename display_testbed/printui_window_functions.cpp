@@ -169,6 +169,7 @@ namespace printui {
 		return return_value;
 	}
 
+
 	LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 
 	bool os_win32_wrapper::create_window(window_data& win) {
@@ -268,10 +269,6 @@ namespace printui {
 		MessageBox((HWND)(m_hwnd), msg, L"Fatal Error", MB_OK | MB_ICONERROR);
 	}
 
-	long os_win32_wrapper::create_swap_chain(IDXGIFactory2* fac, ID3D11Device* dev, DXGI_SWAP_CHAIN_DESC1 const* desc, IDXGISwapChain1** out) 		{
-		return fac->CreateSwapChainForHwnd(dev, (HWND)(m_hwnd), desc, nullptr, nullptr, out);
-
-	}
 	bool os_win32_wrapper::window_has_focus() const {
 		return GetForegroundWindow() == (HWND)(m_hwnd);
 	}
@@ -302,23 +299,9 @@ namespace printui {
 		SetWindowText((HWND)(m_hwnd), t);
 	}
 
-	void os_win32_wrapper::set_text_rendering_parameters(ID2D1DeviceContext5* dc, text::wrapper* fac) {
-		auto real_ptr = (text::direct_write_text*)(fac);
 
-		IDWriteRenderingParams* rparams = nullptr;
-		auto monitor_handle = MonitorFromWindow((HWND)(m_hwnd), MONITOR_DEFAULTTOPRIMARY);
-		real_ptr->dwrite_factory->CreateMonitorRenderingParams(monitor_handle, &rparams);
-		if(rparams) {
-			dc->SetTextRenderingParams(rparams);
-			safe_release(rparams);
-		}
-	}
+	window_data::window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai, std::shared_ptr<text::text_services_wrapper> const& ts, std::unique_ptr<file_system_wrapper>&& file_system, std::unique_ptr<text::wrapper>&& text_interface, std::unique_ptr<render::wrapper>&& rendering_interface) : window_bar(*this, mn, mx, settings, setting_items), window_interface(std::move(wi)), accessibility_interface(std::move(ai)), text_services_interface(ts), file_system(std::move(file_system)), text_interface(std::move(text_interface)), rendering_interface(std::move(rendering_interface)) {
 
-	window_data::window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai, std::shared_ptr<text::text_services_wrapper> const& ts, std::unique_ptr<file_system_wrapper>&& file_system, std::unique_ptr<text::wrapper>&& text_interface) : window_bar(*this, mn, mx, settings, setting_items), window_interface(std::move(wi)), accessibility_interface(std::move(ai)), text_services_interface(ts), file_system(std::move(file_system)), text_interface(std::move(text_interface)) {
-		horizontal_interactable_bg.file_name = L"left_select_i.svg";
-		horizontal_interactable_bg.edge_padding = 0.0f;
-		vertical_interactable_bg.file_name = L"top_select_i.svg";
-		vertical_interactable_bg.edge_padding = 0.0f;
 	}
 
 	ui_rectangle const* interface_under_point(std::vector<ui_rectangle> const& rects, int32_t x, int32_t y) {
@@ -378,72 +361,6 @@ namespace printui {
 			dynamic_settings.settings_changed = false;
 		}
 
-		safe_release(d2d_factory);
-		safe_release(wic_factory);
-
-		safe_release(light_selected);
-		safe_release(light_line);
-		safe_release(light_selected_line);
-		safe_release(dark_selected);
-		safe_release(dark_line);
-		safe_release(dark_selected_line);
-		safe_release(dummy_brush);
-		safe_release(plain_strokes);
-
-		safe_release(foreground);
-
-		safe_release(animation_foreground);
-		safe_release(animation_background);
-
-
-		for(uint32_t i = 0; i < 12; ++i) {
-			safe_release(horizontal_interactable[i]);
-			safe_release(vertical_interactable[i]);
-		}
-		for(auto& i : palette) {
-			safe_release(i);
-		}
-		for(auto& i : palette_bitmaps) {
-			safe_release(i);
-		}
-
-		safe_release(d3d_device);
-		safe_release(dxgi_device);
-		safe_release(d2d_device);
-
-		safe_release(d3d_device_context);
-		safe_release(d2d_device_context);
-		safe_release(swap_chain);
-
-		safe_release(back_buffer_target);
-	}
-
-	void window_data::create_highlight_brushes() {
-		d2d_device_context->CreateSolidColorBrush(
-			D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.11f),
-			&light_selected
-		);
-		d2d_device_context->CreateSolidColorBrush(
-			D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.06f),
-			&light_line
-		);
-		d2d_device_context->CreateSolidColorBrush(
-			D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.15f),
-			&light_selected_line
-		);
-
-		d2d_device_context->CreateSolidColorBrush(
-			D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.11f),
-			&dark_selected
-		);
-		d2d_device_context->CreateSolidColorBrush(
-			D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.06f),
-			&dark_line
-		);
-		d2d_device_context->CreateSolidColorBrush(
-			D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.15f),
-			&dark_selected_line
-		);
 	}
 
 
@@ -451,36 +368,13 @@ namespace printui {
 		layout_size = int32_t(std::round(dynamic_settings.global_size_multiplier * float(dynamic_settings.layout_base_size) * dpi / 96.0f));
 		window_border = int32_t(std::round(float(dynamic_settings.window_border) * dpi / 96.0f));
 
+		rendering_interface->stop_ui_animations(*this);
 		text_interface->initialize_fonts(*this);
-
-		//todo: icons.
-		common_icons.redraw_icons(*this);
-		create_interactiable_tags();
+		rendering_interface->recreate_dpi_dependent_resource(*this);
 
 		client_on_dpi_change();
 	}
 
-
-	void window_data::create_persistent_resources() {
-		D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &d2d_factory);
-		CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_IWICImagingFactory, reinterpret_cast<void**>(&wic_factory));
-		
-
-		{
-			D2D1_STROKE_STYLE_PROPERTIES style_prop;
-			style_prop.startCap = D2D1_CAP_STYLE_FLAT;
-			style_prop.endCap = D2D1_CAP_STYLE_FLAT;
-			style_prop.dashCap = D2D1_CAP_STYLE_FLAT;
-			style_prop.lineJoin = D2D1_LINE_JOIN_MITER;
-			style_prop.miterLimit = 10.0f;
-			style_prop.dashStyle = D2D1_DASH_STYLE_SOLID;
-			style_prop.dashOffset = 0.0f;
-			d2d_factory->CreateStrokeStyle(style_prop, nullptr, 0, &plain_strokes);
-		}
-
-		//fonts
-		text_interface->create_font_collection(*this);
-	}
 
 	void window_data::expand_to_fit_content() {
 		auto workspace = window_interface->get_available_workspace();
@@ -992,7 +886,7 @@ namespace printui {
 					{
 						app->dpi = float(HIWORD(wParam));
 						auto lprcNewScale = reinterpret_cast<RECT*>(lParam);
-						app->stop_ui_animations();
+						
 						app->on_dpi_change();
 						SetWindowPos(hwnd, nullptr, lprcNewScale->left, lprcNewScale->top,
 							lprcNewScale->right - lprcNewScale->left, lprcNewScale->bottom - lprcNewScale->top,
@@ -1222,7 +1116,7 @@ namespace printui {
 					{
 						PAINTSTRUCT ps;
 						BeginPaint(hwnd, &ps);
-						app->render();
+						app->rendering_interface->render(*app);
 						EndPaint(hwnd, &ps);
 						return 0;
 					}
@@ -1303,7 +1197,7 @@ namespace printui {
 	void window_data::create_window() {
 		dpi = float(window_interface->get_window_dpi());
 		load_default_dynamic_settings();
-		create_persistent_resources();
+		text_interface->create_font_collection(*this);
 
 		if(dynamic_settings.imode == input_mode::system_default) {
 			dynamic_settings.imode = input_mode::follow_input;
@@ -1323,7 +1217,18 @@ namespace printui {
 
 	bool window_data::on_resize(resize_type type, uint32_t width, uint32_t height) {
 
-		stop_ui_animations();
+		rendering_interface->stop_ui_animations(*this);
+
+		if(ui_width == width && ui_height == height) return false;
+
+		info_popup.currently_visible = false;
+
+		ui_width = width;
+		ui_height = height;
+		dpi = float(window_interface->get_window_dpi());
+
+		recreate_layout();
+
 		if(type == resize_type::maximize) {
 			auto workspace = window_interface->get_available_workspace();
 
@@ -1332,11 +1237,8 @@ namespace printui {
 
 			window_interface->move_window(workspace);
 
-			if(!d3d_device) {
-				create_device_resources();
-			} else {
-				create_window_size_resources(width, height);
-			}
+			rendering_interface->create_window_size_resources(*this);
+
 			client_on_resize(width, height);
 
 			window_interface->invalidate_window();
@@ -1345,11 +1247,8 @@ namespace printui {
 		} else if(type == resize_type::resize) {
 			window_border = std::max(window_border, window_saved_border);
 
-			if(!d3d_device) {
-				create_device_resources();
-			} else {
-				create_window_size_resources(width, height);
-			}
+			rendering_interface->create_window_size_resources(*this);
+
 			client_on_resize(width, height);
 
 			if(minimum_ui_width > ui_width || minimum_ui_height > ui_height) {
@@ -1362,199 +1261,7 @@ namespace printui {
 		return false;
 	}
 
-	void window_data::create_device_resources() {
-		HRESULT hr = S_OK;
-
-		if(!d3d_device) {
-			IDXGIAdapter* pAdapter = nullptr;
-			IDXGIFactory2* pDXGIFactory = nullptr;
-
-			auto loc = window_interface->get_window_location();
-
-			auto nWidth = loc.width;
-			auto nHeight = loc.height;
-
-			D3D_FEATURE_LEVEL levels[] = { D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0 };
-
-			hr = D3D11CreateDevice(
-				nullptr,
-				D3D_DRIVER_TYPE_HARDWARE,
-				nullptr,
-				D3D11_CREATE_DEVICE_SINGLETHREADED | D3D11_CREATE_DEVICE_BGRA_SUPPORT,
-				levels, 4,
-				D3D11_SDK_VERSION,
-				&d3d_device,
-				nullptr,
-				&d3d_device_context
-			);
-
-			if(FAILED(hr)) {
-				hr = D3D11CreateDevice(nullptr,
-					D3D_DRIVER_TYPE_WARP,
-					nullptr,
-					D3D11_CREATE_DEVICE_SINGLETHREADED | D3D11_CREATE_DEVICE_BGRA_SUPPORT,
-					levels, 4,
-					D3D11_SDK_VERSION,
-					&d3d_device,
-					nullptr,
-					&d3d_device_context
-				);
-			}
-
-			if(SUCCEEDED(hr)) {
-				hr = d3d_device->QueryInterface(IID_PPV_ARGS(&dxgi_device));
-			}
-			if(SUCCEEDED(hr)) {
-				hr = d2d_factory->CreateDevice(dxgi_device, &d2d_device);
-			}
-			if(SUCCEEDED(hr)) {
-				hr = d2d_device->CreateDeviceContext(
-					D2D1_DEVICE_CONTEXT_OPTIONS_NONE,
-					&d2d_device_context
-				);
-			}
-			if(SUCCEEDED(hr)) {
-				hr = d3d_device->QueryInterface(&dxgi_device);
-			}
-			if(SUCCEEDED(hr)) {
-				hr = dxgi_device->GetAdapter(&pAdapter);
-			}
-			if(SUCCEEDED(hr)) {
-				hr = pAdapter->GetParent(IID_PPV_ARGS(&pDXGIFactory));
-			}
-			if(SUCCEEDED(hr)) {
-				DXGI_SWAP_CHAIN_DESC1  swapDesc;
-				::ZeroMemory(&swapDesc, sizeof(swapDesc));
-
-				swapDesc.Width = nWidth;
-				swapDesc.Height = nHeight;
-				swapDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-				swapDesc.Stereo = FALSE;
-				swapDesc.SampleDesc = DXGI_SAMPLE_DESC{ 1,0 };
-				swapDesc.SampleDesc.Count = 1;
-				swapDesc.SampleDesc.Quality = 0;
-				swapDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-				swapDesc.BufferCount = 2;
-				swapDesc.Scaling = DXGI_SCALING_NONE;
-				swapDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-				swapDesc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
-				swapDesc.Flags = 0;
-
-				hr = window_interface->create_swap_chain(pDXGIFactory, d3d_device, &swapDesc, &swap_chain);
-			}
-			if(SUCCEEDED(hr)) {
-				hr = dxgi_device->SetMaximumFrameLatency(1);
-			}
-
-			dpi = float(window_interface->get_window_dpi());
-
-			create_palette();
-
-			if(SUCCEEDED(hr)) {
-				create_window_size_resources(nWidth, nHeight);
-			} else {
-				window_interface->display_fatal_error_message(L"Could not create direct X devices, exiting");
-				std::terminate();
-			}
-
-			safe_release(pAdapter);
-			safe_release(pDXGIFactory);
-		}
-	}
-
-	void window_data::release_device_resources() {
-		safe_release(d3d_device);
-		safe_release(d3d_device_context);
-		safe_release(d2d_device);
-		safe_release(d2d_device_context);
-		safe_release(dxgi_device);
-		safe_release(swap_chain);
-
-		release_palette();
-	}
-
-
-	void window_data::create_window_size_resources(uint32_t nWidth, uint32_t nHeight) {
-		HRESULT hr = S_OK;
-		IDXGISurface* back_buffer = nullptr;
-
-		if(ui_width == nWidth && ui_height == nHeight) return;
-
-		info_popup.currently_visible = false;
-
-		ui_width = nWidth;
-		ui_height = nHeight;
-		dpi = float(window_interface->get_window_dpi());
-
-		recreate_layout();
-
-		if(!swap_chain)
-			return;
-
-		safe_release(back_buffer_target);
-		safe_release(foreground);
-
-		stop_ui_animations();
-		safe_release(animation_foreground);
-		safe_release(animation_background);
-
-		// Resize render target buffers
-		d2d_device_context->SetTarget(nullptr);
-		hr = swap_chain->ResizeBuffers(0, nWidth, nHeight, DXGI_FORMAT_B8G8R8A8_UNORM, 0);
-
-		if(SUCCEEDED(hr)) {
-			hr = swap_chain->GetBuffer(0, IID_PPV_ARGS(&back_buffer));
-		}
-		if(SUCCEEDED(hr)) {
-			D2D1_BITMAP_PROPERTIES1 bitmapProperties =
-				D2D1::BitmapProperties1(
-					D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
-					D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_IGNORE),
-					dpi,
-					dpi
-				);
-			hr = d2d_device_context->CreateBitmapFromDxgiSurface(
-				back_buffer,
-				&bitmapProperties,
-				&back_buffer_target
-			);
-		}
-
-		safe_release(back_buffer);
-
-		if(!back_buffer_target)
-			std::abort();
-
-		if(SUCCEEDED(hr)) {
-			d2d_device_context->CreateBitmap(D2D1_SIZE_U{ ui_width, ui_height }, nullptr, 0,
-				D2D1_BITMAP_PROPERTIES1{
-					D2D1::PixelFormat(
-						DXGI_FORMAT_A8_UNORM,
-						D2D1_ALPHA_MODE_PREMULTIPLIED),
-					dpi, dpi,
-					D2D1_BITMAP_OPTIONS_TARGET , nullptr },
-				&foreground);
-
-			redraw_completely_pending = true;
-
-			d2d_device_context->CreateBitmap(D2D1_SIZE_U{ ui_width, ui_height }, nullptr, 0,
-				D2D1_BITMAP_PROPERTIES1{
-					D2D1::PixelFormat(
-						DXGI_FORMAT_B8G8R8A8_UNORM ,
-						D2D1_ALPHA_MODE_PREMULTIPLIED),
-					dpi, dpi,
-					D2D1_BITMAP_OPTIONS_TARGET , nullptr },
-				& animation_foreground);
-			d2d_device_context->CreateBitmap(D2D1_SIZE_U{ ui_width, ui_height }, nullptr, 0,
-				D2D1_BITMAP_PROPERTIES1{
-					D2D1::PixelFormat(
-						DXGI_FORMAT_B8G8R8A8_UNORM ,
-						D2D1_ALPHA_MODE_PREMULTIPLIED),
-					dpi, dpi,
-					D2D1_BITMAP_OPTIONS_TARGET , nullptr },
-				& animation_background);
-		}
-	}
+	
 
 	void window_data::message_loop() {
 		MSG msg;
@@ -1601,7 +1308,7 @@ namespace printui {
 	}
 
 	void window_data::show_settings_panel() {
-		prepare_ui_animation();
+		rendering_interface->prepare_ui_animation(*this);
 
 		auto panelsize_x = get_node(window_bar.settings_pages.l_id).width;
 		auto panelsize_y = get_node(window_bar.l_id).height;
@@ -1610,7 +1317,7 @@ namespace printui {
 
 		auto screen_rect = screen_rectangle_from_layout(*this, horizontal_offset, vertical_offset, panelsize_x, panelsize_y);
 
-		start_ui_animation(animation_description{ screen_rect, animation_type::flip, animation_direction::left, 0.5f, true});
+		rendering_interface->start_ui_animation(animation_description{ screen_rect, animation_type::flip, animation_direction::left, 0.5f, true}, *this);
 
 		window_bar.expanded_show_settings = true;
 		get_node(window_bar.settings_pages.l_id).set_ignore(false);
@@ -1622,7 +1329,7 @@ namespace printui {
 	}
 
 	void window_data::hide_settings_panel() {
-		prepare_ui_animation();
+		rendering_interface->prepare_ui_animation(*this);
 
 		auto panelsize_x = get_node(window_bar.settings_pages.l_id).width;
 		auto panelsize_y = get_node(window_bar.l_id).height;
@@ -1631,7 +1338,7 @@ namespace printui {
 
 		auto screen_rect = screen_rectangle_from_layout(*this, horizontal_offset, vertical_offset, panelsize_x, panelsize_y);
 
-		start_ui_animation(animation_description{ screen_rect, animation_type::flip, animation_direction::left, 0.5f, false });
+		rendering_interface->start_ui_animation(animation_description{ screen_rect, animation_type::flip, animation_direction::left, 0.5f, false }, *this);
 
 		window_bar.expanded_show_settings = false;
 		get_node(window_bar.settings_pages.l_id).set_ignore(true);
@@ -1651,13 +1358,8 @@ namespace printui {
 
 	}
 
-	os_direct_access_base* os_win32_wrapper::get_os_access(os_handle_type t) {
-		if(t == os_handle_type::windows_hwnd) {
-			stored_direct_access.m_hwnd = m_hwnd;
-			return &stored_direct_access;
-		} else {
-			return nullptr;
-		}
+	void* os_win32_wrapper::get_hwnd() {
+		return (void*)m_hwnd;
 	}
 
 	void window_data::set_keyboard_focus(edit_interface* i) {

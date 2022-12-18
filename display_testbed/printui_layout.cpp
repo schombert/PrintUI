@@ -730,7 +730,7 @@ namespace printui {
 		}
 		repopulate_key_actions();
 		ui_rects_out_of_date = false;
-		redraw_completely_pending = true;
+		rendering_interface->mark_for_complete_redraw();
 	}
 
 	void window_data::update_generation(layout_reference id) {
@@ -903,7 +903,7 @@ namespace printui {
 		if(dynamic_settings.global_size_multiplier != v) {
 			dynamic_settings.global_size_multiplier = v;
 			layout_out_of_date = true;
-			stop_ui_animations();
+			rendering_interface->stop_ui_animations(*this);
 
 			++text_data.text_generation;
 			info_popup.currently_visible = false;
@@ -911,8 +911,7 @@ namespace printui {
 			layout_size = int32_t(std::round(dynamic_settings.global_size_multiplier * float(dynamic_settings.layout_base_size) * dpi / 96.0f));
 
 			text_interface->initialize_fonts(*this);
-			common_icons.redraw_icons(*this);
-			create_interactiable_tags();
+			rendering_interface->recreate_dpi_dependent_resource(*this);
 
 			reset_layout();
 			get_layout();
@@ -931,13 +930,12 @@ namespace printui {
 		orientation = o;
 		dynamic_settings.preferred_orientation = o;
 		layout_out_of_date = true;
-		stop_ui_animations();
+		rendering_interface->stop_ui_animations(*this);
 
 		++text_data.text_generation;
 		info_popup.currently_visible = false;
 
-		common_icons.redraw_icons(*this);
-		create_interactiable_tags();
+		rendering_interface->recreate_dpi_dependent_resource(*this);
 
 		reset_layout();
 		get_layout();
