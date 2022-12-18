@@ -1,4 +1,5 @@
-#pragma once
+#ifndef PRINTUI_ACCESSIBILITY_HEADER
+#define PRINTUI_ACCESSIBILITY_HEADER
 
 #ifndef UNICODE
 #define UNICODE
@@ -6,7 +7,7 @@
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 
-#include "printui_utility.hpp"
+#include "printui_datatypes.hpp"
 #include <algorithm>
 #include <Windows.h>
 #include <ole2.h>
@@ -71,51 +72,52 @@ namespace printui {
         return iunk_ptr<I>(new I(std::forward<P>(p)...));
     }
 
-    struct win32_accessibility : public accessibility_framework_wrapper {
+    struct win32_accessibility  {
+    private:
         window_data& win;
         iunk_ptr<root_window_provider> window_interface;
-
+    public:
         win32_accessibility(window_data& win) : win(win) {
         }
-        virtual ~win32_accessibility();
-        virtual bool has_keyboard_preference() override;
-        virtual void notify_window_state_change(resize_type r) override;
-        virtual void notify_window_moved(int32_t x, int32_t y, int32_t width, int32_t height) override;
-        virtual void notify_window_closed() override;
-        virtual root_window_provider* get_root_window_provider() override;
-        virtual root_window_provider* peek_root_window_provider() override;
-        virtual void release_root_provider() override;
-        virtual accessibility_object* make_action_button_accessibility_interface(window_data& w, button_control_base& b) override;
-        virtual accessibility_object* make_selection_button_accessibility_interface(window_data& w, button_control_base& b) override;
-        virtual accessibility_object* make_toggle_button_accessibility_interface(window_data& w, button_control_toggle& b) override;
-        virtual accessibility_object* make_icon_button_accessibility_interface(window_data& w, icon_button_base& b) override;
-        virtual accessibility_object* make_icon_toggle_button_accessibility_interface(window_data& w, icon_button_base& b) override;
-        virtual accessibility_object* make_open_list_control_accessibility_interface(window_data& w, open_list_control& b) override;
-        virtual accessibility_object* make_container_accessibility_interface(window_data& w, layout_interface* b, uint16_t name) override;
-        virtual accessibility_object* make_plain_text_accessibility_interface(window_data& w, layout_interface* b, stored_text* t, bool is_content) override;
-        virtual accessibility_object* make_simple_text_accessibility_interface(window_data& w, edit_interface* control, uint16_t name, uint16_t alt) override;
-        virtual accessibility_object* make_expandable_selection_list(window_data& win, generic_expandable* control, generic_selection_container* sc, uint16_t name, uint16_t alt_text) override;
-        virtual accessibility_object* make_expandable_container(window_data& win, generic_expandable* control, uint16_t name, uint16_t alt_text) override;
-        virtual accessibility_object* make_numeric_range_accessibility_interface(window_data& win, editable_numeric_range& control) override;
-        virtual void on_invoke(accessibility_object* b) override;
-        virtual void on_enable_disable(accessibility_object* b, bool disabled) override;
-        virtual void on_select_unselect(accessibility_object* b, bool selection_state) override;
-        virtual void on_change_name(accessibility_object* b, std::wstring const& new_name) override;
-        virtual void on_change_help_text(accessibility_object* b, std::wstring const& new_text) override;
-        virtual void on_toggle_change(accessibility_object* b) override;
-        virtual void on_selection_change(accessibility_object* b) override;
-        virtual void on_contents_changed(accessibility_object* b) override;
-        virtual void on_expand_collapse(accessibility_object* b, bool expanded) override;
-        virtual void on_window_layout_changed() override;
-        virtual void on_text_content_changed(accessibility_object* b) override;
-        virtual void on_text_value_changed(accessibility_object* b) override;
-        virtual void on_text_numeric_value_changed(accessibility_object* b) override;
-        virtual void on_text_selection_changed(accessibility_object* b) override;
-        virtual void on_conversion_target_changed(accessibility_object* b) override;
-        virtual void on_composition_change(accessibility_object* b, std::wstring_view comp) override;
-        virtual void on_composition_result(accessibility_object* b, std::wstring_view result) override;
-        virtual void on_focus_change(accessibility_object* b) override;
-        virtual void on_focus_returned_to_root() override;
+        ~win32_accessibility();
+        bool has_keyboard_preference();
+        void notify_window_state_change(resize_type r);
+        void notify_window_moved(int32_t x, int32_t y, int32_t width, int32_t height);
+        void notify_window_closed();
+        root_window_provider* get_root_window_provider();
+        root_window_provider* peek_root_window_provider();
+        void release_root_provider();
+        accessibility_object* make_action_button_accessibility_interface(window_data& w, button_control_base& b);
+        accessibility_object* make_selection_button_accessibility_interface(window_data& w, button_control_base& b);
+        accessibility_object* make_toggle_button_accessibility_interface(window_data& w, button_control_toggle& b);
+        accessibility_object* make_icon_button_accessibility_interface(window_data& w, icon_button_base& b);
+        accessibility_object* make_icon_toggle_button_accessibility_interface(window_data& w, icon_button_base& b);
+        accessibility_object* make_open_list_control_accessibility_interface(window_data& w, open_list_control& b);
+        accessibility_object* make_container_accessibility_interface(window_data& w, layout_interface* b, uint16_t name);
+        accessibility_object* make_plain_text_accessibility_interface(window_data& w, layout_interface* b, stored_text* t, bool is_content);
+        accessibility_object* make_simple_text_accessibility_interface(window_data& w, edit_interface* control, uint16_t name, uint16_t alt);
+        accessibility_object* make_expandable_selection_list(window_data& win, generic_expandable* control, generic_selection_container* sc, uint16_t name, uint16_t alt_text);
+        accessibility_object* make_expandable_container(window_data& win, generic_expandable* control, uint16_t name, uint16_t alt_text);
+        accessibility_object* make_numeric_range_accessibility_interface(window_data& win, editable_numeric_range& control);
+        void on_invoke(accessibility_object* b);
+        void on_enable_disable(accessibility_object* b, bool disabled);
+        void on_select_unselect(accessibility_object* b, bool selection_state);
+        void on_change_name(accessibility_object* b, std::wstring const& new_name);
+        void on_change_help_text(accessibility_object* b, std::wstring const& new_text);
+        void on_toggle_change(accessibility_object* b);
+        void on_selection_change(accessibility_object* b);
+        void on_contents_changed(accessibility_object* b);
+        void on_expand_collapse(accessibility_object* b, bool expanded);
+        void on_window_layout_changed();
+        void on_text_content_changed(accessibility_object* b);
+        void on_text_value_changed(accessibility_object* b);
+        void on_text_numeric_value_changed(accessibility_object* b);
+        void on_text_selection_changed(accessibility_object* b);
+        void on_conversion_target_changed(accessibility_object* b);
+        void on_composition_change(accessibility_object* b, std::wstring_view comp);
+        void on_composition_result(accessibility_object* b, std::wstring_view result);
+        void on_focus_change(accessibility_object* b);
+        void on_focus_returned_to_root();
     };
 
     class root_window_provider : public IRawElementProviderSimple,
@@ -761,3 +763,5 @@ namespace printui {
         ULONG m_refCount;
     };
 }
+
+#endif

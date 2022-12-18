@@ -1,4 +1,4 @@
-#include "printui_utility.hpp"
+#include "printui_main_header.hpp"
 
 #ifndef UNICODE
 #define UNICODE
@@ -730,7 +730,7 @@ namespace printui {
 		}
 		repopulate_key_actions();
 		ui_rects_out_of_date = false;
-		rendering_interface->mark_for_complete_redraw();
+		rendering_interface.mark_for_complete_redraw();
 	}
 
 	void window_data::update_generation(layout_reference id) {
@@ -878,7 +878,7 @@ namespace printui {
 			auto new_x_size = std::max(temp_window_min_size_x * layout_size + window_border * 2, ui_width);
 			auto new_y_size = std::max(temp_window_min_size_y * layout_size + window_border * 2, ui_height);
 
-			auto work_area = window_interface->get_available_workspace();
+			auto work_area = window_interface.get_available_workspace();
 
 			new_x_size = std::min(new_x_size, uint32_t(work_area.width));
 			new_y_size = std::min(new_y_size, uint32_t(work_area.height));
@@ -903,15 +903,15 @@ namespace printui {
 		if(dynamic_settings.global_size_multiplier != v) {
 			dynamic_settings.global_size_multiplier = v;
 			layout_out_of_date = true;
-			rendering_interface->stop_ui_animations(*this);
+			rendering_interface.stop_ui_animations(*this);
 
 			++text_data.text_generation;
 			info_popup.currently_visible = false;
 
 			layout_size = int32_t(std::round(dynamic_settings.global_size_multiplier * float(dynamic_settings.layout_base_size) * dpi / 96.0f));
 
-			text_interface->initialize_fonts(*this);
-			rendering_interface->recreate_dpi_dependent_resource(*this);
+			text_interface.initialize_fonts(*this);
+			rendering_interface.recreate_dpi_dependent_resource(*this);
 
 			reset_layout();
 			get_layout();
@@ -921,21 +921,21 @@ namespace printui {
 			if(minimum_ui_width > ui_width || minimum_ui_height > ui_height) {
 				expand_to_fit_content();
 			} else {
-				window_interface->invalidate_window();
+				window_interface.invalidate_window();
 			}
-			accessibility_interface->on_window_layout_changed();
+			accessibility_interface.on_window_layout_changed();
 		}
 	}
 	void window_data::change_orientation(layout_orientation o) {
 		orientation = o;
 		dynamic_settings.preferred_orientation = o;
 		layout_out_of_date = true;
-		rendering_interface->stop_ui_animations(*this);
+		rendering_interface.stop_ui_animations(*this);
 
 		++text_data.text_generation;
 		info_popup.currently_visible = false;
 
-		rendering_interface->recreate_dpi_dependent_resource(*this);
+		rendering_interface.recreate_dpi_dependent_resource(*this);
 
 		reset_layout();
 		get_layout();
@@ -947,9 +947,9 @@ namespace printui {
 		if(minimum_ui_width > ui_width || minimum_ui_height > ui_height) {
 			expand_to_fit_content();
 		} else {
-			window_interface->invalidate_window();
+			window_interface.invalidate_window();
 		}
-		accessibility_interface->on_window_layout_changed();
+		accessibility_interface.on_window_layout_changed();
 	}
 
 
@@ -1150,7 +1150,7 @@ namespace printui {
 
 	void window_data::redraw_ui() {
 		ui_rects_out_of_date = true;
-		window_interface->invalidate_window();
+		window_interface.invalidate_window();
 	}
 
 	void window_data::set_window_title(std::wstring const& title) {
@@ -1159,10 +1159,10 @@ namespace printui {
 				window_title.clear();
 				has_window_title = false;
 				layout_out_of_date = true;
-				window_interface->set_window_title(window_title.c_str());
+				window_interface.set_window_title(window_title.c_str());
 			} else {
 				window_title = title;
-				window_interface->set_window_title(window_title.c_str());
+				window_interface.set_window_title(window_title.c_str());
 			}
 		} else {
 			if(title.length() == 0) {
@@ -1171,7 +1171,7 @@ namespace printui {
 				window_title = title;
 				has_window_title = true;
 				layout_out_of_date = true;
-				window_interface->set_window_title(window_title.c_str());
+				window_interface.set_window_title(window_title.c_str());
 			}
 		}
 	}

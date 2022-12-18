@@ -1,5 +1,5 @@
-#pragma once
-#include "printui_utility.hpp"
+#ifndef PRINTUI_RENDERING_HEADER
+#define PRINTUI_RENDERING_HEADER
 
 #ifndef UNICODE
 #define UNICODE
@@ -7,6 +7,7 @@
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 
+#include "printui_datatypes.hpp"
 #include <algorithm>
 #include <charconv>
 #include <Windowsx.h>
@@ -20,6 +21,7 @@
 #include <wincodec.h>
 #include <shlwapi.h>
 #include <array>
+
 
 namespace printui::render {
 
@@ -39,7 +41,8 @@ namespace printui::render {
 		void present_image(float x, float y, direct2d_rendering& ri, ID2D1Brush* br);
 	};
 
-	struct direct2d_rendering : public wrapper {
+	struct direct2d_rendering {
+	private:
 		ID2D1Factory6* d2d_factory = nullptr;
 		IWICImagingFactory* wic_factory = nullptr;
 
@@ -91,31 +94,32 @@ namespace printui::render {
 		decltype(std::chrono::steady_clock::now()) in_place_animation_start;
 		animation_status_struct animation_status;
 
+	public:
 		direct2d_rendering();
 		virtual ~direct2d_rendering();
 
-		virtual void render(window_data& win) override;
-		virtual void background_rectangle(screen_space_rect content_rect, uint8_t display_flags, uint8_t brush, bool under_mouse, window_data const& win) override;
-		virtual void interactable_or_icon(window_data const& win, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical, uint8_t ico) override;
-		virtual void interactable_or_foreground(window_data const& win, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical) override;
-		virtual void interactable(window_data const& win, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical) override;
-		virtual void text(window_data const& win, ::printui::text::arranged_text*, int32_t x, int32_t y) override;
-		virtual void fill_from_foreground(screen_space_rect location, uint8_t fg_brush, bool optimize_for_text) override;
-		virtual void create_palette(window_data const& win) override;
-		virtual void mark_for_complete_redraw() override;
-		virtual void stop_ui_animations(window_data const& win) override;
-		virtual void prepare_ui_animation(window_data& win) override;
-		virtual void start_ui_animation(animation_description description, window_data const& win) override;
-		virtual void register_in_place_animation() override;
-		virtual int64_t in_place_animation_running_ms() const override;
-		virtual void recreate_dpi_dependent_resource(window_data& win) override;
-		virtual void create_window_size_resources(window_data& win) override;
-		virtual void set_brush_opacity(uint8_t b, float o) override;
-		virtual void fill_rectangle(screen_space_rect location, uint8_t b) override;
-		virtual void draw_icon(int32_t x, int32_t y, uint8_t ico, uint8_t br) override;
-		virtual void draw_icon_to_foreground(int32_t x, int32_t y, uint8_t ico) override;
-		virtual layout_position get_icon_size(uint8_t ico) override;
-
+		void render(window_data& win);
+		void background_rectangle(screen_space_rect content_rect, uint8_t display_flags, uint8_t brush, bool under_mouse, window_data const& win);
+		void interactable_or_icon(window_data const& win, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical, uint8_t ico);
+		void interactable_or_foreground(window_data const& win, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical);
+		void interactable(window_data const& win, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical);
+		void text(window_data const& win, ::printui::text::arranged_text*, int32_t x, int32_t y);
+		void fill_from_foreground(screen_space_rect location, uint8_t fg_brush, bool optimize_for_text);
+		void create_palette(window_data const& win);
+		void mark_for_complete_redraw();
+		void stop_ui_animations(window_data const& win);
+		void prepare_ui_animation(window_data& win);
+		void start_ui_animation(animation_description description, window_data& win);
+		void register_in_place_animation();
+		int64_t in_place_animation_running_ms() const;
+		void recreate_dpi_dependent_resource(window_data& win);
+		void create_window_size_resources(window_data& win);
+		void set_brush_opacity(uint8_t b, float o);
+		void fill_rectangle(screen_space_rect location, uint8_t b);
+		void draw_icon(int32_t x, int32_t y, uint8_t ico, uint8_t br);
+		void draw_icon_to_foreground(int32_t x, int32_t y, uint8_t ico);
+		layout_position get_icon_size(uint8_t ico);
+	private:
 		void create_device_resources(window_data& win);
 		void to_display(std::vector<ui_rectangle> const& uirects, window_data& win);
 		void foregrounds(std::vector<ui_rectangle>& uirects, window_data& win);
@@ -128,6 +132,10 @@ namespace printui::render {
 		void refresh_foregound(window_data& win);
 		void redraw_icons(window_data& win);
 		void release_device_resources();
-		
+		void update_preserved_rects(ui_rectangle const& r, direct2d_rendering& d2dri, ID2D1RectangleGeometry*& screen_rect_geom, ID2D1GeometryGroup*& with_preserved_rects, ID2D1Geometry*& old_rects, int32_t ui_width, int32_t ui_height);
+
+		friend struct icon;
 	};
 }
+
+#endif

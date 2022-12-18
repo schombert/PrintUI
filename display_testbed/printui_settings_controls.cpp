@@ -1,4 +1,4 @@
-#include "printui_utility.hpp"
+#include "printui_main_header.hpp"
 
 #ifndef UNICODE
 #define UNICODE
@@ -71,7 +71,7 @@ namespace printui {
 
 	accessibility_object* settings_page_container::get_accessibility_interface(window_data& win) {
 		if(!acc_obj) {
-			acc_obj = win.accessibility_interface->make_container_accessibility_interface(win, this, text_id::settings_header);
+			acc_obj = win.accessibility_interface.make_container_accessibility_interface(win, this, text_id::settings_header);
 		}
 		return acc_obj;
 	}
@@ -164,11 +164,11 @@ namespace printui {
 		}
 
 		if(acc_obj) {
-			win.accessibility_interface->on_contents_changed(acc_obj);
+			win.accessibility_interface.on_contents_changed(acc_obj);
 		}
 	}
 
-	common_printui_settings::common_printui_settings(window_data& win) : language_label(text_id::language_label, content_alignment::leading), orientation_label(text_id::orientation_label, content_alignment::leading), input_mode_label(text_id::input_mode_label, content_alignment::leading), toggle_animations_label(text_id::ui_animations_label, content_alignment::leading), ui_scale_label(text_id::ui_scale, content_alignment::leading), ui_scale_e(win) {
+	common_printui_settings::common_printui_settings() : language_label(text_id::language_label, content_alignment::leading), orientation_label(text_id::orientation_label, content_alignment::leading), input_mode_label(text_id::input_mode_label, content_alignment::leading), toggle_animations_label(text_id::ui_animations_label, content_alignment::leading), ui_scale_label(text_id::ui_scale, content_alignment::leading) {
 
 		lang_menu.open_button.set_text_alignment(content_alignment::trailing);
 		lang_menu.page_size = 1;
@@ -207,7 +207,7 @@ namespace printui {
 
 	accessibility_object* common_printui_settings::get_accessibility_interface(window_data& win) {
 		if(!acc_obj) {
-			acc_obj = win.accessibility_interface->make_container_accessibility_interface(win, this, text_id::ui_settings_name);
+			acc_obj = win.accessibility_interface.make_container_accessibility_interface(win, this, text_id::ui_settings_name);
 		}
 		return acc_obj;
 	}
@@ -215,7 +215,7 @@ namespace printui {
 	void common_printui_settings::go_to_page(window_data& win, uint32_t i, page_information& pi) {
 		layout_interface::go_to_page(win, i, pi);
 		if(acc_obj) {
-			win.accessibility_interface->on_contents_changed(acc_obj);
+			win.accessibility_interface.on_contents_changed(acc_obj);
 		}
 	}
 	ui_rectangle common_printui_settings::prototype_ui_rectangle(window_data const&, uint8_t parent_foreground_index, uint8_t parent_background_index) {
@@ -361,7 +361,7 @@ namespace printui {
 	}
 	accessibility_object* language_menu::get_accessibility_interface(window_data& win) {
 		if(!acc_obj) {
-			acc_obj = win.accessibility_interface->make_expandable_selection_list(win, this, this, name, alt_text);
+			acc_obj = win.accessibility_interface.make_expandable_selection_list(win, this, this, name, alt_text);
 		}
 		return acc_obj;
 	}

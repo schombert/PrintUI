@@ -1,4 +1,4 @@
-#include "printui_utility.hpp"
+#include "printui_main_header.hpp"
 
 #ifndef UNICODE
 #define UNICODE
@@ -30,7 +30,7 @@ namespace printui {
 
 	accessibility_object* title_bar_element::get_accessibility_interface(window_data& win) {
 		if(!acc_obj) {
-			acc_obj = win.accessibility_interface->make_plain_text_accessibility_interface(win, this, &text, false);
+			acc_obj = win.accessibility_interface.make_plain_text_accessibility_interface(win, this, &text, false);
 		}
 		return acc_obj;
 	}
@@ -69,13 +69,13 @@ namespace printui {
 		icon_button_base::render_composite(rect, win, under_mouse);
 	}
 	void vertical_2x2_max_icon::button_action(window_data& win) {
-		if(win.window_interface->is_maximized())
-			win.window_interface->restore(win);
+		if(win.window_interface.is_maximized())
+			win.window_interface.restore(win);
 		else
-			win.window_interface->maximize(win);
+			win.window_interface.maximize(win);
 	}
 	void vertical_2x2_max_icon::update_window_state(window_data& win) {
-		if(!win.window_interface->is_maximized()) {
+		if(!win.window_interface.is_maximized()) {
 			ico = standard_icons::window_max;
 			set_name_text(win, text_id::maximize_name);
 			set_alt_text(win, text_id::maximize_info);
@@ -91,7 +91,7 @@ namespace printui {
 		display_vertically = true;
 	}
 	void vertical_2x2_min_icon::button_action(window_data& win) {
-		win.window_interface->minimize(win);
+		win.window_interface.minimize(win);
 	}
 
 	vertical_2x2_settings_icon::vertical_2x2_settings_icon() : icon_button_base(text_id::settings_name, text_id::settings_info) {
@@ -109,7 +109,7 @@ namespace printui {
 
 	void vertical_2x2_info_icon::mark_for_update(window_data& w) {
 		if(l_id != layout_reference_none && w.get_node(l_id).visible_rect != ui_reference_none) {
-			w.window_interface->invalidate_window();
+			w.window_interface.invalidate_window();
 		}
 	}
 	bool vertical_2x2_info_icon::is_toggled() const {
@@ -138,10 +138,10 @@ namespace printui {
 		display_vertically = true;
 	}
 	void vertical_2x2_close_icon::button_action(window_data& win) {
-		win.window_interface->close(win);
+		win.window_interface.close(win);
 	}
 
-	window_bar_element::window_bar_element(window_data& win, bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& app_settings) : info_i(win), close_i(), settings_pages(win, app_settings), print_ui_settings(win) {
+	window_bar_element::window_bar_element(window_data& win, bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& app_settings) : info_i(win), close_i(), settings_pages(win, app_settings), print_ui_settings() {
 		if(mn)
 			min_i.emplace();
 		if(mx)
@@ -215,7 +215,7 @@ namespace printui {
 	}
 	accessibility_object* window_bar_element::get_accessibility_interface(window_data& win) {
 		if(!acc_obj) {
-			acc_obj = win.accessibility_interface->make_container_accessibility_interface(win, this, text_id::window_bar_name);
+			acc_obj = win.accessibility_interface.make_container_accessibility_interface(win, this, text_id::window_bar_name);
 		}
 		return acc_obj;
 	}
@@ -259,8 +259,8 @@ namespace printui {
 		text.draw_text(win, std::min(top_left.x, bottom_right.x), std::min(top_left.y, bottom_right.y));
 	}
 	void info_window::render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) {
-		win.rendering_interface->background_rectangle(rect, rect.display_flags, rect.background_index, under_mouse, win);
-		win.rendering_interface->fill_from_foreground(screen_rectangle_from_layout_in_ui(win, 0, 1, win.get_node(l_id).width, win.get_node(l_id).height - 1, rect), rect.foreground_index, true);
+		win.rendering_interface.background_rectangle(rect, rect.display_flags, rect.background_index, under_mouse, win);
+		win.rendering_interface.fill_from_foreground(screen_rectangle_from_layout_in_ui(win, 0, 1, win.get_node(l_id).width, win.get_node(l_id).height - 1, rect), rect.foreground_index, true);
 	}
 	void info_window::recreate_contents(window_data& win, layout_node& n) {
 		auto const n_width = n.width;
@@ -278,7 +278,7 @@ namespace printui {
 	void info_window::open(window_data& win, parameters const& params) {
 		
 		if(info_window::info_appearance.type != animation_type::none)
-			win.rendering_interface->prepare_ui_animation(win);
+			win.rendering_interface.prepare_ui_animation(win);
 
 		currently_visible = true;
 		
@@ -362,12 +362,12 @@ namespace printui {
 		win.redraw_ui();
 		win.get_layout();
 
-		if(!win.window_interface->is_mouse_cursor_visible())
+		if(!win.window_interface.is_mouse_cursor_visible())
 			win.set_window_focus(this);
 		
 
 		if(info_window::info_appearance.type != animation_type::none) {
-			win.rendering_interface->start_ui_animation(animation_description{
+			win.rendering_interface.start_ui_animation(animation_description{
 				screen_rectangle_from_layout(win, self_node.x, self_node.y, self_node.width, self_node.height),
 				info_window::info_appearance.type,
 				appearance_direction,
@@ -380,7 +380,7 @@ namespace printui {
 		if(currently_visible && l_id != layout_reference_none) {
 			screen_space_rect loc{};
 			if(info_window::info_disappearance.type != animation_type::none) {
-				win.rendering_interface->prepare_ui_animation(win);
+				win.rendering_interface.prepare_ui_animation(win);
 				loc = win.get_current_location(l_id);
 			}
 
@@ -391,12 +391,12 @@ namespace printui {
 			win.get_layout();
 
 			if(move_focus) {
-				if(!win.window_interface->is_mouse_cursor_visible())
+				if(!win.window_interface.is_mouse_cursor_visible())
 					win.back_focus_out_of(this);
 			}
 
 			if(info_window::info_disappearance.type != animation_type::none) {
-				win.rendering_interface->start_ui_animation(animation_description{
+				win.rendering_interface.start_ui_animation(animation_description{
 					loc,
 					info_window::info_disappearance.type,
 					appearance_direction,

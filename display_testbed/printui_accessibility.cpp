@@ -4,9 +4,9 @@
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 
-#include "printui_utility.hpp"
-#include "printui_windows_definitions.hpp"
+#include "printui_main_header.hpp"
 #include "printui_accessibility_definitions.hpp"
+
 #include <algorithm>
 #include <Windows.h>
 #include <ole2.h>
@@ -46,7 +46,7 @@ namespace printui {
 			if(parent_ptr) {
 				return parent_ptr->QueryInterface(IID_PPV_ARGS(pRetVal));
 			} else {
-				if(auto root = win.accessibility_interface->peek_root_window_provider(); root) {
+				if(auto root = win.accessibility_interface.peek_root_window_provider(); root) {
 					return root->QueryInterface(IID_PPV_ARGS(pRetVal));
 				}
 			}
@@ -167,7 +167,7 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP root_window_provider::get_BoundingRectangle(UiaRect* pRetVal) {
-		auto window_rect = win.window_interface->get_window_location();
+		auto window_rect = win.window_interface.get_window_location();
 		pRetVal->left = window_rect.x;
 		pRetVal->top = window_rect.y;
 		pRetVal->width = window_rect.width;
@@ -187,7 +187,7 @@ namespace printui {
 	}
 
 	IFACEMETHODIMP root_window_provider::ElementProviderFromPoint(double x, double y, IRawElementProviderFragment** pRetVal) {
-		auto window_rect = win.window_interface->get_window_location();
+		auto window_rect = win.window_interface.get_window_location();
 		auto new_l_ref = layout_reference_under_point(win.get_ui_rects(), int32_t(x) - window_rect.x, int32_t(y) - window_rect.y);
 
 		while(new_l_ref != layout_reference_none) {
@@ -218,17 +218,17 @@ namespace printui {
 	IFACEMETHODIMP root_window_provider::Move(double x, double y) {
 		if(!hwnd)
 			return UIA_E_ELEMENTNOTAVAILABLE;
-		if(!win.window_interface->is_maximized()) {
-			win.window_interface->move_window(screen_space_rect{ int32_t(x), int32_t(y), int32_t(win.ui_width), int32_t(win.ui_height) });
+		if(!win.window_interface.is_maximized()) {
+			win.window_interface.move_window(screen_space_rect{ int32_t(x), int32_t(y), int32_t(win.ui_width), int32_t(win.ui_height) });
 		}
 		return S_OK;
 	}
 	IFACEMETHODIMP root_window_provider::Resize(double width, double height) {
 		if(!hwnd)
 			return UIA_E_ELEMENTNOTAVAILABLE;
-		if(!win.window_interface->is_maximized()) {
-			auto window_rect = win.window_interface->get_window_location();
-			win.window_interface->move_window(screen_space_rect{ window_rect.x, window_rect.y, int32_t(std::max(uint32_t(width), win.minimum_ui_width)), int32_t(std::max(uint32_t(height), win.minimum_ui_height)) });
+		if(!win.window_interface.is_maximized()) {
+			auto window_rect = win.window_interface.get_window_location();
+			win.window_interface.move_window(screen_space_rect{ window_rect.x, window_rect.y, int32_t(std::max(uint32_t(width), win.minimum_ui_width)), int32_t(std::max(uint32_t(height), win.minimum_ui_height)) });
 		}
 		return S_OK;
 	}
@@ -236,11 +236,11 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP root_window_provider::get_CanMove(__RPC__out BOOL* pRetVal) {
-		*pRetVal = win.window_interface->is_maximized() ? FALSE : TRUE;
+		*pRetVal = win.window_interface.is_maximized() ? FALSE : TRUE;
 		return S_OK;
 	}
 	IFACEMETHODIMP root_window_provider::get_CanResize(__RPC__out BOOL* pRetVal) {
-		*pRetVal = win.window_interface->is_maximized() ? FALSE : TRUE;
+		*pRetVal = win.window_interface.is_maximized() ? FALSE : TRUE;
 		return S_OK;
 	}
 	IFACEMETHODIMP root_window_provider::get_CanRotate(__RPC__out BOOL* pRetVal) {
@@ -253,19 +253,19 @@ namespace printui {
 
 		switch(state) {
 			case WindowVisualState_Normal:
-				win.window_interface->restore(win);
+				win.window_interface.restore(win);
 				break;
 			case WindowVisualState_Maximized:
-				win.window_interface->maximize(win);
+				win.window_interface.maximize(win);
 				break;
 			case WindowVisualState_Minimized:
-				win.window_interface->minimize(win);
+				win.window_interface.minimize(win);
 				break;
 		}
 		return S_OK;
 	}
 	IFACEMETHODIMP root_window_provider::Close() {
-		win.window_interface->close(win);
+		win.window_interface.close(win);
 		return S_OK;
 	}
 	IFACEMETHODIMP root_window_provider::WaitForInputIdle(int, __RPC__out BOOL* pRetVal) {
@@ -285,9 +285,9 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP root_window_provider::get_WindowVisualState(__RPC__out enum WindowVisualState* pRetVal) {
-		if(win.window_interface->is_minimized()) {
+		if(win.window_interface.is_minimized()) {
 			*pRetVal = WindowVisualState_Minimized;
-		} else if(win.window_interface->is_maximized()) {
+		} else if(win.window_interface.is_maximized()) {
 			*pRetVal = WindowVisualState_Maximized;
 		} else {
 			*pRetVal = WindowVisualState_Normal;
@@ -353,7 +353,7 @@ namespace printui {
 				if(psa == nullptr) {
 					return E_OUTOFMEMORY;
 				}
-				auto window_rect = win.window_interface->get_window_location();
+				auto window_rect = win.window_interface.get_window_location();
 				double uiarect[] = { double(window_rect.x), double(window_rect.y), double(window_rect.width), double(window_rect.height) };
 				for(LONG i = 0; i < 4; i++) {
 					SafeArrayPutElement(psa, &i, (void*)&(uiarect[i]));
@@ -362,13 +362,13 @@ namespace printui {
 			}
 			case UIA_HasKeyboardFocusPropertyId:
 				pRetVal->vt = VT_BOOL;
-				pRetVal->boolVal = win.window_interface->window_has_focus() ? VARIANT_TRUE : VARIANT_FALSE;
+				pRetVal->boolVal = win.window_interface.window_has_focus() ? VARIANT_TRUE : VARIANT_FALSE;
 				break;
 			case UIA_WindowWindowVisualStatePropertyId:
 				pRetVal->vt = VT_I4;
-				if(win.window_interface->is_minimized()) {
+				if(win.window_interface.is_minimized()) {
 					pRetVal->lVal = WindowVisualState_Minimized;
-				} else if(win.window_interface->is_maximized()) {
+				} else if(win.window_interface.is_maximized()) {
 					pRetVal->lVal = WindowVisualState_Maximized;
 				} else {
 					pRetVal->lVal = WindowVisualState_Normal;
@@ -376,11 +376,11 @@ namespace printui {
 				break;
 			case UIA_TransformCanMovePropertyId:
 				pRetVal->vt = VT_BOOL;
-				pRetVal->boolVal = win.window_interface->is_maximized() ? VARIANT_FALSE : VARIANT_TRUE;
+				pRetVal->boolVal = win.window_interface.is_maximized() ? VARIANT_FALSE : VARIANT_TRUE;
 				break;
 			case UIA_TransformCanResizePropertyId:
 				pRetVal->vt = VT_BOOL;
-				pRetVal->boolVal = win.window_interface->is_maximized() ? VARIANT_FALSE : VARIANT_TRUE;
+				pRetVal->boolVal = win.window_interface.is_maximized() ? VARIANT_FALSE : VARIANT_TRUE;
 				break;
 			case UIA_WindowCanMinimizePropertyId:
 				pRetVal->vt = VT_BOOL;
@@ -504,7 +504,7 @@ namespace printui {
 				if(psa == nullptr) {
 					return E_OUTOFMEMORY;
 				}
-				auto window_rect = win.window_interface->get_window_location();
+				auto window_rect = win.window_interface.get_window_location();
 				auto client_rect = button->l_id != layout_reference_none ?
 					win.get_current_location(button->l_id) :
 					screen_space_rect{ 0,0,0,0 };
@@ -551,7 +551,7 @@ namespace printui {
 		if(!button)
 			return UIA_E_ELEMENTNOTAVAILABLE;
 
-		auto window_rect = win.window_interface->get_window_location();
+		auto window_rect = win.window_interface.get_window_location();
 		auto client_rect = (button && button->l_id != layout_reference_none) ?
 			win.get_current_location(button->l_id) :
 			screen_space_rect{ 0,0,0,0 };
@@ -570,7 +570,7 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP text_button_provider::get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal) {
-		if(auto root = win.accessibility_interface->peek_root_window_provider(); root) {
+		if(auto root = win.accessibility_interface.peek_root_window_provider(); root) {
 			return root->get_FragmentRoot(pRetVal);
 		} else {
 			*pRetVal = nullptr;
@@ -708,7 +708,7 @@ namespace printui {
 				if(psa == nullptr) {
 					return E_OUTOFMEMORY;
 				}
-				auto window_rect = win.window_interface->get_window_location();
+				auto window_rect = win.window_interface.get_window_location();
 				auto client_rect = (button && button->l_id != layout_reference_none) ?
 					win.get_current_location(button->l_id) :
 					screen_space_rect{ 0,0,0,0 };
@@ -755,7 +755,7 @@ namespace printui {
 		if(!button)
 			return UIA_E_ELEMENTNOTAVAILABLE;
 
-		auto window_rect = win.window_interface->get_window_location();
+		auto window_rect = win.window_interface.get_window_location();
 		auto client_rect = button && button->l_id != layout_reference_none ?
 			win.get_current_location(button->l_id) :
 			screen_space_rect{ 0,0,0,0 };
@@ -774,7 +774,7 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP text_list_button_provider::get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal) {
-		if(auto root = win.accessibility_interface->peek_root_window_provider(); root) {
+		if(auto root = win.accessibility_interface.peek_root_window_provider(); root) {
 			return root->get_FragmentRoot(pRetVal);
 		} else {
 			*pRetVal = nullptr;
@@ -935,7 +935,7 @@ namespace printui {
 				if(psa == nullptr) {
 					return E_OUTOFMEMORY;
 				}
-				auto window_rect = win.window_interface->get_window_location();
+				auto window_rect = win.window_interface.get_window_location();
 				auto client_rect = (button && button->l_id != layout_reference_none) ?
 					win.get_current_location(button->l_id) :
 					screen_space_rect{ 0,0,0,0 };
@@ -982,7 +982,7 @@ namespace printui {
 		if(!button)
 			return UIA_E_ELEMENTNOTAVAILABLE;
 
-		auto window_rect = win.window_interface->get_window_location();
+		auto window_rect = win.window_interface.get_window_location();
 		auto client_rect = button && button->l_id != layout_reference_none ?
 			win.get_current_location(button->l_id) :
 			screen_space_rect{ 0,0,0,0 };
@@ -1001,7 +1001,7 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP text_toggle_button_provider::get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal) {
-		if(auto root = win.accessibility_interface->peek_root_window_provider(); root) {
+		if(auto root = win.accessibility_interface.peek_root_window_provider(); root) {
 			return root->get_FragmentRoot(pRetVal);
 		} else {
 			*pRetVal = nullptr;
@@ -1134,7 +1134,7 @@ namespace printui {
 					if(psa == nullptr) {
 						return E_OUTOFMEMORY;
 					}
-					auto window_rect = win.window_interface->get_window_location();
+					auto window_rect = win.window_interface.get_window_location();
 					auto client_rect = button->l_id != layout_reference_none ?
 						win.get_current_location(button->l_id) :
 						screen_space_rect{ 0,0,0,0 };
@@ -1181,7 +1181,7 @@ namespace printui {
 		if(!button)
 			return UIA_E_ELEMENTNOTAVAILABLE;
 
-		auto window_rect = win.window_interface->get_window_location();
+		auto window_rect = win.window_interface.get_window_location();
 		auto client_rect = (button && button->l_id != layout_reference_none) ?
 			win.get_current_location(button->l_id) :
 			screen_space_rect{ 0,0,0,0 };
@@ -1200,7 +1200,7 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP icon_button_provider::get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal) {
-		if(auto root = win.accessibility_interface->peek_root_window_provider(); root) {
+		if(auto root = win.accessibility_interface.peek_root_window_provider(); root) {
 			return root->get_FragmentRoot(pRetVal);
 		} else {
 			*pRetVal = nullptr;
@@ -1330,7 +1330,7 @@ namespace printui {
 					if(psa == nullptr) {
 						return E_OUTOFMEMORY;
 					}
-					auto window_rect = win.window_interface->get_window_location();
+					auto window_rect = win.window_interface.get_window_location();
 					auto client_rect = button->l_id != layout_reference_none ?
 						win.get_current_location(button->l_id) :
 						screen_space_rect{ 0,0,0,0 };
@@ -1376,7 +1376,7 @@ namespace printui {
 	IFACEMETHODIMP icon_toggle_button_provider::get_BoundingRectangle(UiaRect* pRetVal) {
 		if(!button)
 			return UIA_E_ELEMENTNOTAVAILABLE;
-		auto window_rect = win.window_interface->get_window_location();
+		auto window_rect = win.window_interface.get_window_location();
 		auto client_rect = (button && button->l_id != layout_reference_none) ?
 			win.get_current_location(button->l_id) :
 			screen_space_rect{ 0,0,0,0 };
@@ -1395,7 +1395,7 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP icon_toggle_button_provider::get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal) {
-		if(auto root = win.accessibility_interface->peek_root_window_provider(); root) {
+		if(auto root = win.accessibility_interface.peek_root_window_provider(); root) {
 			return root->get_FragmentRoot(pRetVal);
 		} else {
 			*pRetVal = nullptr;
@@ -1551,7 +1551,7 @@ namespace printui {
 					if(psa == nullptr) {
 						return E_OUTOFMEMORY;
 					}
-					auto window_rect = win.window_interface->get_window_location();
+					auto window_rect = win.window_interface.get_window_location();
 					auto client_rect = control->l_id != layout_reference_none ?
 						win.get_current_location(control->l_id) :
 						screen_space_rect{ 0,0,0,0 };
@@ -1598,7 +1598,7 @@ namespace printui {
 		if(!control)
 			return UIA_E_ELEMENTNOTAVAILABLE;
 
-		auto window_rect = win.window_interface->get_window_location();
+		auto window_rect = win.window_interface.get_window_location();
 		auto client_rect = (control && control->l_id != layout_reference_none) ?
 			win.get_current_location(control->l_id) :
 			screen_space_rect{ 0,0,0,0 };
@@ -1617,7 +1617,7 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP open_list_control_provider::get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal) {
-		if(auto root = win.accessibility_interface->peek_root_window_provider(); root) {
+		if(auto root = win.accessibility_interface.peek_root_window_provider(); root) {
 			return root->get_FragmentRoot(pRetVal);
 		} else {
 			*pRetVal = nullptr;
@@ -1759,7 +1759,7 @@ namespace printui {
 					if(psa == nullptr) {
 						return E_OUTOFMEMORY;
 					}
-					auto window_rect = win.window_interface->get_window_location();
+					auto window_rect = win.window_interface.get_window_location();
 					auto client_rect = li->l_id != layout_reference_none ?
 						win.get_current_location(li->l_id) :
 						screen_space_rect{ 0,0,0,0 };
@@ -1808,7 +1808,7 @@ namespace printui {
 		if(!li)
 			return UIA_E_ELEMENTNOTAVAILABLE;
 
-		auto window_rect = win.window_interface->get_window_location();
+		auto window_rect = win.window_interface.get_window_location();
 		auto client_rect = (li && li->l_id != layout_reference_none) ?
 			win.get_current_location(li->l_id) :
 			screen_space_rect{ 0,0,0,0 };
@@ -1827,7 +1827,7 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP container_provider::get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal) {
-		if(auto root = win.accessibility_interface->peek_root_window_provider(); root) {
+		if(auto root = win.accessibility_interface.peek_root_window_provider(); root) {
 			return root->get_FragmentRoot(pRetVal);
 		} else {
 			*pRetVal = nullptr;
@@ -1930,7 +1930,7 @@ namespace printui {
 					if(psa == nullptr) {
 						return E_OUTOFMEMORY;
 					}
-					auto window_rect = win.window_interface->get_window_location();
+					auto window_rect = win.window_interface.get_window_location();
 					auto client_rect = li->l_id != layout_reference_none ?
 						win.get_current_location(li->l_id) :
 						screen_space_rect{ 0,0,0,0 };
@@ -1979,7 +1979,7 @@ namespace printui {
 		if(!li)
 			return UIA_E_ELEMENTNOTAVAILABLE;
 
-		auto window_rect = win.window_interface->get_window_location();
+		auto window_rect = win.window_interface.get_window_location();
 		auto client_rect = (li && li->l_id != layout_reference_none) ?
 			win.get_current_location(li->l_id) :
 			screen_space_rect{ 0,0,0,0 };
@@ -1998,7 +1998,7 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP plain_text_provider::get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal) {
-		if(auto root = win.accessibility_interface->peek_root_window_provider(); root) {
+		if(auto root = win.accessibility_interface.peek_root_window_provider(); root) {
 			return root->get_FragmentRoot(pRetVal);
 		} else {
 			*pRetVal = nullptr;
@@ -2164,7 +2164,7 @@ namespace printui {
 					if(psa == nullptr) {
 						return E_OUTOFMEMORY;
 					}
-					auto window_rect = win.window_interface->get_window_location();
+					auto window_rect = win.window_interface.get_window_location();
 					auto client_rect = control->l_id != layout_reference_none ?
 						win.get_current_location(control->l_id) :
 						screen_space_rect{ 0,0,0,0 };
@@ -2211,7 +2211,7 @@ namespace printui {
 		if(!control)
 			return UIA_E_ELEMENTNOTAVAILABLE;
 
-		auto window_rect = win.window_interface->get_window_location();
+		auto window_rect = win.window_interface.get_window_location();
 		auto client_rect = (control && control->l_id != layout_reference_none) ?
 			win.get_current_location(control->l_id) :
 			screen_space_rect{ 0,0,0,0 };
@@ -2230,7 +2230,7 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP expandable_selection_provider::get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal) {
-		if(auto root = win.accessibility_interface->peek_root_window_provider(); root) {
+		if(auto root = win.accessibility_interface.peek_root_window_provider(); root) {
 			return root->get_FragmentRoot(pRetVal);
 		} else {
 			*pRetVal = nullptr;
@@ -2414,7 +2414,7 @@ namespace printui {
 					if(psa == nullptr) {
 						return E_OUTOFMEMORY;
 					}
-					auto window_rect = win.window_interface->get_window_location();
+					auto window_rect = win.window_interface.get_window_location();
 					auto client_rect = control->l_id != layout_reference_none ?
 						win.get_current_location(control->l_id) :
 						screen_space_rect{ 0,0,0,0 };
@@ -2461,7 +2461,7 @@ namespace printui {
 		if(!control)
 			return UIA_E_ELEMENTNOTAVAILABLE;
 
-		auto window_rect = win.window_interface->get_window_location();
+		auto window_rect = win.window_interface.get_window_location();
 		auto client_rect = (control && control->l_id != layout_reference_none) ?
 			win.get_current_location(control->l_id) :
 			screen_space_rect{ 0,0,0,0 };
@@ -2480,7 +2480,7 @@ namespace printui {
 		return S_OK;
 	}
 	IFACEMETHODIMP expandable_container::get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal) {
-		if(auto root = win.accessibility_interface->peek_root_window_provider(); root) {
+		if(auto root = win.accessibility_interface.peek_root_window_provider(); root) {
 			return root->get_FragmentRoot(pRetVal);
 		} else {
 			*pRetVal = nullptr;
@@ -3479,7 +3479,7 @@ namespace printui {
 		}
 	}
 	IFACEMETHODIMP simple_edit_provider::get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal) {
-		if(auto root = win.accessibility_interface->peek_root_window_provider(); root) {
+		if(auto root = win.accessibility_interface.peek_root_window_provider(); root) {
 			return root->get_FragmentRoot(pRetVal);
 		} else {
 			*pRetVal = nullptr;
@@ -3819,7 +3819,7 @@ namespace printui {
 		}
 	}
 	IFACEMETHODIMP numeric_edit_provider::get_FragmentRoot(IRawElementProviderFragmentRoot** pRetVal) {
-		if(auto root = win.accessibility_interface->peek_root_window_provider(); root) {
+		if(auto root = win.accessibility_interface.peek_root_window_provider(); root) {
 			return root->get_FragmentRoot(pRetVal);
 		} else {
 			*pRetVal = nullptr;
@@ -3926,7 +3926,7 @@ namespace printui {
 			if(!psa) {
 				return;
 			}
-			auto window_rect = win.window_interface->get_window_location();
+			auto window_rect = win.window_interface.get_window_location();
 			double uiarect[] = { double(x), double(y), double(width), double(height) };
 			for(LONG i = 0; i < 4; i++) {
 				SafeArrayPutElement(psa, &i, (void*)&(uiarect[i]));
@@ -3945,7 +3945,7 @@ namespace printui {
 
 	root_window_provider* win32_accessibility::get_root_window_provider() {
 		if(!window_interface) {
-			if(auto hwnd = win.window_interface->get_hwnd(); hwnd) {
+			if(auto hwnd = win.window_interface.get_hwnd(); hwnd) {
 				window_interface = make_iunk<root_window_provider>(win, (HWND)hwnd);
 			} else {
 				return nullptr;
@@ -3974,7 +3974,7 @@ namespace printui {
 		disconnectable* p = (disconnectable*)o;
 		IRawElementProviderSimple* provider = nullptr;
 		p->disconnect();
-		if(p->win.accessibility_interface->peek_root_window_provider()) {
+		if(p->win.accessibility_interface.peek_root_window_provider()) {
 			p->QueryInterface(IID_PPV_ARGS(&provider));
 			if(provider) {
 				UiaDisconnectProvider(provider);

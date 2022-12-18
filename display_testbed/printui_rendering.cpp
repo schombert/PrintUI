@@ -1,4 +1,4 @@
-#include "printui_utility.hpp"
+#include "printui_main_header.hpp"
 #include "printui_render_definitions.hpp"
 
 #ifndef UNICODE
@@ -205,13 +205,13 @@ namespace printui {
 			float(r.x_position), float(r.y_position),
 			float(r.x_position + r.width), float(r.y_position + r.height) };
 
-		win.rendering_interface->background_rectangle(r, r.display_flags, r.background_index, under_mouse, win);
-		win.rendering_interface->fill_from_foreground(r, r.foreground_index, false);
+		win.rendering_interface.background_rectangle(r, r.display_flags, r.background_index, under_mouse, win);
+		win.rendering_interface.fill_from_foreground(r, r.foreground_index, false);
 	}
 
 	namespace render {
 
-		void update_preserved_rects(ui_rectangle const& r, direct2d_rendering& d2dri, ID2D1RectangleGeometry*& screen_rect_geom, ID2D1GeometryGroup*& with_preserved_rects, ID2D1Geometry*& old_rects, int32_t ui_width, int32_t ui_height) {
+		void direct2d_rendering::update_preserved_rects(ui_rectangle const& r, direct2d_rendering& d2dri, ID2D1RectangleGeometry*& screen_rect_geom, ID2D1GeometryGroup*& with_preserved_rects, ID2D1Geometry*& old_rects, int32_t ui_width, int32_t ui_height) {
 
 			if(!screen_rect_geom) {
 				d2dri.d2d_factory->CreateRectangleGeometry(D2D_RECT_F{ 0.0f,0.0f, float(ui_width), float(ui_height) }, &screen_rect_geom);
@@ -308,7 +308,7 @@ namespace printui {
 			auto& n = get_node(i->l_id);
 			if(n.visible_rect < get_ui_rects().size()) {
 				get_ui_rects()[n.visible_rect].display_flags |= ui_rectangle::flag_needs_update;
-				window_interface->invalidate_window();
+				window_interface.invalidate_window();
 			}
 		}
 	}
@@ -679,7 +679,7 @@ namespace printui {
 		if(percent_complete == 1.0f) {
 			animation_status.is_running = false;
 		} else {
-			win.window_interface->invalidate_window();
+			win.window_interface.invalidate_window();
 		}
 	}
 
@@ -798,7 +798,7 @@ namespace printui {
 		d2d_device_context->EndDraw();
 	}
 
-	void direct2d_rendering::start_ui_animation(animation_description description, window_data const& win) {
+	void direct2d_rendering::start_ui_animation(animation_description description, window_data& win) {
 		if(win.dynamic_settings.uianimations == false)
 			return;
 
@@ -839,7 +839,7 @@ namespace printui {
 
 		animation_status.is_running = true;
 		animation_status.start_time = std::chrono::steady_clock::now();
-		win.window_interface->invalidate_window();
+		win.window_interface.invalidate_window();
 	}
 
 	void direct2d_rendering::register_in_place_animation() {
@@ -1018,8 +1018,8 @@ namespace printui {
 
 			d2d_device_context->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
 			
-			auto real_ptr = (IDWriteFactory6*)(win.text_interface->get_dwrite_factory());
-			auto hwnd = (HWND)(win.window_interface->get_hwnd());
+			auto real_ptr = (IDWriteFactory6*)(win.text_interface.get_dwrite_factory());
+			auto hwnd = (HWND)(win.window_interface.get_hwnd());
 			if(hwnd && real_ptr) {
 				IDWriteRenderingParams* rparams = nullptr;
 				auto monitor_handle = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
@@ -1115,8 +1115,8 @@ namespace printui {
 
 			d2d_device_context->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
 
-			auto real_ptr = (IDWriteFactory6*)(win.text_interface->get_dwrite_factory());
-			auto hwnd = (HWND)(win.window_interface->get_hwnd());
+			auto real_ptr = (IDWriteFactory6*)(win.text_interface.get_dwrite_factory());
+			auto hwnd = (HWND)(win.window_interface.get_hwnd());
 			if(hwnd && real_ptr) {
 				IDWriteRenderingParams* rparams = nullptr;
 				auto monitor_handle = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
@@ -1161,8 +1161,8 @@ namespace printui {
 
 			d2d_device_context->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
 			
-			auto real_ptr = (IDWriteFactory6*)(win.text_interface->get_dwrite_factory());
-			auto hwnd = (HWND)(win.window_interface->get_hwnd());
+			auto real_ptr = (IDWriteFactory6*)(win.text_interface.get_dwrite_factory());
+			auto hwnd = (HWND)(win.window_interface.get_hwnd());
 			if(hwnd && real_ptr) {
 				IDWriteRenderingParams* rparams = nullptr;
 				auto monitor_handle = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
@@ -1264,7 +1264,7 @@ namespace printui {
 
 		void direct2d_rendering::create_interactiable_tags(window_data& win) {
 
-			auto label_format = win.text_interface->create_text_format(L"Arial", (win.layout_size * 15) / 32);
+			auto label_format = win.text_interface.create_text_format(L"Arial", (win.layout_size * 15) / 32);
 
 
 			std::array<ID2D1Bitmap1*, 12> text_bitmaps;
@@ -1284,7 +1284,7 @@ namespace printui {
 				d2d_device_context->BeginDraw();
 				d2d_device_context->Clear(D2D1_COLOR_F{ 0.0f,0.0f,0.0f,0.0f });
 
-				if(auto dwf = win.text_interface->to_dwrite_format(label_format); dwf)
+				if(auto dwf = win.text_interface.to_dwrite_format(label_format); dwf)
 					d2d_device_context->DrawTextW(keyname, length, (IDWriteTextFormat3*)dwf,
 						D2D1_RECT_F{ 0.0f, (float(win.layout_size) * 47.0f) / 64.0f - label_format.baseline, float(win.layout_size), float(win.layout_size) }, dummy_brush);
 
@@ -1307,7 +1307,7 @@ namespace printui {
 				d2d_device_context->BeginDraw();
 				d2d_device_context->Clear(D2D1_COLOR_F{ 0.0f,0.0f,0.0f,0.0f });
 
-				if(auto dwf = win.text_interface->to_dwrite_format(label_format); dwf)
+				if(auto dwf = win.text_interface.to_dwrite_format(label_format); dwf)
 					d2d_device_context->DrawTextW(button_names + i, 1, (IDWriteTextFormat3*)dwf,
 						D2D1_RECT_F{ 0.0f, (float(win.layout_size) * 5.0f) / 6.0f - label_format.baseline, float(win.layout_size), float(win.layout_size) }, dummy_brush);
 
@@ -1413,7 +1413,7 @@ namespace printui {
 				safe_release(button_text_bitmaps[i]);
 			}
 
-			win.text_interface->release_text_format(label_format);
+			win.text_interface.release_text_format(label_format);
 		}
 
 
@@ -1471,7 +1471,7 @@ namespace printui {
 			for(auto& b : win.dynamic_settings.brushes) {
 				if(SUCCEEDED(hr)) {
 					if(b.texture.length() > 0) {
-						auto pth = win.file_system->resolve_file_path(b.texture, win.dynamic_settings.texture_directory);
+						auto pth = win.file_system.resolve_file_path(b.texture, win.dynamic_settings.texture_directory);
 
 						IWICBitmapDecoder* pDecoder = nullptr;
 						IWICBitmapFrameDecode* pSource = nullptr;
@@ -1573,7 +1573,7 @@ namespace printui {
 				IDXGIAdapter* pAdapter = nullptr;
 				IDXGIFactory2* pDXGIFactory = nullptr;
 
-				auto loc = win.window_interface->get_window_location();
+				auto loc = win.window_interface.get_window_location();
 
 				auto nWidth = loc.width;
 				auto nHeight = loc.height;
@@ -1647,7 +1647,7 @@ namespace printui {
 					swapDesc.Flags = 0;
 
 					safe_release(swap_chain);
-					hr = pDXGIFactory->CreateSwapChainForHwnd(d3d_device, (HWND)(win.window_interface->get_hwnd()), &swapDesc, nullptr, nullptr, &swap_chain);
+					hr = pDXGIFactory->CreateSwapChainForHwnd(d3d_device, (HWND)(win.window_interface.get_hwnd()), &swapDesc, nullptr, nullptr, &swap_chain);
 				}
 				if(SUCCEEDED(hr)) {
 					hr = dxgi_device->SetMaximumFrameLatency(1);
@@ -1656,7 +1656,7 @@ namespace printui {
 				create_palette(win);
 
 				if(!SUCCEEDED(hr)) {
-					win.window_interface->display_fatal_error_message(L"Could not create direct X devices, exiting");
+					win.window_interface.display_fatal_error_message(L"Could not create direct X devices, exiting");
 					std::terminate();
 				}
 
@@ -1803,7 +1803,7 @@ namespace printui {
 
 				refresh_foregound(win);
 
-				if(win.window_interface->is_mouse_cursor_visible()) {
+				if(win.window_interface.is_mouse_cursor_visible()) {
 					win.last_under_cursor = reference_under_point(win.get_ui_rects(), win.last_cursor_x_position, win.last_cursor_y_position);
 				}
 
@@ -1851,7 +1851,7 @@ namespace printui {
 				}
 
 				if(running_in_place_animation)
-					win.window_interface->invalidate_window();
+					win.window_interface.invalidate_window();
 
 				DXGI_PRESENT_PARAMETERS params{ 0, nullptr, nullptr, nullptr };
 				hr = swap_chain->Present1(1, 0, &params);
@@ -1860,7 +1860,7 @@ namespace printui {
 				hr = swap_chain->Present1(1, DXGI_PRESENT_TEST, &params);
 				if(hr == S_OK) {
 					is_suspended = false;
-					win.window_interface->invalidate_window();
+					win.window_interface.invalidate_window();
 				}
 			}
 
@@ -1876,7 +1876,7 @@ namespace printui {
 		}
 
 		void direct2d_rendering::text(window_data const& win, ::printui::text::arranged_text* formatted_text, int32_t x, int32_t y) {
-			auto dwl = win.text_interface->to_dwrite_layout(formatted_text);
+			auto dwl = win.text_interface.to_dwrite_layout(formatted_text);
 			if(dwl)
 				d2d_device_context->DrawTextLayout(D2D1_POINT_2F{ float(x), float(y) }, (IDWriteTextLayout*)dwl, dummy_brush, 0 /*D2D1_DRAW_TEXT_OPTIONS_CLIP*/);
 		}
@@ -1903,7 +1903,7 @@ namespace printui {
 		void icon::redraw_image(window_data const& win, direct2d_rendering& ri) {
 			safe_release(rendered_layer);
 
-			auto resolved_path = win.file_system->resolve_file_path(file_name, win.dynamic_settings.icon_directory);
+			auto resolved_path = win.file_system.resolve_file_path(file_name, win.dynamic_settings.icon_directory);
 
 			if(resolved_path.has_value()) {
 				IStream* fstream = nullptr;

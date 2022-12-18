@@ -1,21 +1,33 @@
-﻿#include "display_testbed.hpp"
-#include <Windowsx.h>
-#include <shlwapi.h>
-#include <cmath>
-#include <stdlib.h>
-#include <malloc.h>
-#include <memory.h>
-#include <wchar.h>
-#include <dxgi1_2.h>
-#include <d3d11_3.h>
-#include <DirectXMath.h>
-#include <d2d1_3.h>
-#include <d2d1helper.h>
-#include <dwrite_3.h>
-#include <wincodec.h>
-#include <algorithm>
+﻿#include "printui_datatypes.hpp"
+#include "printui_text_definitions.hpp"
+#include "printui_accessibility_definitions.hpp"
+#include "printui_files_definitions.hpp"
+#include "printui_render_definitions.hpp"
+#include "printui_windows_definitions.hpp"
+#include "printui_main_header.hpp"
+#include "printui_accessibility.cpp"
+#include "printui_common_controls.cpp"
+#include "printui_files.cpp"
+#include "printui_interactables.cpp"
+#include "printui_layout.cpp"
+#include "printui_parsing.cpp"
+#include "printui_rendering.cpp"
+#include "printui_settings_controls.cpp"
+#include "printui_text.cpp"
+#include "printui_utility.cpp"
+#include "printui_window_controls.cpp"
+#include "printui_window_functions.cpp"
 
-void main_window::load_default_dynamic_settings() {
+
+void printui::window_data::client_on_dpi_change() {
+}
+void printui::window_data::client_on_resize(uint32_t, uint32_t) {
+}
+std::vector<printui::settings_menu_item> printui::window_data::get_settings_items() const {
+	return std::vector<printui::settings_menu_item>{};
+}
+
+void printui::window_data::load_default_dynamic_settings() {
 	dynamic_settings.window_border = 3;
 	dynamic_settings.layout_base_size = 22;
 
@@ -55,17 +67,13 @@ int WINAPI wWinMain(
 
 	if(SUCCEEDED(CoInitializeEx(NULL, COINIT_APARTMENTTHREADED))) {
 		{
-			std::shared_ptr<printui::text::text_services_wrapper> ts = std::make_shared<printui::text::win32_text_services>();
-			ts->start_text_services();
+			printui::window_data app(true, true, true);
 
-			{
-				main_window app(ts);
+			app.text_services_interface.start_text_services();
+			app.create_window();
+			app.message_loop();
+			app.text_services_interface.end_text_services();
 
-				app.create_window();
-				app.message_loop();
-			}
-
-			ts->end_text_services();
 		}
 		CoUninitialize();
 	}

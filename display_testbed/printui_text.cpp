@@ -1,4 +1,4 @@
-﻿#include "printui_utility.hpp"
+﻿#include "printui_main_header.hpp"
 
 #ifndef UNICODE
 #define UNICODE
@@ -991,7 +991,7 @@ namespace printui::text {
 	}
 	
 	std::wstring get_locale_name(window_data const& win, std::wstring const& directory) {
-		auto result = win.file_system->find_matching_file_name(directory + L"\\*.dat");
+		auto result = win.file_system.find_matching_file_name(directory + L"\\*.dat");
 		if(result.length() > 4) {
 			result.pop_back();
 			result.pop_back();
@@ -1004,8 +1004,8 @@ namespace printui::text {
 	}
 
 	std::wstring text_manager::locale_display_name(window_data const& win) const {
-		std::wstring locale_path = win.file_system->get_root_directory() + win.dynamic_settings.text_directory + L"\\" + locale_name();
-		auto result = win.file_system->find_matching_file_name(locale_path + L"\\*.dat");
+		std::wstring locale_path = win.file_system.get_root_directory() + win.dynamic_settings.text_directory + L"\\" + locale_name();
+		auto result = win.file_system.find_matching_file_name(locale_path + L"\\*.dat");
 		if(result.length() > 4) {
 			result.pop_back();
 			result.pop_back();
@@ -1057,7 +1057,7 @@ namespace printui::text {
 
 
 		{
-			std::wstring locale_path = win.file_system->get_root_directory() + win.dynamic_settings.text_directory + L"\\" + full_compound;
+			std::wstring locale_path = win.file_system.get_root_directory() + win.dynamic_settings.text_directory + L"\\" + full_compound;
 			win.dynamic_settings.fallbacks.clear();
 			if(update_settings) {
 				win.load_locale_settings(locale_path);
@@ -1070,8 +1070,8 @@ namespace printui::text {
 		}
 
 		win.dynamic_settings.fallbacks.clear();
-		win.text_interface->initialize_font_fallbacks(win);
-		win.text_interface->initialize_fonts(win);
+		win.text_interface.initialize_font_fallbacks(win);
+		win.text_interface.initialize_fonts(win);
 
 		// load text from files
 		populate_text_content(win);
@@ -1828,9 +1828,9 @@ namespace printui::text {
 	void text_manager::load_text_from_directory(window_data const& win, std::wstring const& directory) {
 		std::wstring txt = directory + L"\\*.txt";
 
-		win.file_system->for_each_filtered_file(txt, [&](std::wstring const& name) {
+		win.file_system.for_each_filtered_file(txt, [&](std::wstring const& name) {
 			std::wstring fname = directory + L"\\" + name;
-			win.file_system->with_file_content(fname, [&](std::string_view content) {
+			win.file_system.with_file_content(fname, [&](std::string_view content) {
 				text_data.consume_text_file(content, font_name_to_index);
 			});
 		});
@@ -1866,8 +1866,8 @@ namespace printui::text {
 		std::wstring desired_full_path = module_name + win.dynamic_settings.text_directory + L"\\" + full_name;
 		std::wstring desired_abbr_path = module_name + win.dynamic_settings.text_directory + L"\\" + app_lang;
 
-		bool full_valid = win.file_system->directory_exists(desired_full_path);
-		bool abbr_valid = win.file_system->directory_exists(desired_abbr_path);
+		bool full_valid = win.file_system.directory_exists(desired_full_path);
+		bool abbr_valid = win.file_system.directory_exists(desired_abbr_path);
 
 		if(full_valid)
 			load_text_from_directory(win, desired_full_path);
@@ -1876,13 +1876,13 @@ namespace printui::text {
 
 		if(!full_valid && !abbr_valid) {
 			std::wstring en_path = module_name + win.dynamic_settings.text_directory + L"\\en";
-			if(win.file_system->directory_exists(en_path)) {
+			if(win.file_system.directory_exists(en_path)) {
 				load_text_from_directory(win, en_path);
 			} else {
 				// now we just take the first option w/o a dash
 				std::wstring base_path = module_name + win.dynamic_settings.text_directory;
 				bool directory_found = false;
-				win.file_system->for_each_directory(module_name + win.dynamic_settings.text_directory, [&](std::wstring const& name) { 
+				win.file_system.for_each_directory(module_name + win.dynamic_settings.text_directory, [&](std::wstring const& name) { 
 					if(!directory_found && name.find(L'-') == std::wstring::npos) {
 						load_text_from_directory(win, base_path + L"\\" + name);
 						directory_found = true;
@@ -2006,7 +2006,7 @@ namespace printui::text {
 
 		std::wstring locale_path = module_name + win.dynamic_settings.text_directory;
 
-		win.file_system->for_each_directory(locale_path, [&](std::wstring const& name) {
+		win.file_system.for_each_directory(locale_path, [&](std::wstring const& name) {
 			size_t first_dash = 0;
 			size_t region_end = name.length();
 
@@ -3132,12 +3132,10 @@ namespace printui::text {
 			LONG acpRemovingEnd = acpEnd >= acpStart ? std::min(acpEnd, len) : acpStart;
 
 
-			win32_text_services* ts = static_cast<win32_text_services*>(win.text_services_interface.get());
-			if(ts) {
-				ts->send_notifications = false;
-				ei->insert_text(win, uint32_t(acpStart), uint32_t(acpRemovingEnd), std::wstring_view(pchText, cch));
-				ts->send_notifications = true;
-			}
+			win.text_services_interface.send_notifications = false;
+			ei->insert_text(win, uint32_t(acpStart), uint32_t(acpRemovingEnd), std::wstring_view(pchText, cch));
+			win.text_services_interface.send_notifications = true;
+			
 
 			pChange->acpStart = acpStart;
 			pChange->acpOldEnd = acpRemovingEnd;
@@ -3193,12 +3191,11 @@ namespace printui::text {
 			if(!pchText)
 				return E_INVALIDARG;
 
-			win32_text_services* ts = static_cast<win32_text_services*>(win.text_services_interface.get());
-			if(ts) {
-				ts->send_notifications = false;
-				ei->insert_text(win, uint32_t(acpStart), uint32_t(acpEnd), std::wstring_view(pchText, cch));
-				ts->send_notifications = true;
-			}
+			
+			win.text_services_interface.send_notifications = false;
+			ei->insert_text(win, uint32_t(acpStart), uint32_t(acpEnd), std::wstring_view(pchText, cch));
+			win.text_services_interface.send_notifications = true;
+			
 			if(pacpStart)
 				*pacpStart = acpStart;
 			if(pacpEnd)
@@ -3540,7 +3537,7 @@ namespace printui::text {
 				if(!control)
 					return TF_E_DISCONNECTED;
 
-				auto window_rect = win.window_interface->get_window_location();
+				auto window_rect = win.window_interface.get_window_location();
 				auto client_rect = control->l_id != layout_reference_none ?
 					win.get_current_location(control->l_id) :
 					screen_space_rect{ 0,0,0,0 };
@@ -3564,7 +3561,7 @@ namespace printui::text {
 			*pfClipped = FALSE;
 			*prc = RECT{ 0,0,0,0 };
 
-			if(win.window_interface->is_minimized()) {
+			if(win.window_interface.is_minimized()) {
 				*pfClipped = TRUE;
 				return S_OK;
 			}
@@ -3600,7 +3597,7 @@ namespace printui::text {
 			auto control = ei->get_layout_interface();
 			if(!control)
 				return TF_E_DISCONNECTED;
-			if(win.window_interface->is_minimized())
+			if(win.window_interface.is_minimized())
 				return S_OK;
 
 			auto& node = win.get_node(control->l_id);
@@ -3613,7 +3610,7 @@ namespace printui::text {
 
 			auto new_content_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, node.width - (node.left_margin() + node.right_margin()), 1, temp);
 
-			auto window_rect = win.window_interface->get_window_location();
+			auto window_rect = win.window_interface.get_window_location();
 
 			prc->left = window_rect.x + new_content_rect.x;
 			prc->top = window_rect.y + new_content_rect.y;
@@ -3729,7 +3726,7 @@ namespace printui::text {
 	void win32_text_services::set_focus(window_data& win, text_services_object* o) {
 		//manager_ptr->SetFocus(o->document);
 
-		auto hwnd = win.window_interface->get_hwnd();
+		auto hwnd = win.window_interface.get_hwnd();
 		if(hwnd) {
 			ITfDocumentMgr* old_doc = nullptr;
 			manager_ptr->AssociateFocus((HWND)hwnd, o ? o->document : nullptr, &old_doc);
@@ -3748,11 +3745,11 @@ namespace printui::text {
 	}
 
 	void direct_write_text::load_fonts_from_directory(window_data const& win, std::wstring const& directory, IDWriteFontSetBuilder2* bldr) {
-		win.file_system->for_each_filtered_file(directory + L"\\*.otf", [bldr, &directory](std::wstring const& name) {
+		win.file_system.for_each_filtered_file(directory + L"\\*.otf", [bldr, &directory](std::wstring const& name) {
 			std::wstring fname = directory + L"\\" + name;
 		bldr->AddFontFile(fname.c_str());
 			});
-		win.file_system->for_each_filtered_file(directory + L"\\*.ttf", [bldr, &directory](std::wstring const& name) {
+		win.file_system.for_each_filtered_file(directory + L"\\*.ttf", [bldr, &directory](std::wstring const& name) {
 			std::wstring fname = directory + L"\\" + name;
 		bldr->AddFontFile(fname.c_str());
 			});
@@ -3778,7 +3775,7 @@ namespace printui::text {
 	}
 
 	void direct_write_text::initialize_font_fallbacks(window_data& win) {
-		win.file_system->load_global_font_fallbacks(win.dynamic_settings);
+		win.file_system.load_global_font_fallbacks(win.dynamic_settings);
 
 		{
 			safe_release(font_fallbacks);
@@ -3813,12 +3810,12 @@ namespace printui::text {
 		dwrite_factory->CreateFontSetBuilder(&bldr);
 
 		{
-			auto root = win.file_system->get_root_directory();
+			auto root = win.file_system.get_root_directory();
 			auto font_dir = root + win.dynamic_settings.font_directory;
 			load_fonts_from_directory(win, font_dir, bldr);
 		}
 		{
-			auto root = win.file_system->get_common_printui_directory();
+			auto root = win.file_system.get_common_printui_directory();
 			auto font_dir = root + win.dynamic_settings.font_directory;
 			load_fonts_from_directory(win, font_dir, bldr);
 		}
@@ -3975,7 +3972,7 @@ namespace printui::text {
 		p->Release();
 	}
 
-	void direct_write_text::apply_formatting(IDWriteTextLayout* target, std::vector<format_marker> const& formatting, std::vector<font_description> const& named_fonts) {
+	void direct_write_text::apply_formatting(IDWriteTextLayout* target, std::vector<format_marker> const& formatting, std::vector<font_description> const& named_fonts) const {
 		{
 			//apply fonts
 			std::vector<uint32_t> font_stack;
@@ -4166,7 +4163,7 @@ namespace printui::text {
 	}
 
 
-	arrangement_result direct_write_text::create_text_arragement(window_data const& win, std::wstring_view text, content_alignment text_alignment, bool large_text, bool single_line, int32_t max_width, std::vector<format_marker> const* formatting) {
+	arrangement_result direct_write_text::create_text_arragement(window_data const& win, std::wstring_view text, content_alignment text_alignment, bool large_text, bool single_line, int32_t max_width, std::vector<format_marker> const* formatting) const {
 
 		IDWriteTextLayout* formatted_text = nullptr;
 		arrangement_result result;
@@ -4317,7 +4314,7 @@ namespace printui::text {
 			is_inside == TRUE, is_trailing == TRUE };
 	}
 
-	text_format direct_write_text::create_text_format(wchar_t const* name, int32_t capheight) {
+	text_format direct_write_text::create_text_format(wchar_t const* name, int32_t capheight) const {
 		IDWriteTextFormat3* label_format;
 
 		DWRITE_FONT_AXIS_VALUE fax[] = {
@@ -4347,15 +4344,15 @@ namespace printui::text {
 
 		return text_format{(text_format_ptr*)(label_format), baseline };
 	}
-	void direct_write_text::release_text_format(text_format fmt) {
+	void direct_write_text::release_text_format(text_format fmt) const {
 		IDWriteTextFormat3* format = (IDWriteTextFormat3*)(fmt.ptr);
 		format->Release();
 	}
-	void* direct_write_text::to_dwrite_format(text_format fmt) {
+	void* direct_write_text::to_dwrite_format(text_format fmt) const {
 		IDWriteTextFormat3* format = (IDWriteTextFormat3*)(fmt.ptr);
 		return (void*)format;
 	}
-	void* direct_write_text::to_dwrite_layout(arranged_text* ptr) {
+	void* direct_write_text::to_dwrite_layout(arranged_text* ptr) const {
 		IDWriteTextLayout* formatted_text = (IDWriteTextLayout*)ptr;
 		return (void*)formatted_text;
 	}

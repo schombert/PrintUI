@@ -18,48 +18,9 @@
     <ClCompile Include="display_testbed.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="printui_utility.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="printui_rendering.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="printui_window_functions.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="printui_parsing.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="printui_layout.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="printui_interactables.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="printui_text.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="printui_settings_controls.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="printui_common_controls.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="printui_window_controls.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="printui_accessibility.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="printui_files.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="display_testbed.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="printui_utility.hpp">
+    <ClInclude Include="printui_main_header.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="unordered_dense.h">
@@ -78,6 +39,45 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="printui_render_definitions.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="printui_accessibility.cpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="printui_window_functions.cpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="printui_common_controls.cpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="printui_files.cpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="printui_interactables.cpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="printui_layout.cpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="printui_parsing.cpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="printui_rendering.cpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="printui_settings_controls.cpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="printui_text.cpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="printui_utility.cpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="printui_window_controls.cpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="printui_datatypes.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1,4 +1,14 @@
-#pragma once
+#ifndef PRINTUI_MAIN_HEADER
+#define PRINTUI_MAIN_HEADER
+
+#include "printui_datatypes.hpp"
+#include "printui_text_definitions.hpp"
+#include "printui_accessibility_definitions.hpp"
+#include "printui_files_definitions.hpp"
+#include "printui_render_definitions.hpp"
+#include "printui_windows_definitions.hpp"
+
+#include "unordered_dense.h"
 #include <cstdint>
 #include <vector>
 #include <string>
@@ -12,91 +22,78 @@
 #include <array>
 #include <functional>
 #include <chrono>
-#include "unordered_dense.h"
 
 // for text ids common to the shared prinui controls
 namespace text_id {
-	constexpr uint16_t ui_settings_name = 0;
-	constexpr uint16_t settings_header = 1;
-	constexpr uint16_t orientation_label = 2;
-	constexpr uint16_t orientation_ltr = 3;
-	constexpr uint16_t orientation_rtl = 4;
-	constexpr uint16_t orientation_vltr = 5;
-	constexpr uint16_t orientation_vrtl = 6;
-	constexpr uint16_t input_mode_label = 7;
-	constexpr uint16_t input_mode_keyboard_only = 8;
-	constexpr uint16_t input_mode_mouse_only = 9;
-	constexpr uint16_t input_mode_controller_only = 10;
-	constexpr uint16_t input_mode_controller_with_pointer = 11;
-	constexpr uint16_t input_mode_mouse_and_keyboard = 12;
-	constexpr uint16_t input_mode_follow_input = 13;
-	constexpr uint16_t page_fraction = 14;
-	constexpr uint16_t language_label = 15;
+	inline constexpr uint16_t ui_settings_name = 0;
+	inline constexpr uint16_t settings_header = 1;
+	inline constexpr uint16_t orientation_label = 2;
+	inline constexpr uint16_t orientation_ltr = 3;
+	inline constexpr uint16_t orientation_rtl = 4;
+	inline constexpr uint16_t orientation_vltr = 5;
+	inline constexpr uint16_t orientation_vrtl = 6;
+	inline constexpr uint16_t input_mode_label = 7;
+	inline constexpr uint16_t input_mode_keyboard_only = 8;
+	inline constexpr uint16_t input_mode_mouse_only = 9;
+	inline constexpr uint16_t input_mode_controller_only = 10;
+	inline constexpr uint16_t input_mode_controller_with_pointer = 11;
+	inline constexpr uint16_t input_mode_mouse_and_keyboard = 12;
+	inline constexpr uint16_t input_mode_follow_input = 13;
+	inline constexpr uint16_t page_fraction = 14;
+	inline constexpr uint16_t language_label = 15;
 
-	constexpr uint16_t minimize_info = 16;
-	constexpr uint16_t maximize_info = 17;
-	constexpr uint16_t restore_info = 18;
-	constexpr uint16_t settings_info = 19;
-	constexpr uint16_t info_info = 20;
-	constexpr uint16_t close_info = 21;
+	inline constexpr uint16_t minimize_info = 16;
+	inline constexpr uint16_t maximize_info = 17;
+	inline constexpr uint16_t restore_info = 18;
+	inline constexpr uint16_t settings_info = 19;
+	inline constexpr uint16_t info_info = 20;
+	inline constexpr uint16_t close_info = 21;
 
-	constexpr uint16_t orientation_info = 22;
-	constexpr uint16_t input_mode_info = 23;
-	constexpr uint16_t input_mode_mouse_info = 24;
-	constexpr uint16_t input_mode_automatic_info = 25;
-	constexpr uint16_t input_mode_controller_info = 26;
-	constexpr uint16_t input_mode_controller_hybrid_info = 27;
-	constexpr uint16_t input_mode_keyboard_info = 28;
-	constexpr uint16_t input_mode_mk_hybrid_info = 29;
-	constexpr uint16_t language_info = 30;
-	constexpr uint16_t ui_settings_info = 31;
+	inline constexpr uint16_t orientation_info = 22;
+	inline constexpr uint16_t input_mode_info = 23;
+	inline constexpr uint16_t input_mode_mouse_info = 24;
+	inline constexpr uint16_t input_mode_automatic_info = 25;
+	inline constexpr uint16_t input_mode_controller_info = 26;
+	inline constexpr uint16_t input_mode_controller_hybrid_info = 27;
+	inline constexpr uint16_t input_mode_keyboard_info = 28;
+	inline constexpr uint16_t input_mode_mk_hybrid_info = 29;
+	inline constexpr uint16_t language_info = 30;
+	inline constexpr uint16_t ui_settings_info = 31;
 
-	constexpr uint16_t minimize_name = 32;
-	constexpr uint16_t maximize_name = 33;
-	constexpr uint16_t restore_name = 34;
-	constexpr uint16_t close_name = 35;
-	constexpr uint16_t settings_name = 36;
-	constexpr uint16_t info_name = 37;
-	constexpr uint16_t info_name_on = 38;
-	constexpr uint16_t window_bar_name = 39;
-	constexpr uint16_t expandable_container_localized_name = 40;
-	constexpr uint16_t settings_tabs_name = 41;
-	constexpr uint16_t selection_list_localized_name = 42;
-	constexpr uint16_t close_settings_name = 43;
-	constexpr uint16_t close_menu_name = 44;
-	constexpr uint16_t page_prev_name = 45;
-	constexpr uint16_t page_next_name = 46;
-	constexpr uint16_t page_prev_prev_name = 47;
-	constexpr uint16_t page_next_next_name = 48;
-	constexpr uint16_t page_footer_name = 49;
-	constexpr uint16_t page_footer_info = 50;
+	inline constexpr uint16_t minimize_name = 32;
+	inline constexpr uint16_t maximize_name = 33;
+	inline constexpr uint16_t restore_name = 34;
+	inline constexpr uint16_t close_name = 35;
+	inline constexpr uint16_t settings_name = 36;
+	inline constexpr uint16_t info_name = 37;
+	inline constexpr uint16_t info_name_on = 38;
+	inline constexpr uint16_t window_bar_name = 39;
+	inline constexpr uint16_t expandable_container_localized_name = 40;
+	inline constexpr uint16_t settings_tabs_name = 41;
+	inline constexpr uint16_t selection_list_localized_name = 42;
+	inline constexpr uint16_t close_settings_name = 43;
+	inline constexpr uint16_t close_menu_name = 44;
+	inline constexpr uint16_t page_prev_name = 45;
+	inline constexpr uint16_t page_next_name = 46;
+	inline constexpr uint16_t page_prev_prev_name = 47;
+	inline constexpr uint16_t page_next_next_name = 48;
+	inline constexpr uint16_t page_footer_name = 49;
+	inline constexpr uint16_t page_footer_info = 50;
 
-	constexpr uint16_t generic_toggle_on = 51;
-	constexpr uint16_t generic_toggle_off = 52;
-	constexpr uint16_t ui_animations_label = 53;
-	constexpr uint16_t ui_animations_info = 54;
+	inline constexpr uint16_t generic_toggle_on = 51;
+	inline constexpr uint16_t generic_toggle_off = 52;
+	inline constexpr uint16_t ui_animations_label = 53;
+	inline constexpr uint16_t ui_animations_info = 54;
 
-	constexpr uint16_t ui_scale = 55;
-	constexpr uint16_t ui_scale_edit_name = 56;
-	constexpr uint16_t ui_scale_info = 57;
+	inline constexpr uint16_t ui_scale = 55;
+	inline constexpr uint16_t ui_scale_edit_name = 56;
+	inline constexpr uint16_t ui_scale_info = 57;
 
-	constexpr uint16_t first_free_id = 58;
+	inline constexpr uint16_t first_free_id = 58;
 }
 
 namespace printui {
-	struct accessibility_object;
-	void release_accessibility_object(accessibility_object* o);
-
-	namespace text {
-		struct text_analysis_object;
-		void release_text_analysis_object(text_analysis_object* ptr);
-
-		struct text_services_object;
-		void release_text_services_object(text_services_object* ptr);
-
-		struct arranged_text;
-		void release_arranged_text(arranged_text* ptr);
-	}
+	
 
 	class arranged_text_ptr {
 		text::arranged_text* ptr = nullptr;
@@ -250,12 +247,7 @@ namespace printui {
 		}
 	};
 
-	enum class font_type {
-		roman, sans, script, italic
-	};
-	enum class font_span {
-		normal, condensed, wide
-	};
+	
 	inline float to_font_weight(bool is_bold) {
 		if(is_bold)
 			return 700.0f;
@@ -277,34 +269,6 @@ namespace printui {
 		}
 	}
 
-	struct unicode_range {
-		uint32_t start = 0;
-		uint32_t end = 0;
-	};
-
-	struct font_fallback {
-		std::wstring name;
-		std::vector<unicode_range> ranges;
-		float scale = 1.0f;
-		font_type type = font_type::roman;
-	};
-
-	struct font_description {
-		std::wstring name;
-		font_type type = font_type::roman;
-		font_span span = font_span::normal;
-		bool is_bold = false;
-		bool is_oblique = false;
-		int32_t top_leading = 0;
-		int32_t bottom_leading = 0;
-
-		float line_spacing = 0.0f;
-		float baseline = 0.0f;
-		float font_size = 0.0f;
-		float vertical_baseline = 0.0f;
-		float descender = 0.0f;
-	};
-
 	struct brush_color {
 		float r = 0.0f;
 		float g = 0.0f;
@@ -317,50 +281,6 @@ namespace printui {
 		bool is_light_color;
 	};
 
-	enum class input_mode {
-		keyboard_only, mouse_only, controller_only, controller_with_pointer, mouse_and_keyboard, system_default, follow_input
-	};
-
-	enum class prompt_mode {
-		hidden, keyboard, controller
-	};
-
-	enum class animation_type : uint8_t {
-		fade, slide, flip, none
-	};
-	enum class animation_direction : uint8_t {
-		top, right, left, bottom
-	};
-
-	struct screen_space_rect {
-		int32_t x;
-		int32_t y;
-		int32_t width;
-		int32_t height;
-	};
-
-	struct screen_space_point {
-		int32_t x;
-		int32_t y;
-	};
-
-	struct animation_description {
-		screen_space_rect animated_region;
-		animation_type type = animation_type::none;
-		animation_direction direction = animation_direction::top;
-		float duration_seconds = 1.0f;
-		bool animate_in = true;
-	};
-
-	struct animation_defintion {
-		animation_type type = animation_type::none;
-		float duration_seconds = 1.0f;
-		bool animate_in = true;
-	};
-
-	enum class layout_orientation : uint8_t {
-		horizontal_left_to_right, horizontal_right_to_left, vertical_left_to_right, vertical_right_to_left
-	};
 
 	struct launch_settings {
 		font_description primary_font;
@@ -430,14 +350,6 @@ namespace printui {
 
 	struct window_data;
 
-	template<class Interface>
-	inline void safe_release(Interface*& i) {
-		if(i) {
-			i->Release();
-			i = nullptr;
-		}
-	}
-
 	struct ui_rectangle;
 
 	screen_space_rect screen_rectangle_from_layout(window_data const& win,
@@ -451,43 +363,8 @@ namespace printui {
 	screen_space_rect reverse_screen_space_orientation(window_data const& win, screen_space_rect source);
 	screen_space_rect intersection(screen_space_rect a, screen_space_rect b);
 
-	struct standard_icons {
-		constexpr static uint8_t header_minimize = 0;
-		constexpr static uint8_t header_close = 1;
 
-		constexpr static uint8_t window_settings = 2;
-		constexpr static uint8_t window_max = 3;
-		constexpr static uint8_t window_min = 4;
-		constexpr static uint8_t window_restore = 5;
-		constexpr static uint8_t window_info = 6;
-		constexpr static uint8_t window_close = 7;
-
-		constexpr static uint8_t control_button = 8;
-		constexpr static uint8_t control_menu = 9;
-		constexpr static uint8_t control_pages = 10;
-		constexpr static uint8_t control_list = 11;
-		constexpr static uint8_t control_next = 12;
-		constexpr static uint8_t control_next_next = 13;
-		constexpr static uint8_t control_prev = 14;
-		constexpr static uint8_t control_prev_prev = 15;
-		constexpr static uint8_t control_toggle = 16;
-		constexpr static uint8_t control_text = 17;
-
-		constexpr static uint32_t final_icon = 18;
-	};
-
-	enum class size_flags : uint8_t {
-		none, fill_to_max, match_content, fill_to_max_single_col
-	};
-	enum class content_orientation : uint8_t {
-		line, page
-	};
-	enum class content_alignment : uint8_t {
-		leading, trailing, centered, justified
-	};
-	enum class interactable_type : uint8_t {
-		none, button
-	};
+	
 
 	struct layout_interface;
 	struct render_interface;
@@ -547,23 +424,13 @@ namespace printui {
 		size_flags line_flags = size_flags::none;
 	};
 
-	struct layout_position {
-		int16_t x;
-		int16_t y;
-	};
-
-	struct layout_rect {
-		int16_t x;
-		int16_t y;
-		int16_t width;
-		int16_t height;
-	};
+	
 
 	using layout_reference = uint16_t;
 	using ui_reference = uint16_t;
 
-	constexpr layout_reference layout_reference_none = std::numeric_limits<layout_reference>::max();
-	constexpr ui_reference ui_reference_none = std::numeric_limits<ui_reference>::max();
+	inline constexpr layout_reference layout_reference_none = std::numeric_limits<layout_reference>::max();
+	inline constexpr ui_reference ui_reference_none = std::numeric_limits<ui_reference>::max();
 
 	struct interface_or_layout_ref {
 	private:
@@ -805,34 +672,6 @@ namespace printui {
 	};
 
 
-	struct interactable_state {
-	private:
-		uint8_t data = 0ui8;
-		struct impl_key_type { };
-		struct impl_group_type {};
-	public:
-		constexpr static impl_group_type group{};
-		constexpr static impl_key_type key{};
-
-		interactable_state() : data(0ui8) {
-		}
-		interactable_state(impl_group_type, uint8_t v) {
-			data = uint8_t(v | 0x20);
-		}
-		interactable_state(impl_key_type, uint8_t v) {
-			data = uint8_t(v | 0x10);
-		}
-		int32_t get_key() {
-			return (0x0F & data);
-		}
-		bool holds_key() {
-			return (0xF0 & data) == 0x10;
-		}
-		bool holds_group() {
-			return (0xF0 & data) == 0x20;
-		}
-	};
-
 	struct render_interface : public layout_interface {
 		virtual ~render_interface() {
 		}
@@ -946,7 +785,7 @@ namespace printui {
 		void set_text(stored_text const& v);
 		void prepare_text(window_data const& win);
 		void relayout_text(window_data const& win, screen_space_point sz);
-		void draw_text(window_data const& win, int32_t x, int32_t y) const;
+		void draw_text(window_data& win, int32_t x, int32_t y) const;
 		void invalidate();
 		int32_t get_lines_height(window_data const& win) const;
 		std::wstring get_raw_text(window_data const& win) const;
@@ -1152,7 +991,7 @@ namespace printui {
 		interactable_state saved_state;
 		edit_contents edit_type = edit_contents::generic_text;
 
-		simple_editable_text(window_data& win, content_alignment text_alignment, uint16_t name, uint16_t alt_text, uint8_t minimum_layout_space);
+		simple_editable_text(content_alignment text_alignment, uint16_t name, uint16_t alt_text, uint8_t minimum_layout_space);
 		virtual ~simple_editable_text();
 
 		// render_interface
@@ -1246,7 +1085,7 @@ namespace printui {
 		// for rendering
 		void prepare_text(window_data const& win);
 		void relayout_text(window_data const& win, screen_space_point sz);
-		void draw_text(window_data const& win, int32_t x, int32_t y) const;
+		void draw_text(window_data& win, int32_t x, int32_t y) const;
 
 		// for implementations
 		virtual void on_text_changed(window_data&, std::wstring const&) { }
@@ -1259,7 +1098,7 @@ namespace printui {
 		float maximum = 0.0f;
 		int8_t precision = 0;
 
-		editable_numeric_range(window_data& win, content_alignment text_alignment, uint16_t name, uint16_t alt_text, uint8_t minimum_layout_space, float minimum, float maximum, int8_t precision);
+		editable_numeric_range(content_alignment text_alignment, uint16_t name, uint16_t alt_text, uint8_t minimum_layout_space, float minimum, float maximum, int8_t precision);
 		virtual accessibility_object* get_accessibility_interface(window_data&) override;
 		void set_value(window_data& win, float v);
 		float get_value(window_data& win) const;
@@ -1765,7 +1604,7 @@ namespace printui {
 	};
 
 	struct ui_scale_edit : public editable_numeric_range {
-		ui_scale_edit(window_data& win) : editable_numeric_range(win, content_alignment::trailing, text_id::ui_scale_edit_name, text_id::ui_scale_info, 3, 0.5f, 3.0f, 2) { }
+		ui_scale_edit() : editable_numeric_range(content_alignment::trailing, text_id::ui_scale_edit_name, text_id::ui_scale_info, 3, 0.5f, 3.0f, 2) { }
 		virtual void on_edit_finished(window_data& win, std::wstring const&) override;
 	};
 
@@ -1835,7 +1674,7 @@ namespace printui {
 
 		std::vector<page_content> content_description;
 
-		common_printui_settings(window_data& win);
+		common_printui_settings();
 		virtual ~common_printui_settings() { }
 
 		virtual layout_node_type get_node_type() override {
@@ -1934,79 +1773,16 @@ namespace printui {
 	};
 
 	namespace text {
-		enum class extra_formatting : uint8_t {
-			none, small_caps, italic, old_numbers, tabular_numbers, bold
-		};
-		struct font_id {
-			uint8_t id = 0;
-		};
-		struct parameter_id {
-			uint8_t id = 0;
-		};
-		struct substitution_mark {
-			uint8_t id = 0;
-		};
+		
 
 		class text_manager;
 		struct text_data_storage;
 
 		using attribute_type = int8_t;
 
-		using formatting_content = std::variant<std::monostate, font_id, parameter_id, substitution_mark, extra_formatting>;
 
 		// extra display formatting to apply to a range of characters
-		struct format_marker {
-			uint16_t position;
-			formatting_content format;
-
-			bool operator<(const format_marker& o) const noexcept {
-				return position < o.position;
-			}
-		};
-
-		struct arranged_text;
-		struct text_format_ptr;
-
-		struct text_format {
-			text_format_ptr* ptr;
-			float baseline;
-		};
-
-		struct arrangement_result {
-			arranged_text* ptr = nullptr;
-			int32_t width_used = 0;
-			int32_t lines_used = 0;
-		};
-
 		
-		struct text_metrics {
-			uint32_t textPosition;
-			uint32_t length;
-			float left;
-			float top;
-			float width;
-			float height;
-			uint32_t bidiLevel;
-		};
-		struct hit_test_metrics {
-			text_metrics metrics;
-			bool is_inside;
-			bool is_trailing;
-		};
-
-		struct wrapper {
-			virtual ~wrapper() { }
-			virtual void initialize_fonts(window_data& win) = 0;
-			virtual void initialize_font_fallbacks(window_data& win) = 0;
-
-			virtual void create_font_collection(window_data& win) = 0;
-			virtual arrangement_result create_text_arragement(window_data const& win, std::wstring_view text, content_alignment text_alignment, bool standard_size, bool single_line, int32_t max_width, std::vector<format_marker> const* formatting = nullptr) = 0;
-			virtual text_format create_text_format(wchar_t const* name, int32_t capheight) = 0;
-			virtual void release_text_format(text_format fmt) = 0;
-			virtual void* to_dwrite_format(text_format fmt) = 0;
-			virtual void* to_dwrite_layout(arranged_text* ptr) = 0;
-			virtual void* get_dwrite_factory() = 0;
-		};
 
 		int32_t get_height(window_data const& win, arranged_text* txt, bool standard_size);
 		bool appropriate_directionality(window_data const& win, arranged_text* txt);
@@ -2071,21 +1847,21 @@ namespace printui {
 		};
 
 
-		constexpr attribute_type zero = 0;
-		constexpr attribute_type one = 1;
-		constexpr attribute_type two = 2;
-		constexpr attribute_type few = 3;
-		constexpr attribute_type many = 4;
-		constexpr attribute_type other = 5;
+		inline constexpr attribute_type zero = 0;
+		inline constexpr attribute_type one = 1;
+		inline constexpr attribute_type two = 2;
+		inline constexpr attribute_type few = 3;
+		inline constexpr attribute_type many = 4;
+		inline constexpr attribute_type other = 5;
 
-		constexpr attribute_type ord_zero = 6;
-		constexpr attribute_type ord_one = 7;
-		constexpr attribute_type ord_two = 8;
-		constexpr attribute_type ord_few = 9;
-		constexpr attribute_type ord_many = 10;
-		constexpr attribute_type ord_other = 11;
+		inline constexpr attribute_type ord_zero = 6;
+		inline constexpr attribute_type ord_one = 7;
+		inline constexpr attribute_type ord_two = 8;
+		inline constexpr attribute_type ord_few = 9;
+		inline constexpr attribute_type ord_many = 10;
+		inline constexpr attribute_type ord_other = 11;
 
-		constexpr attribute_type last_predefined = 11;
+		inline constexpr attribute_type last_predefined = 11;
 
 
 		using cardinal_plural_fn = attribute_type(*)(int64_t, int64_t, int32_t);
@@ -2213,19 +1989,6 @@ namespace printui {
 		bool position_is_ltr(text_analysis_object* ptr, int32_t position);
 		int32_t left_visual_word_position(text_analysis_object* ptr, int32_t position);
 		int32_t right_visual_word_position(text_analysis_object* ptr, int32_t position);
-
-		struct text_services_wrapper {
-			virtual ~text_services_wrapper() { }
-			virtual void start_text_services() = 0;
-			virtual void end_text_services() = 0;
-			virtual text_services_object* create_text_service_object(window_data&, edit_interface& ei) = 0;
-			virtual void on_text_change(text_services_object*, uint32_t old_start, uint32_t old_end, uint32_t new_end) = 0;
-			virtual void on_selection_change(text_services_object*) = 0;
-			virtual void set_focus(window_data& win, text_services_object*) = 0;
-			virtual void suspend_keystroke_handling() = 0;
-			virtual void resume_keystroke_handling() = 0;
-			virtual bool send_mouse_event_to_tso(text_services_object* ts, int32_t x, int32_t y, uint32_t buttons) = 0;
-		};
 	}
 	
 	struct undo_item {
@@ -2253,143 +2016,12 @@ namespace printui {
 		void push_state(undo_item state);
 	};
 
-	struct animation_status_struct {
-		animation_description description;
+	
 
-		std::chrono::time_point<std::chrono::steady_clock> start_time;
-		bool is_running = false;
-		
-	};
+	
+}
 
-	class root_window_provider;
-
-	struct window_wrapper {
-		virtual ~window_wrapper() { }
-		virtual void invalidate_window() = 0;
-		virtual screen_space_rect get_available_workspace() const = 0;
-		virtual screen_space_rect get_window_placement() const = 0;
-		virtual screen_space_rect get_window_location() const = 0;
-		virtual void set_window_placement(screen_space_rect r) = 0;
-		virtual void hide_mouse_cursor() = 0;
-		virtual void show_mouse_cursor() = 0;
-		virtual bool is_mouse_cursor_visible() const = 0;
-		virtual void reshow_mouse_cursor() = 0;
-		virtual int32_t get_key_state(uint32_t scan_code) const = 0;
-		virtual bool is_shift_held_down() const = 0;
-		virtual bool is_ctrl_held_down() const = 0;
-		virtual void move_window(screen_space_rect r) = 0;
-		virtual uint32_t get_window_dpi() const = 0;
-		virtual bool create_window(window_data& wd) = 0;
-		virtual void display_fatal_error_message(wchar_t const*) = 0;
-		virtual bool is_maximized() const = 0;
-		virtual bool is_minimized() const = 0;
-		virtual void maximize(window_data&) = 0;
-		virtual void minimize(window_data&) = 0;
-		virtual void restore(window_data&) = 0;
-		virtual void close(window_data&) = 0;
-		virtual void set_window_title(wchar_t const* t) = 0;
-		virtual bool window_has_focus() const = 0;
-		virtual void* get_hwnd() = 0;
-		virtual void text_to_clipboard(std::wstring_view txt) = 0;
-		virtual std::wstring text_from_clipboard() = 0;
-		virtual void create_system_caret(int32_t width, int32_t height) = 0;
-		virtual void move_system_caret(int32_t x, int32_t y) = 0;
-		virtual void destroy_system_caret() = 0;
-	};
-
-	struct file_system_wrapper {
-		virtual ~file_system_wrapper() { }
-		virtual void load_settings(window_data& win) = 0;
-		virtual void save_settings(window_data& win) = 0;
-		virtual void load_global_font_fallbacks(launch_settings& ls) = 0;
-		virtual std::wstring find_matching_file_name(std::wstring const& directory_and_filter) = 0;
-		virtual void for_each_filtered_file(std::wstring const& directory_and_filter, std::function<void(std::wstring const&)> const& fn) = 0;
-		virtual void for_each_file(std::wstring const& directory, std::function<void(std::wstring const&)> const& fn) = 0;
-		virtual void for_each_directory(std::wstring const& directory, std::function<void(std::wstring const&)> const& fn) = 0;
-		virtual void with_file_content(std::wstring const& file_name, std::function<void(std::string_view)> const& fn) = 0;
-		virtual bool file_exists(std::wstring const& file_name) = 0;
-		virtual bool directory_exists(std::wstring const& dir_name) = 0;
-		virtual std::optional<std::wstring> resolve_file_path(std::wstring const& file_name, std::wstring const& subdirectory) = 0;
-		virtual std::wstring get_root_directory() = 0;
-		virtual std::wstring get_common_printui_directory() = 0;
-	};
-
-	enum class resize_type : uint8_t {
-		resize, maximize, minimize
-	};
-
-	struct accessibility_framework_wrapper {
-		virtual ~accessibility_framework_wrapper() {}
-		virtual bool has_keyboard_preference() = 0;
-		virtual void notify_window_state_change(resize_type r) = 0;
-		virtual void notify_window_moved(int32_t x, int32_t y, int32_t width, int32_t height) = 0;
-		virtual void notify_window_closed() = 0;
-		virtual root_window_provider* get_root_window_provider() = 0;
-		virtual root_window_provider* peek_root_window_provider() = 0;
-		virtual void release_root_provider() = 0;
-		virtual accessibility_object* make_action_button_accessibility_interface(window_data& w, button_control_base& b) = 0;
-		virtual accessibility_object* make_selection_button_accessibility_interface(window_data& w, button_control_base& b) = 0;
-		virtual accessibility_object* make_toggle_button_accessibility_interface(window_data& w, button_control_toggle& b) = 0;
-		virtual accessibility_object* make_icon_button_accessibility_interface(window_data& w, icon_button_base& b) = 0;
-		virtual accessibility_object* make_icon_toggle_button_accessibility_interface(window_data& w, icon_button_base& b) = 0;
-		virtual accessibility_object* make_open_list_control_accessibility_interface(window_data& w, open_list_control& b) = 0;
-		virtual accessibility_object* make_container_accessibility_interface(window_data& w, layout_interface* b, uint16_t name) = 0;
-		virtual accessibility_object* make_plain_text_accessibility_interface(window_data& w, layout_interface* b, stored_text* t, bool is_content) = 0;
-		virtual accessibility_object* make_simple_text_accessibility_interface(window_data& w, edit_interface* control, uint16_t name, uint16_t alt) = 0;
-		virtual accessibility_object* make_expandable_selection_list(window_data& win, generic_expandable* control, generic_selection_container* sc, uint16_t name, uint16_t alt_text) = 0;
-		virtual accessibility_object* make_expandable_container(window_data& win, generic_expandable* control, uint16_t name, uint16_t alt_text) = 0;
-		virtual accessibility_object* make_numeric_range_accessibility_interface(window_data& win, editable_numeric_range& control) = 0;
-		virtual void on_invoke(accessibility_object* b) = 0;
-		virtual void on_enable_disable(accessibility_object* b, bool disabled) = 0;
-		virtual void on_select_unselect(accessibility_object* b, bool selection_state) = 0;
-		virtual void on_change_name(accessibility_object* b, std::wstring const& new_name) = 0;
-		virtual void on_change_help_text(accessibility_object* b, std::wstring const& new_text) = 0;
-		virtual void on_toggle_change(accessibility_object* b) = 0;
-		virtual void on_selection_change(accessibility_object* b) = 0;
-		virtual void on_contents_changed(accessibility_object* b) = 0;
-		virtual void on_expand_collapse(accessibility_object* b, bool expanded) = 0;
-		virtual void on_window_layout_changed() = 0;
-		virtual void on_text_content_changed(accessibility_object* b) = 0;
-		virtual void on_text_value_changed(accessibility_object* b) = 0;
-		virtual void on_text_numeric_value_changed(accessibility_object* b) = 0;
-		virtual void on_text_selection_changed(accessibility_object* b) = 0;
-		virtual void on_conversion_target_changed(accessibility_object* b) = 0;
-		virtual void on_composition_change(accessibility_object* b, std::wstring_view comp) = 0;
-		virtual void on_composition_result(accessibility_object* b, std::wstring_view result) = 0;
-		virtual void on_focus_change(accessibility_object* b) = 0;
-		virtual void on_focus_returned_to_root() = 0;
-	};
-
-	namespace render {
-		
-
-		struct wrapper {
-			virtual ~wrapper() { }
-
-			virtual void render(window_data& win) = 0;
-			virtual void background_rectangle(screen_space_rect content_rect, uint8_t display_flags, uint8_t brush, bool under_mouse, window_data const& win) = 0;
-			virtual void interactable_or_icon(window_data const& win, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical, uint8_t icon_id) = 0;
-			virtual void interactable_or_foreground(window_data const& win, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical) = 0;
-			virtual void interactable(window_data const& win, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical) = 0;
-			virtual void text(window_data const& win, ::printui::text::arranged_text*, int32_t x, int32_t y) = 0;
-			virtual void fill_from_foreground(screen_space_rect location, uint8_t fg_brush, bool optimize_for_text) = 0;
-			virtual void create_palette(window_data const& win) = 0;
-			virtual void mark_for_complete_redraw() = 0;
-			virtual void stop_ui_animations(window_data const& win) = 0;
-			virtual void prepare_ui_animation(window_data& win) = 0;
-			virtual void start_ui_animation(animation_description description, window_data const& win) = 0;
-			virtual void register_in_place_animation() = 0;
-			virtual int64_t in_place_animation_running_ms() const = 0;
-			virtual void recreate_dpi_dependent_resource(window_data& win) = 0;
-			virtual void create_window_size_resources(window_data& win) = 0;
-			virtual void set_brush_opacity(uint8_t b, float o) = 0;
-			virtual void fill_rectangle(screen_space_rect location, uint8_t b) = 0;
-			virtual void draw_icon(int32_t x, int32_t y, uint8_t ico, uint8_t br) = 0;
-			virtual void draw_icon_to_foreground(int32_t x, int32_t y, uint8_t ico) = 0;
-			virtual layout_position get_icon_size(uint8_t ico) = 0;
-		};
-	}
-
+namespace printui {
 	struct window_data {
 	private:
 		layout_node_storage layout_nodes;
@@ -2426,12 +2058,12 @@ namespace printui {
 
 		launch_settings dynamic_settings;
 
-		std::unique_ptr<window_wrapper> window_interface;
-		std::unique_ptr<accessibility_framework_wrapper> accessibility_interface;
-		std::shared_ptr<text::text_services_wrapper> text_services_interface;
-		std::unique_ptr<file_system_wrapper> file_system;
-		std::unique_ptr<text::wrapper> text_interface;
-		std::unique_ptr<render::wrapper> rendering_interface;
+		os_win32_wrapper window_interface;
+		win32_accessibility accessibility_interface;
+		text::win32_text_services text_services_interface;
+		win32_file_system file_system;
+		text::direct_write_text text_interface;
+		render::direct2d_rendering rendering_interface;
 
 		uint32_t ui_width = 0;
 		uint32_t ui_height = 0;
@@ -2508,12 +2140,13 @@ namespace printui {
 		bool is_sizeing = false;
 		bool pending_right_click = false;
 
-		window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai, std::shared_ptr<text::text_services_wrapper> const& ts, std::unique_ptr<file_system_wrapper>&& file_system, std::unique_ptr<text::wrapper>&& text_interface, std::unique_ptr<render::wrapper>&& rendering_interface);
+		window_data(bool mn, bool mx, bool settings);
 		virtual ~window_data();
 
-		virtual void load_default_dynamic_settings() = 0;
-		virtual void client_on_dpi_change() = 0;
-		virtual void client_on_resize(uint32_t width, uint32_t height) = 0;
+		void load_default_dynamic_settings();
+		void client_on_dpi_change();
+		void client_on_resize(uint32_t width, uint32_t height);
+		std::vector<printui::settings_menu_item> get_settings_items() const;
 
 		// called directly on message reciept
 
@@ -2683,3 +2316,5 @@ namespace printui {
 	uint32_t content_alignment_to_text_alignment(content_alignment align);
 	
 }
+
+#endif PRINTUI_MAIN_HEADER

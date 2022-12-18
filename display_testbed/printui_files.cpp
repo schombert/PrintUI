@@ -1,4 +1,4 @@
-#include "printui_utility.hpp"
+#include "printui_main_header.hpp"
 #include "printui_files_definitions.hpp"
 
 #include <Shlobj.h>
@@ -127,7 +127,7 @@ namespace printui {
 
 	}
 
-	std::wstring win32_file_system::find_matching_file_name(std::wstring const& directory_and_filter) {
+	std::wstring win32_file_system::find_matching_file_name(std::wstring const& directory_and_filter) const {
 		WIN32_FIND_DATAW fdata;
 		HANDLE search_handle = FindFirstFile(directory_and_filter.c_str(), &fdata);
 		if(search_handle != INVALID_HANDLE_VALUE) {
@@ -138,7 +138,7 @@ namespace printui {
 		}
 	}
 
-	void win32_file_system::for_each_filtered_file(std::wstring const& directory_and_filter, std::function<void(std::wstring const&)> const& fn) {
+	void win32_file_system::for_each_filtered_file(std::wstring const& directory_and_filter, std::function<void(std::wstring const&)> const& fn) const {
 
 		WIN32_FIND_DATAW fdata;
 		HANDLE search_handle = FindFirstFile(directory_and_filter.c_str(), &fdata);
@@ -150,7 +150,7 @@ namespace printui {
 		}
 	}
 
-	void win32_file_system::with_file_content(std::wstring const& file_name, std::function<void(std::string_view)> const& fn) {
+	void win32_file_system::with_file_content(std::wstring const& file_name, std::function<void(std::string_view)> const& fn) const {
 
 		HANDLE file_handle = CreateFileW(file_name.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
 		if(file_handle != INVALID_HANDLE_VALUE) {
@@ -169,16 +169,16 @@ namespace printui {
 		}
 	}
 
-	bool win32_file_system::file_exists(std::wstring const& file_name) {
+	bool win32_file_system::file_exists(std::wstring const& file_name) const {
 		auto a = GetFileAttributes(file_name.c_str());
 		return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY) == 0;
 	}
-	bool win32_file_system::directory_exists(std::wstring const& dir_name) {
+	bool win32_file_system::directory_exists(std::wstring const& dir_name) const {
 		auto a = GetFileAttributes(dir_name.c_str());
 		return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY) != 0;
 	}
 
-	void win32_file_system::for_each_file(std::wstring const& directory, std::function<void(std::wstring const&)> const& fn) {
+	void win32_file_system::for_each_file(std::wstring const& directory, std::function<void(std::wstring const&)> const& fn) const {
 		std::wstring wfilter = directory + L"\\*";
 		WIN32_FIND_DATAW fdata;
 		HANDLE search_handle = FindFirstFile(wfilter.c_str(), &fdata);
@@ -191,7 +191,7 @@ namespace printui {
 		}
 	}
 
-	void win32_file_system::for_each_directory(std::wstring const& directory, std::function<void(std::wstring const&)> const& fn) {
+	void win32_file_system::for_each_directory(std::wstring const& directory, std::function<void(std::wstring const&)> const& fn) const {
 		std::wstring wfilter = directory + L"\\*";
 		WIN32_FIND_DATAW fdata;
 		HANDLE search_handle = FindFirstFile(wfilter.c_str(), &fdata);
@@ -205,7 +205,7 @@ namespace printui {
 		}
 	}
 
-	std::optional<std::wstring> win32_file_system::resolve_file_path(std::wstring const& file_name, std::wstring const& subdirectory) {
+	std::optional<std::wstring> win32_file_system::resolve_file_path(std::wstring const& file_name, std::wstring const& subdirectory) const {
 		{
 			WCHAR module_name[MAX_PATH] = {};
 			int32_t path_used = GetModuleFileName(nullptr, module_name, MAX_PATH);
@@ -233,7 +233,7 @@ namespace printui {
 		return std::optional<std::wstring>{};
 	}
 
-	std::wstring win32_file_system::get_root_directory() {
+	std::wstring win32_file_system::get_root_directory() const {
 		WCHAR module_name[MAX_PATH] = {};
 		int32_t path_used = GetModuleFileName(nullptr, module_name, MAX_PATH);
 		while(path_used >= 0 && module_name[path_used] != L'\\') {
@@ -243,7 +243,7 @@ namespace printui {
 		return module_name;
 	}
 
-	std::wstring win32_file_system::get_common_printui_directory() {
+	std::wstring win32_file_system::get_common_printui_directory() const {
 		wchar_t* local_path_out = nullptr;
 		std::wstring result;
 		if(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &local_path_out) == S_OK) {

@@ -1,4 +1,4 @@
-#include "printui_utility.hpp"
+#include "printui_main_header.hpp"
 
 #ifndef UNICODE
 #define UNICODE
@@ -234,7 +234,7 @@ namespace printui {
 				static_cast<int>(ceil(float(win.dynamic_settings.window_y_size) * win.dpi * win.dynamic_settings.global_size_multiplier / 96.f)),
 				SWP_NOMOVE | SWP_FRAMECHANGED);
 
-			win.file_system->load_settings(win);
+			win.file_system.load_settings(win);
 
 			auto window_title_id = win.text_data.text_id_from_name("window_title").id;
 			win.title_bar.set_text_content(uint16_t(window_title_id));
@@ -280,18 +280,18 @@ namespace printui {
 	}
 	void os_win32_wrapper::maximize(window_data& win) {
 		ShowWindow((HWND)(m_hwnd), SW_MAXIMIZE);
-		win.accessibility_interface->notify_window_state_change(resize_type::maximize);
+		win.accessibility_interface.notify_window_state_change(resize_type::maximize);
 	}
 	void os_win32_wrapper::minimize(window_data& win) {
 		ShowWindow((HWND)(m_hwnd), SW_MINIMIZE);
-		win.accessibility_interface->notify_window_state_change(resize_type::minimize);
+		win.accessibility_interface.notify_window_state_change(resize_type::minimize);
 	}
 	void os_win32_wrapper::restore(window_data& win) {
 		ShowWindow((HWND)(m_hwnd), SW_SHOWNORMAL);
-		win.accessibility_interface->notify_window_state_change(resize_type::resize);
+		win.accessibility_interface.notify_window_state_change(resize_type::resize);
 	}
 	void os_win32_wrapper::close(window_data& win) {
-		win.accessibility_interface->notify_window_closed();
+		win.accessibility_interface.notify_window_closed();
 		PostMessage((HWND)(m_hwnd), WM_CLOSE, 0, 0);
 	}
 	
@@ -300,7 +300,7 @@ namespace printui {
 	}
 
 
-	window_data::window_data(bool mn, bool mx, bool settings, std::vector<settings_menu_item> const& setting_items, std::unique_ptr<window_wrapper>&& wi, std::unique_ptr<accessibility_framework_wrapper>&& ai, std::shared_ptr<text::text_services_wrapper> const& ts, std::unique_ptr<file_system_wrapper>&& file_system, std::unique_ptr<text::wrapper>&& text_interface, std::unique_ptr<render::wrapper>&& rendering_interface) : window_bar(*this, mn, mx, settings, setting_items), window_interface(std::move(wi)), accessibility_interface(std::move(ai)), text_services_interface(ts), file_system(std::move(file_system)), text_interface(std::move(text_interface)), rendering_interface(std::move(rendering_interface)) {
+	window_data::window_data(bool mn, bool mx, bool settings) : window_bar(*this, mn, mx, settings, get_settings_items()), accessibility_interface(*this) {
 
 	}
 
@@ -357,7 +357,7 @@ namespace printui {
 
 	window_data::~window_data() {
 		if(dynamic_settings.settings_changed) {
-			file_system->save_settings(*this);
+			file_system.save_settings(*this);
 			dynamic_settings.settings_changed = false;
 		}
 
@@ -368,17 +368,17 @@ namespace printui {
 		layout_size = int32_t(std::round(dynamic_settings.global_size_multiplier * float(dynamic_settings.layout_base_size) * dpi / 96.0f));
 		window_border = int32_t(std::round(float(dynamic_settings.window_border) * dpi / 96.0f));
 
-		rendering_interface->stop_ui_animations(*this);
-		text_interface->initialize_fonts(*this);
-		rendering_interface->recreate_dpi_dependent_resource(*this);
+		rendering_interface.stop_ui_animations(*this);
+		text_interface.initialize_fonts(*this);
+		rendering_interface.recreate_dpi_dependent_resource(*this);
 
 		client_on_dpi_change();
 	}
 
 
 	void window_data::expand_to_fit_content() {
-		auto workspace = window_interface->get_available_workspace();
-		auto current_placement = window_interface->get_window_placement();
+		auto workspace = window_interface.get_available_workspace();
+		auto current_placement = window_interface.get_window_placement();
 
 		screen_space_rect new_placement{ 0 ,0, int32_t(std::max(minimum_ui_width, ui_width)), int32_t(std::max(minimum_ui_height, ui_height)) };
 
@@ -387,15 +387,15 @@ namespace printui {
 		new_placement.x = std::clamp(current_placement.x - change_width / 2, 0, workspace.width - new_placement.width);
 		new_placement.y = std::clamp(current_placement.y - change_height / 2, 0, workspace.height - new_placement.height);
 
-		window_interface->set_window_placement(new_placement);
+		window_interface.set_window_placement(new_placement);
 	}
 
 	bool window_data::on_mouse_move(uint32_t x, uint32_t y) {
 		if(dynamic_settings.imode == input_mode::follow_input) {
-			if(!window_interface->is_mouse_cursor_visible()) {
-				window_interface->show_mouse_cursor();
+			if(!window_interface.is_mouse_cursor_visible()) {
+				window_interface.show_mouse_cursor();
 				set_prompt_visibility(printui::prompt_mode::hidden);
-				window_interface->invalidate_window();
+				window_interface.invalidate_window();
 			}
 		} else if(dynamic_settings.imode != input_mode::mouse_only && dynamic_settings.imode != input_mode::mouse_and_keyboard && dynamic_settings.imode != input_mode::controller_with_pointer) {
 			return false;
@@ -424,7 +424,7 @@ namespace printui {
 			last_under_cursor = new_under_cursor;
 
 			if(last_is_highlighted || new_is_highlighted) {
-				window_interface->invalidate_window();
+				window_interface.invalidate_window();
 			}
 		}
 
@@ -578,11 +578,11 @@ namespace printui {
 		}
 
 		if(dynamic_settings.imode == input_mode::follow_input) {
-			if(window_interface->is_mouse_cursor_visible() || prompts != printui::prompt_mode::keyboard) {
-				window_interface->hide_mouse_cursor();
+			if(window_interface.is_mouse_cursor_visible() || prompts != printui::prompt_mode::keyboard) {
+				window_interface.hide_mouse_cursor();
 				set_prompt_visibility(printui::prompt_mode::keyboard);
 				set_window_focus(nullptr);
-				window_interface->invalidate_window();
+				window_interface.invalidate_window();
 				return true; // eat the key so that we don't do something bad
 			}
 
@@ -627,7 +627,7 @@ namespace printui {
 				p->set_disabled(*this, controller_number_plugged_in == 0);
 			if(auto p = window_bar.print_ui_settings.input_mode_list.get_option(size_t(input_mode::controller_only)); p)
 				p->set_disabled(*this, controller_number_plugged_in == 0);
-			window_interface->invalidate_window();
+			window_interface.invalidate_window();
 		}
 
 		/* -- FOR ACTUAL HID CONTROLLERS 
@@ -711,7 +711,7 @@ namespace printui {
 								controller_mouse.current_x += double(in_ms.count()) * norm_lx * scaled_magnitude;
 								controller_mouse.current_y += double(in_ms.count()) * norm_ly * scaled_magnitude;
 
-								auto winrect = window_interface->get_window_location();
+								auto winrect = window_interface.get_window_location();
 								auto temp_x = int32_t(controller_mouse.current_x);
 								auto temp_y = int32_t(controller_mouse.current_y);
 								temp_x = std::clamp(temp_x, winrect.x + window_border, winrect.x + winrect.width - window_border);
@@ -737,21 +737,21 @@ namespace printui {
 
 					if(buttons_pressed || buttons_released) {
 						if(dynamic_settings.imode == input_mode::follow_input) {
-							if(window_interface->is_mouse_cursor_visible() || prompts != printui::prompt_mode::controller) {
-								window_interface->hide_mouse_cursor();
+							if(window_interface.is_mouse_cursor_visible() || prompts != printui::prompt_mode::controller) {
+								window_interface.hide_mouse_cursor();
 								set_prompt_visibility(printui::prompt_mode::controller);
 								set_window_focus(nullptr);
-								window_interface->invalidate_window();
+								window_interface.invalidate_window();
 								return; // eat the key so that we don't do something bad
 							}
 						}
 
 
 						if((buttons_released & (controller_buttons.button_lb | controller_buttons.button_rb)) != 0) {
-							window_interface->invalidate_window();
+							window_interface.invalidate_window();
 						}
 						if((buttons_pressed & (controller_buttons.button_lb | controller_buttons.button_rb)) != 0) {
-							window_interface->invalidate_window();
+							window_interface.invalidate_window();
 
 							if((controller_buttons.val & (controller_buttons.button_lb | controller_buttons.button_rb)) == (controller_buttons.button_lb | controller_buttons.button_rb)) {
 								execute_focus_action(focus_actions.escape);
@@ -803,10 +803,10 @@ namespace printui {
 
 	bool window_data::on_mouse_left_down(uint32_t x, uint32_t y) {
 		if(dynamic_settings.imode == input_mode::follow_input) {
-			if(!window_interface->is_mouse_cursor_visible()) {
-				window_interface->show_mouse_cursor();
+			if(!window_interface.is_mouse_cursor_visible()) {
+				window_interface.show_mouse_cursor();
 				set_prompt_visibility(printui::prompt_mode::hidden);
-				window_interface->invalidate_window();
+				window_interface.invalidate_window();
 			}
 		} else if(dynamic_settings.imode != input_mode::mouse_only && dynamic_settings.imode != input_mode::mouse_and_keyboard) {
 			return false;
@@ -824,8 +824,8 @@ namespace printui {
 		auto under_cursor = printui::interface_under_point(get_ui_rects(), x, y);
 		if(under_cursor) {
 			if(pending_right_click) {
-				auto presult = window_interface->get_key_state(primary_right_click_modifier_sc);
-				auto sresult = window_interface->get_key_state(secondary_right_click_modifier_sc);
+				auto presult = window_interface.get_key_state(primary_right_click_modifier_sc);
+				auto sresult = window_interface.get_key_state(secondary_right_click_modifier_sc);
 				if((presult == 0 && sresult == 0) || dynamic_settings.imode == input_mode::mouse_only) {
 					pending_right_click = false; // right click modifier not held down
 					window_bar.info_i.mark_for_update(*this);
@@ -842,10 +842,10 @@ namespace printui {
 	}
 	bool window_data::on_mouse_right_down(uint32_t x, uint32_t y) {
 		if(dynamic_settings.imode == input_mode::follow_input) {
-			if(!window_interface->is_mouse_cursor_visible()) {
-				window_interface->show_mouse_cursor();
+			if(!window_interface.is_mouse_cursor_visible()) {
+				window_interface.show_mouse_cursor();
 				set_prompt_visibility(printui::prompt_mode::hidden);
-				window_interface->invalidate_window();
+				window_interface.invalidate_window();
 			}
 		} else if(dynamic_settings.imode != input_mode::mouse_only && dynamic_settings.imode != input_mode::mouse_and_keyboard) {
 			return false;
@@ -854,8 +854,8 @@ namespace printui {
 		auto under_cursor = printui::interface_under_point(get_ui_rects(), x, y);
 		if(under_cursor) {
 			if(pending_right_click) {
-				auto presult = window_interface->get_key_state(primary_right_click_modifier_sc);
-				auto sresult = window_interface->get_key_state(secondary_right_click_modifier_sc);
+				auto presult = window_interface.get_key_state(primary_right_click_modifier_sc);
+				auto sresult = window_interface.get_key_state(secondary_right_click_modifier_sc);
 				if((presult == 0 && sresult == 0) || dynamic_settings.imode == input_mode::mouse_only) {
 					pending_right_click = false; // right click modifier not held down
 					window_bar.info_i.mark_for_update(*this);
@@ -896,7 +896,7 @@ namespace printui {
 					case WM_SETCURSOR:
 					{
 						if(LOWORD(lParam) == HTCLIENT) {
-							app->window_interface->reshow_mouse_cursor();
+							app->window_interface.reshow_mouse_cursor();
 							return TRUE;
 						}
 						break;
@@ -1116,13 +1116,13 @@ namespace printui {
 					{
 						PAINTSTRUCT ps;
 						BeginPaint(hwnd, &ps);
-						app->rendering_interface->render(*app);
+						app->rendering_interface.render(*app);
 						EndPaint(hwnd, &ps);
 						return 0;
 					}
 					case WM_DESTROY:
 						app->release_all();
-						app->accessibility_interface->release_root_provider();
+						app->accessibility_interface.release_root_provider();
 						PostQuitMessage(0);
 						return 1;
 					case WM_GETOBJECT:
@@ -1132,7 +1132,7 @@ namespace printui {
 
 						if(static_cast<long>(lParam) == static_cast<long>(UiaRootObjectId)) {
 							return UiaReturnRawElementProvider(hwnd, wParam, lParam,
-								app->accessibility_interface->get_root_window_provider());
+								app->accessibility_interface.get_root_window_provider());
 						}
 						break;
 					}
@@ -1195,15 +1195,15 @@ namespace printui {
 	}
 
 	void window_data::create_window() {
-		dpi = float(window_interface->get_window_dpi());
+		dpi = float(window_interface.get_window_dpi());
 		load_default_dynamic_settings();
-		text_interface->create_font_collection(*this);
+		text_interface.create_font_collection(*this);
 
 		if(dynamic_settings.imode == input_mode::system_default) {
 			dynamic_settings.imode = input_mode::follow_input;
 		}
 
-		bool kb_preference = accessibility_interface->has_keyboard_preference();
+		bool kb_preference = accessibility_interface.has_keyboard_preference();
 
 		if(dynamic_settings.imode == input_mode::keyboard_only || dynamic_settings.imode == input_mode::mouse_and_keyboard || kb_preference)
 			prompts = prompt_mode::keyboard;
@@ -1212,12 +1212,12 @@ namespace printui {
 		else
 			prompts = prompt_mode::hidden;
 
-		window_interface->create_window(*this);
+		window_interface.create_window(*this);
 	}
 
 	bool window_data::on_resize(resize_type type, uint32_t width, uint32_t height) {
 
-		rendering_interface->stop_ui_animations(*this);
+		rendering_interface.stop_ui_animations(*this);
 
 		if(ui_width == width && ui_height == height) return false;
 
@@ -1225,36 +1225,36 @@ namespace printui {
 
 		ui_width = width;
 		ui_height = height;
-		dpi = float(window_interface->get_window_dpi());
+		dpi = float(window_interface.get_window_dpi());
 
 		recreate_layout();
 
 		if(type == resize_type::maximize) {
-			auto workspace = window_interface->get_available_workspace();
+			auto workspace = window_interface.get_available_workspace();
 
 			window_saved_border = std::max(window_border, window_saved_border);
 			window_border = 0;
 
-			window_interface->move_window(workspace);
+			window_interface.move_window(workspace);
 
-			rendering_interface->create_window_size_resources(*this);
+			rendering_interface.create_window_size_resources(*this);
 
 			client_on_resize(width, height);
 
-			window_interface->invalidate_window();
+			window_interface.invalidate_window();
 
 			return true;
 		} else if(type == resize_type::resize) {
 			window_border = std::max(window_border, window_saved_border);
 
-			rendering_interface->create_window_size_resources(*this);
+			rendering_interface.create_window_size_resources(*this);
 
 			client_on_resize(width, height);
 
 			if(minimum_ui_width > ui_width || minimum_ui_height > ui_height) {
 				expand_to_fit_content();
 			} else {
-				window_interface->invalidate_window();
+				window_interface.invalidate_window();
 			}
 			return true;
 		}
@@ -1282,33 +1282,33 @@ namespace printui {
 		else
 			prompts = prompt_mode::hidden;
 
-		if(window_interface->is_mouse_cursor_visible() && (new_mode == input_mode::keyboard_only || new_mode == input_mode::controller_only)) {
-			window_interface->hide_mouse_cursor();
+		if(window_interface.is_mouse_cursor_visible() && (new_mode == input_mode::keyboard_only || new_mode == input_mode::controller_only)) {
+			window_interface.hide_mouse_cursor();
 			focus_stack.clear();
 			last_under_cursor = ui_reference_none;
 			last_layout_under_cursor = nullptr;
 			repopulate_key_actions();
 		}
 
-		if(!window_interface->is_mouse_cursor_visible() && (new_mode == input_mode::mouse_only || new_mode == input_mode::mouse_and_keyboard || new_mode == input_mode::controller_with_pointer)) {
-			window_interface->show_mouse_cursor();
+		if(!window_interface.is_mouse_cursor_visible() && (new_mode == input_mode::mouse_only || new_mode == input_mode::mouse_and_keyboard || new_mode == input_mode::controller_with_pointer)) {
+			window_interface.show_mouse_cursor();
 			focus_stack.clear();
 			repopulate_key_actions();
 		}
 
 		dynamic_settings.imode = new_mode;
-		window_interface->invalidate_window();
+		window_interface.invalidate_window();
 	}
 
 	void window_data::set_prompt_visibility(prompt_mode mode) {
 		if(prompts != mode) {
 			prompts = mode;
-			window_interface->invalidate_window();
+			window_interface.invalidate_window();
 		}
 	}
 
 	void window_data::show_settings_panel() {
-		rendering_interface->prepare_ui_animation(*this);
+		rendering_interface.prepare_ui_animation(*this);
 
 		auto panelsize_x = get_node(window_bar.settings_pages.l_id).width;
 		auto panelsize_y = get_node(window_bar.l_id).height;
@@ -1317,19 +1317,19 @@ namespace printui {
 
 		auto screen_rect = screen_rectangle_from_layout(*this, horizontal_offset, vertical_offset, panelsize_x, panelsize_y);
 
-		rendering_interface->start_ui_animation(animation_description{ screen_rect, animation_type::flip, animation_direction::left, 0.5f, true}, *this);
+		rendering_interface.start_ui_animation(animation_description{ screen_rect, animation_type::flip, animation_direction::left, 0.5f, true}, *this);
 
 		window_bar.expanded_show_settings = true;
 		get_node(window_bar.settings_pages.l_id).set_ignore(false);
 		redraw_ui();
 
 		if(window_bar.acc_obj) {
-			accessibility_interface->on_contents_changed(window_bar.acc_obj);
+			accessibility_interface.on_contents_changed(window_bar.acc_obj);
 		}
 	}
 
 	void window_data::hide_settings_panel() {
-		rendering_interface->prepare_ui_animation(*this);
+		rendering_interface.prepare_ui_animation(*this);
 
 		auto panelsize_x = get_node(window_bar.settings_pages.l_id).width;
 		auto panelsize_y = get_node(window_bar.l_id).height;
@@ -1338,18 +1338,18 @@ namespace printui {
 
 		auto screen_rect = screen_rectangle_from_layout(*this, horizontal_offset, vertical_offset, panelsize_x, panelsize_y);
 
-		rendering_interface->start_ui_animation(animation_description{ screen_rect, animation_type::flip, animation_direction::left, 0.5f, false }, *this);
+		rendering_interface.start_ui_animation(animation_description{ screen_rect, animation_type::flip, animation_direction::left, 0.5f, false }, *this);
 
 		window_bar.expanded_show_settings = false;
 		get_node(window_bar.settings_pages.l_id).set_ignore(true);
 		redraw_ui();
 
 		if(window_bar.acc_obj) {
-			accessibility_interface->on_contents_changed(window_bar.acc_obj);
+			accessibility_interface.on_contents_changed(window_bar.acc_obj);
 		}
 
 		if(dynamic_settings.settings_changed) {
-			file_system->save_settings(*this);
+			file_system.save_settings(*this);
 			dynamic_settings.settings_changed = false;
 		}
 	}
@@ -1370,34 +1370,34 @@ namespace printui {
 			keyboard_target->on_finalize(*this);
 			selecting_edit_text = false;
 			if(!i)
-				text_services_interface->suspend_keystroke_handling();
+				text_services_interface.suspend_keystroke_handling();
 		} else {
 			if(i)
-				text_services_interface->resume_keystroke_handling();
+				text_services_interface.resume_keystroke_handling();
 		}
 		keyboard_target = i;
 		if(i) {
 			i->on_initialize(*this);
 		} else {
-			accessibility_interface->on_focus_returned_to_root();
-			text_services_interface->set_focus(*this, nullptr);
+			accessibility_interface.on_focus_returned_to_root();
+			text_services_interface.set_focus(*this, nullptr);
 		}
 
 	}
 
 	void window_data::load_locale_settings(std::wstring const& directory) {
-		auto filen = file_system->find_matching_file_name(directory + L"\\*.dat");
+		auto filen = file_system.find_matching_file_name(directory + L"\\*.dat");
 		if(filen.length() > 0) {
-			file_system->with_file_content(directory + L"\\" + filen, [&](std::string_view content) {
+			file_system.with_file_content(directory + L"\\" + filen, [&](std::string_view content) {
 				parse::settings_file(dynamic_settings, text_data.font_name_to_index, content.data(), content.data() + content.length());
 				});
 		}
 	}
 
 	void window_data::load_locale_fonts(std::wstring const& directory) {
-		auto filen = file_system->find_matching_file_name(directory + L"\\*.dat");
+		auto filen = file_system.find_matching_file_name(directory + L"\\*.dat");
 		if(filen.length() > 0) {
-			file_system->with_file_content(directory + L"\\" + filen, [&](std::string_view content) {
+			file_system.with_file_content(directory + L"\\" + filen, [&](std::string_view content) {
 				parse::custom_fonts_only(dynamic_settings, text_data.font_name_to_index, content.data(), content.data() + content.length());
 				});
 		}

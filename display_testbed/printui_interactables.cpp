@@ -1,4 +1,4 @@
-#include "printui_utility.hpp"
+#include "printui_main_header.hpp"
 
 #ifndef UNICODE
 #define UNICODE
@@ -534,7 +534,7 @@ namespace printui {
 	}
 
 	void window_data::update_window_focus() {
-		if(window_interface->is_mouse_cursor_visible()) {
+		if(window_interface.is_mouse_cursor_visible()) {
 			auto new_lref = layout_reference_under_point(get_ui_rects(), last_cursor_x_position, last_cursor_y_position);
 			set_window_focus_from_mouse(new_lref);
 		} else {
@@ -557,7 +557,7 @@ namespace printui {
 
 					repopulate_key_actions();
 					if(prompts != prompt_mode::hidden)
-						window_interface->invalidate_window();
+						window_interface.invalidate_window();
 				}
 			}
 		}
@@ -571,7 +571,7 @@ namespace printui {
 			
 
 			if(!focus_stack.empty() && prompts != prompt_mode::hidden)
-				window_interface->invalidate_window();
+				window_interface.invalidate_window();
 
 			focus_stack.clear();
 			repopulate_key_actions();
@@ -580,7 +580,7 @@ namespace printui {
 		
 		if(r->l_id != focus_id) {
 			change_focus(focus_id, r->l_id);
-			if(window_interface->is_mouse_cursor_visible()) {
+			if(window_interface.is_mouse_cursor_visible()) {
 				focus_stack.clear();
 				focus_stack.push_back(stored_focus{r, -1, -1});
 			} else {
@@ -591,7 +591,7 @@ namespace printui {
 			repopulate_key_actions();
 
 			if(prompts != prompt_mode::hidden)
-				window_interface->invalidate_window();
+				window_interface.invalidate_window();
 		}
 	}
 
@@ -602,7 +602,7 @@ namespace printui {
 			change_focus(focus_id, layout_reference_none);
 
 			if(!focus_stack.empty() && prompts != prompt_mode::hidden)
-				window_interface->invalidate_window();
+				window_interface.invalidate_window();
 
 			focus_stack.clear();
 			repopulate_key_actions();
@@ -613,7 +613,7 @@ namespace printui {
 			change_focus(focus_id, layout_reference_none);
 
 			if(!focus_stack.empty() && prompts != prompt_mode::hidden)
-				window_interface->invalidate_window();
+				window_interface.invalidate_window();
 
 			focus_stack.clear();
 			repopulate_key_actions();
@@ -624,7 +624,7 @@ namespace printui {
 
 			change_focus(focus_id, r.node);
 
-			if(window_interface->is_mouse_cursor_visible()) {
+			if(window_interface.is_mouse_cursor_visible()) {
 				focus_stack.clear();
 				focus_stack.push_back(stored_focus{ r_layout, r.child_offset, r.child_offset_end });
 			} else {
@@ -641,7 +641,7 @@ namespace printui {
 			repopulate_key_actions();
 
 			if(prompts != prompt_mode::hidden)
-				window_interface->invalidate_window();
+				window_interface.invalidate_window();
 		}
 	}
 
@@ -669,7 +669,7 @@ namespace printui {
 			repopulate_key_actions();
 
 			if(prompts != prompt_mode::hidden)
-				window_interface->invalidate_window();
+				window_interface.invalidate_window();
 		} else {
 			set_window_focus(nullptr);
 		}
@@ -684,7 +684,7 @@ namespace printui {
 
 			if(pending_right_click) {
 
-				if((window_interface->get_key_state(primary_right_click_modifier_sc) == 0 && window_interface->get_key_state(secondary_right_click_modifier_sc) == 0) || dynamic_settings.imode == input_mode::mouse_only) {
+				if((window_interface.get_key_state(primary_right_click_modifier_sc) == 0 && window_interface.get_key_state(secondary_right_click_modifier_sc) == 0) || dynamic_settings.imode == input_mode::mouse_only) {
 					pending_right_click = false; // right click modifier not held down
 					window_bar.info_i.mark_for_update(*this);
 				}
@@ -717,7 +717,7 @@ namespace printui {
 					repopulate_key_actions();
 
 					if(prompts != prompt_mode::hidden)
-						window_interface->invalidate_window();
+						window_interface.invalidate_window();
 				}
 			} else {
 				set_window_focus(nullptr);
@@ -1153,7 +1153,7 @@ namespace printui {
 
 			if(containing_page == layout_reference_none) {
 				if(!focus_stack.empty() && prompts != prompt_mode::hidden)
-					window_interface->invalidate_window();
+					window_interface.invalidate_window();
 
 				focus_stack.clear();
 				repopulate_key_actions();
@@ -1185,7 +1185,7 @@ namespace printui {
 				repopulate_key_actions();
 
 				if(prompts != prompt_mode::hidden)
-					window_interface->invalidate_window();
+					window_interface.invalidate_window();
 			}
 		} else {
 			change_focus(last_layout_under_cursor ? last_layout_under_cursor->l_id : layout_reference_none, layout_reference_none);
@@ -1194,7 +1194,7 @@ namespace printui {
 			repopulate_key_actions();
 
 			if(prompts != prompt_mode::hidden)
-				window_interface->invalidate_window();
+				window_interface.invalidate_window();
 		}
 	}
 
