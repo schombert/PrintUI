@@ -404,7 +404,7 @@ namespace printui {
 		last_cursor_x_position = x;
 		last_cursor_y_position = y;
 
-		if(keyboard_target && selecting_edit_text) {
+		if(keyboard_target && selecting_edit_text != edit_selection_mode::none) {
 			keyboard_target->move_cursor_by_screen_pt(*this, screen_space_point{int32_t(x), int32_t(y) }, true);
 			return true;
 		}
@@ -814,7 +814,8 @@ namespace printui {
 
 		if(keyboard_target) {
 			if(keyboard_target->move_cursor_by_screen_pt(*this, screen_space_point{ int32_t(x), int32_t(y) }, false)) {
-				selecting_edit_text = true;
+				selecting_edit_text = edit_selection_mode::standard;
+
 				return true;
 			} else {
 				set_keyboard_focus(nullptr);
@@ -973,6 +974,7 @@ namespace printui {
 							auto in_ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
 							if(in_ms.count() <= app->double_click_ms) {
 								app->keyboard_target->command(*app, edit_command::select_current_section, false);
+								app->selecting_edit_text = edit_selection_mode::line;
 								return 0;
 							}
 						}
@@ -989,6 +991,7 @@ namespace printui {
 								return 0;
 							}
 							app->keyboard_target->command(*app, edit_command::select_current_word, false);
+							app->selecting_edit_text = edit_selection_mode::word;
 							app->last_double_click = std::chrono::steady_clock::now();
 							return 0;
 						}
@@ -1000,7 +1003,7 @@ namespace printui {
 					}
 					case WM_LBUTTONUP:
 						ReleaseCapture();
-						app->selecting_edit_text = false;
+						app->selecting_edit_text = edit_selection_mode::none;
 						return 0;
 					case WM_NCCALCSIZE:
 						if(wParam == TRUE)
@@ -1178,7 +1181,7 @@ namespace printui {
 						break;
 					}
 					case WM_KILLFOCUS:
-						app->selecting_edit_text = false;
+						app->selecting_edit_text = edit_selection_mode::none;
 						if(app->keyboard_target)
 							app->keyboard_target->set_cursor_visibility(*app, false);
 						return 0;
@@ -1368,7 +1371,7 @@ namespace printui {
 
 		if(keyboard_target != nullptr) {
 			keyboard_target->on_finalize(*this);
-			selecting_edit_text = false;
+			selecting_edit_text = edit_selection_mode::none;
 			if(!i)
 				text_services_interface.suspend_keystroke_handling();
 		} else {
@@ -1382,7 +1385,7 @@ namespace printui {
 			accessibility_interface.on_focus_returned_to_root();
 			text_services_interface.set_focus(*this, nullptr);
 		}
-
+		window_interface.invalidate_window();
 	}
 
 	void window_data::load_locale_settings(std::wstring const& directory) {

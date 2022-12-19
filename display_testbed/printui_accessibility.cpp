@@ -2615,6 +2615,12 @@ namespace printui {
 				start = control->previous_word_position(start);
 			}
 			end = control->next_word_position(start);
+		} else if(unit == TextUnit_Line) {
+			control->update_analysis(parent->win);
+			if(!control->is_start_of_line(start)) {
+				start = control->start_of_line(control->line_of_position(start));
+			}
+			end = control->start_of_line(control->line_of_position(start) + 1);
 		} else {
 			start = 0;
 			end = max_end;
@@ -3132,6 +3138,23 @@ namespace printui {
 				end = control->next_word_position(start);
 			else
 				end = start;
+		} else if(unit == TextUnit_Line) {
+			control->update_analysis(parent->win);
+			auto start_line = control->line_of_position(start);
+			auto adj_line = start_line + count;
+			
+			if(count < 0) {
+				adj_line = std::max(adj_line, 0ui32);
+			} else {
+				adj_line = std::min(adj_line, uint32_t(control->number_of_text_lines() - 1));
+			}
+			(*pRetVal) = (int32_t(adj_line) - int32_t(start_line));
+
+			start = control->start_of_line(adj_line);
+			if(!degenerate)
+				end = control->start_of_line(adj_line + 1);
+			else
+				end = start;
 		} else {
 			start = 0;
 			end = int32_t(control->get_text_length());
@@ -3207,6 +3230,19 @@ namespace printui {
 				}
 				++count;
 			}
+			if(endpoint == TextPatternRangeEndpoint_Start) {
+				if(start > end)
+					end = start;
+			} else {
+				if(start > end)
+					start = end;
+			}
+		} else if(unit == TextUnit_Line) {
+			control->update_analysis(parent->win);
+			auto start_line = control->line_of_position(to_move);
+			auto adj_line = start_line + count;
+			to_move = control->start_of_line(adj_line);
+
 			if(endpoint == TextPatternRangeEndpoint_Start) {
 				if(start > end)
 					end = start;
@@ -3535,6 +3571,11 @@ namespace printui {
 			*pRetVal = nullptr;
 			return UIA_E_ELEMENTNOTAVAILABLE;
 		}
+		auto parent = control->get_layout_interface();
+		if(!parent || parent->l_id == layout_reference_none) {
+			*pRetVal = nullptr;
+			return UIA_E_ELEMENTNOTAVAILABLE;
+		}
 		SAFEARRAY* psa = SafeArrayCreateVector(VT_UNKNOWN, 0, 1);
 		*pRetVal = psa;
 
@@ -3542,9 +3583,17 @@ namespace printui {
 			return E_FAIL;
 		}
 
+		control->update_analysis(win);
+		auto number_of_lines = win.get_node(parent->l_id).height;
+		auto first_vis_line = control->first_visible_line();
+
 		LONG index = 0;
 		SafeArrayPutElement(psa, &index,
-			new simple_edit_range_provider(this, 0, int32_t(control->get_text_length())));
+			new simple_edit_range_provider(this, 
+				int32_t(control->start_of_line(first_vis_line)),
+				int32_t(control->start_of_line(first_vis_line + number_of_lines + 1))
+			)
+		);
 		return S_OK;
 	}
 	IFACEMETHODIMP simple_edit_provider::RangeFromChild(__RPC__in_opt IRawElementProviderSimple* , __RPC__deref_out_opt ITextRangeProvider** pRetVal) {

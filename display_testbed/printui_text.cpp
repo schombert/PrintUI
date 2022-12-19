@@ -2419,6 +2419,234 @@ namespace printui::text {
 		return false;
 	}
 
+	uint16_t single_numeric_16[] = {
+	0x002B,//		PLUS
+	0x002C,//		COMMA
+	0x002D,//		MINUS
+	0x002E,//		DECIMAL
+	0x00B1,//		PLUS MINUS
+	0x2052,//		COMMERCIAL MINUS
+	0xFF0B,//		FULL PLUS
+	0xFF0C,//		FULL COMMA
+	0xFF0D,//		FULL MINUS
+	0xFF0E,//		FULL DECIMAL
+	0xFE50,//		SMALL COMMA
+	0xFE62,//		SMALL PLUS
+	0xFE52,//		SMALL DECIMAL
+	0xFE51,//		SMALL COMMA
+	0xFF64,//		HALF COMMA
+	0xFF61,//		HALF DECIMAL
+	0x2396,//		DECIMAL SEPARATOR
+	0x066B,//		ARABIC DECIMAL SEPARATOR
+	0x066C,//		ARABIC THOUSANDS
+	0x2189,//          ; Numeric # No       VULGAR FRACTION ZERO THIRDS
+	0x24FE,//          ; Numeric # No       DOUBLE CIRCLED NUMBER TEN
+	0x277F,//          ; Numeric # No       DINGBAT NEGATIVE CIRCLED NUMBER TEN
+	0x2789,//          ; Numeric # No       DINGBAT CIRCLED SANS-SERIF NUMBER TEN
+	0x2793,//          ; Numeric # No       DINGBAT NEGATIVE CIRCLED SANS-SERIF NUMBER TEN
+	0x2CFD,//          ; Numeric # No       COPTIC FRACTION ONE HALF
+	0x3007,//          ; Numeric # Nl       IDEOGRAPHIC NUMBER ZERO
+	0x00B9,//          ; Digit # No       SUPERSCRIPT ONE
+	0x24EA,//          ; Digit # No       CIRCLED DIGIT ZERO
+	0x19DA,//          ; Digit # No       NEW TAI LUE THAM DIGIT ONE
+	0x2070,//          ; Digit # No       SUPERSCRIPT ZERO
+	0x24FF //          ; Digit # No       NEGATIVE CIRCLED DIGIT ZERO
+	};
+
+
+
+	uint32_t single_numeric_32[] = {
+	0x10341,//         ; Numeric # Nl       GOTHIC LETTER NINETY
+	0x1034A //         ; Numeric # Nl       GOTHIC LETTER NINE HUNDRED
+	};
+
+	uint16_t range_numeric_16[] = {
+	0x00BC, 0x00BE, // Numeric # No   [3] VULGAR FRACTION ONE QUARTER, 0xVULGAR FRACTION THREE QUARTERS
+	0x09F4, 0x09F9, // Numeric # No   [6] BENGALI CURRENCY NUMERATOR ONE, 0xBENGALI CURRENCY DENOMINATOR SIXTEEN
+	0x0B72, 0x0B77, // Numeric # No   [6] ORIYA FRACTION ONE QUARTER, 0xORIYA FRACTION THREE SIXTEENTHS
+	0x0BF0, 0x0BF2, // Numeric # No   [3] TAMIL NUMBER TEN, 0xTAMIL NUMBER ONE THOUSAND
+	0x0C78, 0x0C7E, // Numeric # No   [7] TELUGU FRACTION DIGIT ZERO FOR ODD POWERS OF FOUR, 0x
+	0x0D58, 0x0D5E, // Numeric # No   [7] MALAYALAM FRACTION ONE ONE-HUNDRED-AND-SIXTIETH, 0xMALAYALAM FRACTION ONE FIFTH
+	0x0D70, 0x0D78, // Numeric # No   [9] MALAYALAM NUMBER TEN, 0xMALAYALAM FRACTION THREE SIXTEENTHS
+	0x0F2A, 0x0F33, // Numeric # No  [10] TIBETAN DIGIT HALF ONE, 0xTIBETAN DIGIT HALF ZERO
+	0x1372, 0x137C, // Numeric # No  [11] ETHIOPIC NUMBER TEN, 0xETHIOPIC NUMBER TEN THOUSAND
+	0x16EE, 0x16F0, // Numeric # Nl   [3] RUNIC ARLAUG SYMBOL, 0xRUNIC BELGTHOR SYMBOL
+	0x17F0, 0x17F9, // Numeric # No  [10] KHMER SYMBOL LEK ATTAK SON, 0xKHMER SYMBOL LEK ATTAK PRAM-BUON
+	0x2150, 0x215F, // Numeric # No  [16] VULGAR FRACTION ONE SEVENTH, 0xFRACTION NUMERATOR ONE
+	0x2160, 0x2182, // Numeric # Nl  [35] ROMAN NUMERAL ONE, 0xROMAN NUMERAL TEN THOUSAND
+	0x2185, 0x2188, // Numeric # Nl   [4] ROMAN NUMERAL SIX LATE FORM, 0xROMAN NUMERAL ONE HUNDRED THOUSAND
+	0x2469, 0x2473, // Numeric # No  [11] CIRCLED NUMBER TEN, 0xCIRCLED NUMBER TWENTY
+	0x247D, 0x2487, // Numeric # No  [11] PARENTHESIZED NUMBER TEN, 0xPARENTHESIZED NUMBER TWENTY
+	0x2491, 0x249B, // Numeric # No  [11] NUMBER TEN FULL STOP, 0xNUMBER TWENTY FULL STOP
+	0x24EB, 0x24F4, // Numeric # No  [10] NEGATIVE CIRCLED NUMBER ELEVEN, 0xNEGATIVE CIRCLED NUMBER TWENTY
+	0x3021, 0x3029, // Numeric # Nl   [9] HANGZHOU NUMERAL ONE, 0xHANGZHOU NUMERAL NINE
+	0x3038, 0x303A, // Numeric # Nl   [3] HANGZHOU NUMERAL TEN, 0xHANGZHOU NUMERAL THIRTY
+	0x3192, 0x3195, // Numeric # No   [4] IDEOGRAPHIC ANNOTATION ONE MARK, 0xIDEOGRAPHIC ANNOTATION FOUR MARK
+	0x3220, 0x3229, // Numeric # No  [10] PARENTHESIZED IDEOGRAPH ONE, 0xPARENTHESIZED IDEOGRAPH TEN
+	0x3248, 0x324F, // Numeric # No   [8] CIRCLED NUMBER TEN ON BLACK SQUARE, 0xCIRCLED NUMBER EIGHTY ON BLACK SQUARE
+	0x3251, 0x325F, // Numeric # No  [15] CIRCLED NUMBER TWENTY ONE, 0xCIRCLED NUMBER THIRTY FIVE
+	0x3280, 0x3289, // Numeric # No  [10] CIRCLED IDEOGRAPH ONE, 0xCIRCLED IDEOGRAPH TEN
+	0x32B1, 0x32BF, // Numeric # No  [15] CIRCLED NUMBER THIRTY SIX, 0xCIRCLED NUMBER FIFTY
+	0xA6E6, 0xA6EF, // Numeric # Nl  [10] BAMUM LETTER MO, 0xBAMUM LETTER KOGHOM
+	0xA830, 0xA835, // Numeric # No   [6] NORTH INDIC FRACTION ONE QUARTER, 0xNORTH INDIC FRACTION THREE SIXTEENTHS
+	0x00B2, 0x00B3, // Digit # No   [2] SUPERSCRIPT TWO, 0xSUPERSCRIPT THREE
+	0x1369, 0x1371, // Digit # No   [9] ETHIOPIC DIGIT ONE, 0xETHIOPIC DIGIT NINE
+	0x2074, 0x2079, // Digit # No   [6] SUPERSCRIPT FOUR, 0xSUPERSCRIPT NINE
+	0x2080, 0x2089, // Digit # No  [10] SUBSCRIPT ZERO, 0xSUBSCRIPT NINE
+	0x2460, 0x2468, // Digit # No   [9] CIRCLED DIGIT ONE, 0xCIRCLED DIGIT NINE
+	0x2474, 0x247C, // Digit # No   [9] PARENTHESIZED DIGIT ONE, 0xPARENTHESIZED DIGIT NINE
+	0x2488, 0x2490, // Digit # No   [9] DIGIT ONE FULL STOP, 0xDIGIT NINE FULL STOP
+	0x24F5, 0x24FD, // Digit # No   [9] DOUBLE CIRCLED DIGIT ONE, 0xDOUBLE CIRCLED DIGIT NINE
+	0x2776, 0x277E, // Digit # No   [9] DINGBAT NEGATIVE CIRCLED DIGIT ONE, 0xDINGBAT NEGATIVE CIRCLED DIGIT NINE
+	0x2780, 0x2788, // Digit # No   [9] DINGBAT CIRCLED SANS-SERIF DIGIT ONE, 0xDINGBAT CIRCLED SANS-SERIF DIGIT NINE
+	0x278A, 0x2792, // Digit # No   [9] DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT ONE, 0x
+	0x0030, 0x0039, // Decimal # Nd  [10] DIGIT ZERO, 0xDIGIT NINE
+	0x0660, 0x0669, // Decimal # Nd  [10] ARABIC-INDIC DIGIT ZERO, 0xARABIC-INDIC DIGIT NINE
+	0x06F0, 0x06F9, // Decimal # Nd  [10] EXTENDED ARABIC-INDIC DIGIT ZERO, 0xEXTENDED ARABIC-INDIC DIGIT NINE
+	0x07C0, 0x07C9, // Decimal # Nd  [10] NKO DIGIT ZERO, 0xNKO DIGIT NINE
+	0x0966, 0x096F, // Decimal # Nd  [10] DEVANAGARI DIGIT ZERO, 0xDEVANAGARI DIGIT NINE
+	0x09E6, 0x09EF, // Decimal # Nd  [10] BENGALI DIGIT ZERO, 0xBENGALI DIGIT NINE
+	0x0A66, 0x0A6F, // Decimal # Nd  [10] GURMUKHI DIGIT ZERO, 0xGURMUKHI DIGIT NINE
+	0x0AE6, 0x0AEF, // Decimal # Nd  [10] GUJARATI DIGIT ZERO, 0xGUJARATI DIGIT NINE
+	0x0B66, 0x0B6F, // Decimal # Nd  [10] ORIYA DIGIT ZERO, 0xORIYA DIGIT NINE
+	0x0BE6, 0x0BEF, // Decimal # Nd  [10] TAMIL DIGIT ZERO, 0xTAMIL DIGIT NINE
+	0x0C66, 0x0C6F, // Decimal # Nd  [10] TELUGU DIGIT ZERO, 0xTELUGU DIGIT NINE
+	0x0CE6, 0x0CEF, // Decimal # Nd  [10] KANNADA DIGIT ZERO, 0xKANNADA DIGIT NINE
+	0x0D66, 0x0D6F, // Decimal # Nd  [10] MALAYALAM DIGIT ZERO, 0xMALAYALAM DIGIT NINE
+	0x0DE6, 0x0DEF, // Decimal # Nd  [10] SINHALA LITH DIGIT ZERO, 0xSINHALA LITH DIGIT NINE
+	0x0E50, 0x0E59, // Decimal # Nd  [10] THAI DIGIT ZERO, 0xTHAI DIGIT NINE
+	0x0ED0, 0x0ED9, // Decimal # Nd  [10] LAO DIGIT ZERO, 0xLAO DIGIT NINE
+	0x0F20, 0x0F29, // Decimal # Nd  [10] TIBETAN DIGIT ZERO, 0xTIBETAN DIGIT NINE
+	0x1040, 0x1049, // Decimal # Nd  [10] MYANMAR DIGIT ZERO, 0xMYANMAR DIGIT NINE
+	0x1090, 0x1099, // Decimal # Nd  [10] MYANMAR SHAN DIGIT ZERO, 0xMYANMAR SHAN DIGIT NINE
+	0x17E0, 0x17E9, // Decimal # Nd  [10] KHMER DIGIT ZERO, 0xKHMER DIGIT NINE
+	0x1810, 0x1819, // Decimal # Nd  [10] MONGOLIAN DIGIT ZERO, 0xMONGOLIAN DIGIT NINE
+	0x1946, 0x194F, // Decimal # Nd  [10] LIMBU DIGIT ZERO, 0xLIMBU DIGIT NINE
+	0x19D0, 0x19D9, // Decimal # Nd  [10] NEW TAI LUE DIGIT ZERO, 0xNEW TAI LUE DIGIT NINE
+	0x1A80, 0x1A89, // Decimal # Nd  [10] TAI THAM HORA DIGIT ZERO, 0xTAI THAM HORA DIGIT NINE
+	0x1A90, 0x1A99, // Decimal # Nd  [10] TAI THAM THAM DIGIT ZERO, 0xTAI THAM THAM DIGIT NINE
+	0x1B50, 0x1B59, // Decimal # Nd  [10] BALINESE DIGIT ZERO, 0xBALINESE DIGIT NINE
+	0x1BB0, 0x1BB9, // Decimal # Nd  [10] SUNDANESE DIGIT ZERO, 0xSUNDANESE DIGIT NINE
+	0x1C40, 0x1C49, // Decimal # Nd  [10] LEPCHA DIGIT ZERO, 0xLEPCHA DIGIT NINE
+	0x1C50, 0x1C59, // Decimal # Nd  [10] OL CHIKI DIGIT ZERO, 0xOL CHIKI DIGIT NINE
+	0xA620, 0xA629, // Decimal # Nd  [10] VAI DIGIT ZERO, 0xVAI DIGIT NINE
+	0xA8D0, 0xA8D9, // Decimal # Nd  [10] SAURASHTRA DIGIT ZERO, 0xSAURASHTRA DIGIT NINE
+	0xA900, 0xA909, // Decimal # Nd  [10] KAYAH LI DIGIT ZERO, 0xKAYAH LI DIGIT NINE
+	0xA9D0, 0xA9D9, // Decimal # Nd  [10] JAVANESE DIGIT ZERO, 0xJAVANESE DIGIT NINE
+	0xA9F0, 0xA9F9, // Decimal # Nd  [10] MYANMAR TAI LAING DIGIT ZERO, 0xMYANMAR TAI LAING DIGIT NINE
+	0xAA50, 0xAA59, // Decimal # Nd  [10] CHAM DIGIT ZERO, 0xCHAM DIGIT NINE
+	0xABF0, 0xABF9, // Decimal # Nd  [10] MEETEI MAYEK DIGIT ZERO, 0xMEETEI MAYEK DIGIT NINE
+	0xFF10, 0xFF19, // Decimal # Nd  [10] FULLWIDTH DIGIT ZERO, 0xFULLWIDTH DIGIT NINE
+	};
+
+	uint32_t range_numeric_32[] = {
+	0x10107, 0x10133, // Numeric # No  [45] AEGEAN NUMBER ONE, 0xAEGEAN NUMBER NINETY THOUSAND
+	0x10140, 0x10174, // Numeric # Nl  [53] GREEK ACROPHONIC ATTIC ONE QUARTER, 0xGREEK ACROPHONIC STRATIAN FIFTY MNAS
+	0x10175, 0x10178, // Numeric # No   [4] GREEK ONE HALF SIGN, 0xGREEK THREE QUARTERS SIGN
+	0x1018A, 0x1018B, // Numeric # No   [2] GREEK ZERO SIGN, 0xGREEK ONE QUARTER SIGN
+	0x102E1, 0x102FB, // Numeric # No  [27] COPTIC EPACT DIGIT ONE, 0xCOPTIC EPACT NUMBER NINE HUNDRED
+	0x10320, 0x10323, // Numeric # No   [4] OLD ITALIC NUMERAL ONE, 0xOLD ITALIC NUMERAL FIFTY
+	0x103D1, 0x103D5, // Numeric # Nl   [5] OLD PERSIAN NUMBER ONE, 0xOLD PERSIAN NUMBER HUNDRED
+	0x10858, 0x1085F, // Numeric # No   [8] IMPERIAL ARAMAIC NUMBER ONE, 0xIMPERIAL ARAMAIC NUMBER TEN THOUSAND
+	0x10879, 0x1087F, // Numeric # No   [7] PALMYRENE NUMBER ONE, 0xPALMYRENE NUMBER TWENTY
+	0x108A7, 0x108AF, // Numeric # No   [9] NABATAEAN NUMBER ONE, 0xNABATAEAN NUMBER ONE HUNDRED
+	0x108FB, 0x108FF, // Numeric # No   [5] HATRAN NUMBER ONE, 0xHATRAN NUMBER ONE HUNDRED
+	0x10916, 0x1091B, // Numeric # No   [6] PHOENICIAN NUMBER ONE, 0xPHOENICIAN NUMBER THREE
+	0x109BC, 0x109BD, // Numeric # No   [2] MEROITIC CURSIVE FRACTION ELEVEN TWELFTHS, 0xMEROITIC CURSIVE 
+	0x109C0, 0x109CF, // Numeric # No  [16] MEROITIC CURSIVE NUMBER ONE, 0xMEROITIC CURSIVE NUMBER SEVENTY
+	0x109D2, 0x109FF, // Numeric # No  [46] MEROITIC CURSIVE NUMBER ONE HUNDRED, 0xMEROITIC CURSIVE FRACTION TEN TWELFTHS
+	0x10A44, 0x10A48, // Numeric # No   [5] KHAROSHTHI NUMBER TEN, 0xKHAROSHTHI FRACTION ONE HALF
+	0x10A7D, 0x10A7E, // Numeric # No   [2] OLD SOUTH ARABIAN NUMBER ONE, 0xOLD SOUTH ARABIAN NUMBER FIFTY
+	0x10A9D, 0x10A9F, // Numeric # No   [3] OLD NORTH ARABIAN NUMBER ONE, 0xOLD NORTH ARABIAN NUMBER TWENTY
+	0x10AEB, 0x10AEF, // Numeric # No   [5] MANICHAEAN NUMBER ONE, 0xMANICHAEAN NUMBER ONE HUNDRED
+	0x10B58, 0x10B5F, // Numeric # No   [8] INSCRIPTIONAL PARTHIAN NUMBER ONE, 0xINSCRIPTIONAL PARTHI
+	0x10B78, 0x10B7F, // Numeric # No   [8] INSCRIPTIONAL PAHLAVI NUMBER ONE, 0xINSCRIPTIONAL PAHLAVI NUMBER ONE THOUSAND
+	0x10BA9, 0x10BAF, // Numeric # No   [7] PSALTER PAHLAVI NUMBER ONE, 0xPSALTER PAHLAVI NUMBER ONE HUNDRED
+	0x10CFA, 0x10CFF, // Numeric # No   [6] OLD HUNGARIAN NUMBER ONE, 0xOLD HUNGARIAN NUMBER ONE THOUSAND
+	0x10E69, 0x10E7E, // Numeric # No  [22] RUMI NUMBER TEN, 0xRUMI FRACTION TWO THIRDS
+	0x10F1D, 0x10F26, // Numeric # No  [10] OLD SOGDIAN NUMBER ONE, 0xOLD SOGDIAN FRACTION ONE HALF
+	0x10F51, 0x10F54, // Numeric # No   [4] SOGDIAN NUMBER ONE, 0xSOGDIAN NUMBER ONE HUNDRED
+	0x10FC5, 0x10FCB, // Numeric # No   [7] CHORASMIAN NUMBER ONE, 0xCHORASMIAN NUMBER ONE HUNDRED
+	0x1105B, 0x11065, // Numeric # No  [11] BRAHMI NUMBER TEN, 0xBRAHMI NUMBER ONE THOUSAND
+	0x111E1, 0x111F4, // Numeric # No  [20] SINHALA ARCHAIC DIGIT ONE, 0xSINHALA ARCHAIC NUMBER ONE THOUSAND
+	0x1173A, 0x1173B, // Numeric # No   [2] AHOM NUMBER TEN, 0xAHOM NUMBER TWENTY
+	0x118EA, 0x118F2, // Numeric # No   [9] WARANG CITI NUMBER TEN, 0xWARANG CITI NUMBER NINETY
+	0x11C5A, 0x11C6C, // Numeric # No  [19] BHAIKSUKI NUMBER ONE, 0xBHAIKSUKI HUNDREDS UNIT MARK
+	0x11FC0, 0x11FD4, // Numeric # No  [21] TAMIL FRACTION ONE THREE-HUNDRED-AND-TWENTIETH, 0xTAMIL FR
+	0x12400, 0x1246E, // Numeric # Nl [111] CUNEIFORM NUMERIC SIGN TWO ASH, 0xCUNEIFORM NUMERIC SIGN NINE U VARIANT FORM
+	0x16B5B, 0x16B61, // Numeric # No   [7] PAHAWH HMONG NUMBER TENS, 0xPAHAWH HMONG NUMBER TRILLIONS
+	0x16E80, 0x16E96, // Numeric # No  [23] MEDEFAIDRIN DIGIT ZERO, 0xMEDEFAIDRIN DIGIT THREE ALTERNATE FORM
+	0x1D2C0, 0x1D2D3, // Numeric # No  [20] KAKTOVIK NUMERAL ZERO, 0xKAKTOVIK NUMERAL NINETEEN
+	0x1D2E0, 0x1D2F3, // Numeric # No  [20] MAYAN NUMERAL ZERO, 0xMAYAN NUMERAL NINETEEN
+	0x1D360, 0x1D378, // Numeric # No  [25] COUNTING ROD UNIT DIGIT ONE, 0xTALLY MARK FIVE
+	0x1E8C7, 0x1E8CF, // Numeric # No   [9] MENDE KIKAKUI DIGIT ONE, 0xMENDE KIKAKUI DIGIT NINE
+	0x1EC71, 0x1ECAB, // Numeric # No  [59] INDIC SIYAQ NUMBER ONE, 0xINDIC SIYAQ NUMBER PREFIXED NINE
+	0x1ECAD, 0x1ECAF, // Numeric # No   [3] INDIC SIYAQ FRACTION ONE QUARTER, 0xINDIC SIYAQ FRACTION THREE QUARTERS
+	0x1ECB1, 0x1ECB4, // Numeric # No   [4] INDIC SIYAQ NUMBER ALTERNATE ONE, 0xINDIC SIYAQ ALTERNATE LAKH MARK
+	0x1ED01, 0x1ED2D, // Numeric # No  [45] OTTOMAN SIYAQ NUMBER ONE, 0xOTTOMAN SIYAQ NUMBER NINETY THOUSAND
+	0x1ED2F, 0x1ED3D, // Numeric # No  [15] OTTOMAN SIYAQ ALTERNATE NUMBER TWO, 0xOTTOMAN SIYAQ FRACTION ONE SIXTH
+	0x1F10B, 0x1F10C, // Numeric # No   [2] DINGBAT CIRCLED SANS-SERIF DIGIT ZERO, 0xDINGBAT NEGATIVE CIRCLED SANS
+	0x10A40, 0x10A43, // Digit # No   [4] KHAROSHTHI DIGIT ONE, 0xKHAROSHTHI DIGIT FOUR
+	0x10E60, 0x10E68, // Digit # No   [9] RUMI DIGIT ONE, 0xRUMI DIGIT NINE
+	0x11052, 0x1105A, // Digit # No   [9] BRAHMI NUMBER ONE, 0xBRAHMI NUMBER NINE
+	0x1F100, 0x1F10A, // Digit # No  [11] DIGIT ZERO FULL STOP, 0xDIGIT NINE COMMA
+	0x104A0, 0x104A9, // Decimal # Nd  [10] OSMANYA DIGIT ZERO, 0xOSMANYA DIGIT NINE
+	0x10D30, 0x10D39, // Decimal # Nd  [10] HANIFI ROHINGYA DIGIT ZERO, 0xHANIFI ROHINGYA DIGIT NINE
+	0x11066, 0x1106F, // Decimal # Nd  [10] BRAHMI DIGIT ZERO, 0xBRAHMI DIGIT NINE
+	0x110F0, 0x110F9, // Decimal # Nd  [10] SORA SOMPENG DIGIT ZERO, 0xSORA SOMPENG DIGIT NINE
+	0x11136, 0x1113F, // Decimal # Nd  [10] CHAKMA DIGIT ZERO, 0xCHAKMA DIGIT NINE
+	0x111D0, 0x111D9, // Decimal # Nd  [10] SHARADA DIGIT ZERO, 0xSHARADA DIGIT NINE
+	0x112F0, 0x112F9, // Decimal # Nd  [10] KHUDAWADI DIGIT ZERO, 0xKHUDAWADI DIGIT NINE
+	0x11450, 0x11459, // Decimal # Nd  [10] NEWA DIGIT ZERO, 0xNEWA DIGIT NINE
+	0x114D0, 0x114D9, // Decimal # Nd  [10] TIRHUTA DIGIT ZERO, 0xTIRHUTA DIGIT NINE
+	0x11650, 0x11659, // Decimal # Nd  [10] MODI DIGIT ZERO, 0xMODI DIGIT NINE
+	0x116C0, 0x116C9, // Decimal # Nd  [10] TAKRI DIGIT ZERO, 0xTAKRI DIGIT NINE
+	0x11730, 0x11739, // Decimal # Nd  [10] AHOM DIGIT ZERO, 0xAHOM DIGIT NINE
+	0x118E0, 0x118E9, // Decimal # Nd  [10] WARANG CITI DIGIT ZERO, 0xWARANG CITI DIGIT NINE
+	0x11950, 0x11959, // Decimal # Nd  [10] DIVES AKURU DIGIT ZERO, 0xDIVES AKURU DIGIT NINE
+	0x11C50, 0x11C59, // Decimal # Nd  [10] BHAIKSUKI DIGIT ZERO, 0xBHAIKSUKI DIGIT NINE
+	0x11D50, 0x11D59, // Decimal # Nd  [10] MASARAM GONDI DIGIT ZERO, 0xMASARAM GONDI DIGIT NINE
+	0x11DA0, 0x11DA9, // Decimal # Nd  [10] GUNJALA GONDI DIGIT ZERO, 0xGUNJALA GONDI DIGIT NINE
+	0x11F50, 0x11F59, // Decimal # Nd  [10] KAWI DIGIT ZERO, 0xKAWI DIGIT NINE
+	0x16A60, 0x16A69, // Decimal # Nd  [10] MRO DIGIT ZERO, 0xMRO DIGIT NINE
+	0x16AC0, 0x16AC9, // Decimal # Nd  [10] TANGSA DIGIT ZERO, 0xTANGSA DIGIT NINE
+	0x16B50, 0x16B59, // Decimal # Nd  [10] PAHAWH HMONG DIGIT ZERO, 0xPAHAWH HMONG DIGIT NINE
+	0x1D7CE, 0x1D7FF, // Decimal # Nd  [50] MATHEMATICAL BOLD DIGIT ZERO, 0xMATHEMATICAL MONOSPACE DIGIT NINE
+	0x1E140, 0x1E149, // Decimal # Nd  [10] NYIAKENG PUACHUE HMONG DIGIT ZERO, 0xNYIAKENG PUACHUE HMONG DIGIT NINE
+	0x1E2F0, 0x1E2F9, // Decimal # Nd  [10] WANCHO DIGIT ZERO, 0xWANCHO DIGIT NINE
+	0x1E4F0, 0x1E4F9, // Decimal # Nd  [10] NAG MUNDARI DIGIT ZERO, 0xNAG MUNDARI DIGIT NINE
+	0x1E950, 0x1E959, // Decimal # Nd  [10] ADLAM DIGIT ZERO, 0xADLAM DIGIT NINE
+	0x1FBF0, 0x1FBF9, // Decimal # Nd  [10] SEGMENTED DIGIT ZERO..SEGMENTED DIGIT NINE
+	};
+
+	bool codepoint16_is_numeric(uint16_t c16) noexcept {
+		for(uint32_t i = 0; i < sizeof(single_numeric_16) / sizeof(uint16_t); ++i) {
+			if(single_numeric_16[i] == c16) {
+				return true;
+			}
+		}
+		for(uint32_t i = 0; i < sizeof(range_numeric_16) / sizeof(uint16_t); i += 2) {
+			if(range_numeric_16[i] <= c16 && c16 <= range_numeric_16[i + 1]) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool codepoint32_is_numeric(uint32_t c) noexcept {
+		for(uint32_t i = 0; i < sizeof(single_numeric_32) / sizeof(uint32_t); ++i) {
+			if(single_numeric_32[i] == c) {
+				return true;
+			}
+		}
+		for(uint32_t i = 0; i < sizeof(range_numeric_32) / sizeof(uint32_t); i += 2) {
+			if(range_numeric_32[i] <= c && c <= range_numeric_32[i + 1]) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	uint32_t assemble_codepoint(uint16_t high, uint16_t low) noexcept {
 		uint32_t high_bits = (high & 0x03FF) << 10;
 		uint32_t low_bits = low & 0x03FF;
@@ -2531,6 +2759,7 @@ namespace printui::text {
 
 	struct text_analysis_object {
 		std::vector<SCRIPT_LOGATTR> char_attributes;
+		std::vector<uint16_t> line_breaks;
 	};
 
 	void release_text_analysis_object(text_analysis_object* ptr) {
@@ -2539,7 +2768,27 @@ namespace printui::text {
 	text_analysis_object* make_analysis_object() {
 		return new text_analysis_object();
 	}
-	void impl_update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm) {
+	void impl_update_analyzed_text(text_analysis_object* ptr, arranged_text* txt, std::wstring const& str, bool ltr, text_manager const& tm) {
+		IDWriteTextLayout* formatted_text = (IDWriteTextLayout*)txt;
+
+		if(formatted_text) {
+			std::vector< DWRITE_LINE_METRICS> lines;
+			uint32_t number_of_lines = 0;
+			formatted_text->GetLineMetrics(nullptr, 0, &number_of_lines);
+			lines.resize(number_of_lines);
+			memset(lines.data(), 0, sizeof(DWRITE_LINE_METRICS) * number_of_lines);
+			formatted_text->GetLineMetrics(lines.data(), number_of_lines, &number_of_lines);
+
+			ptr->line_breaks.resize(lines.size());
+			uint32_t running_total = 0;
+			for(uint32_t i = 0; i < lines.size(); ++i) {
+				running_total += lines[i].length;
+				ptr->line_breaks[i] = uint16_t(running_total);
+			}
+		} else {
+			ptr->line_breaks.clear();
+		}
+
 		int32_t items_got = 0;
 		std::vector<SCRIPT_ITEM> processed_items(8);
 		int32_t current_size = 8;
@@ -2566,7 +2815,7 @@ namespace printui::text {
 		}
 
 		ptr->char_attributes.resize(str.length());
-		memset(ptr->char_attributes.data(), int32_t(sizeof(SCRIPT_LOGATTR) * str.length()), 0);
+		memset(ptr->char_attributes.data(), 0, sizeof(SCRIPT_LOGATTR) * str.length());
 		for(int32_t i = 0; i < items_got; ++i) {
 			auto char_count = processed_items[i + 1].iCharPos - processed_items[i].iCharPos;
 			ScriptBreak(str.data() + processed_items[i].iCharPos,
@@ -2577,16 +2826,94 @@ namespace printui::text {
 				ptr->char_attributes[j].fReserved = (processed_items[i].a.s.uBidiLevel & 0x01);
 			}
 		}
+		
+		bool in_numeric_run = false;
+		for(uint32_t i = 0; i < str.length(); ++i) {
+			if(is_high_surrogate(str[i])) {
+				if(i + 1 < str.length()) {
+					auto code_point = assemble_codepoint(str[i], str[i + 1]);
+					if(codepoint32_is_numeric(code_point)) {
+						if(!in_numeric_run) {
+							ptr->char_attributes[i].fWordStop = 1;
+							in_numeric_run = true;
+						}
+					} else {
+						if(in_numeric_run) {
+							ptr->char_attributes[i].fWordStop = 1;
+							in_numeric_run = false;
+						}
+					}
+				}
+			} else if(is_low_surrogate(str[i])) {
+				// ignore
+			} else {
+				if(is_space(str[i])) {
+					//ignore 
+				} else if(codepoint16_is_numeric(str[i])) {
+					if(!in_numeric_run) {
+						ptr->char_attributes[i].fWordStop = 1;
+						in_numeric_run = true;
+					}
+				} else {
+					if(in_numeric_run) {
+						ptr->char_attributes[i].fWordStop = 1;
+						in_numeric_run = false;
+					}
+				}
+			}
+		}
+		
 	}
-	void update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm) {
-		impl_update_analyzed_text(ptr, str, ltr, tm);
+	void update_analyzed_text(text_analysis_object* ptr, arranged_text* txt, std::wstring const& str, bool ltr, text_manager const& tm) {
+		impl_update_analyzed_text(ptr, txt, str, ltr, tm);
+	}
+
+	int32_t number_of_lines(text_analysis_object* ptr) {
+		return int32_t(ptr->line_breaks.size());
+	}
+	int32_t line_of_position(text_analysis_object* ptr, int32_t position) {
+		for(uint32_t j = 0; j < ptr->line_breaks.size(); ++j) {
+			if(uint16_t(position) < ptr->line_breaks[j]) {
+				return int32_t(j);
+			}
+		}
+		return std::max(int32_t(ptr->line_breaks.size()) - 1, 0);
+	}
+	int32_t start_of_line(text_analysis_object* ptr, int32_t line) {
+		if(line <= 0)
+			return 0;
+		else if(uint32_t(line) >= ptr->line_breaks.size())
+			return int32_t(ptr->line_breaks.back());
+		else
+			return int32_t(ptr->line_breaks[line - 1]);
+	}
+	int32_t end_of_line(text_analysis_object* ptr, int32_t line) {
+		if(line < 0)
+			return 0;
+		else if(uint32_t(line) < ptr->line_breaks.size())
+			return int32_t(ptr->line_breaks[line]);
+		else
+			return int32_t(ptr->line_breaks.back());
 	}
 
 	int32_t left_visual_cursor_position(text_analysis_object* ptr, int32_t position, std::wstring const& str, bool ltr, text_manager const& tm) {
 		auto is_ltr = position_is_ltr(ptr, position);
+		auto in_line = line_of_position(ptr, position);
 		auto default_pos = is_ltr ? get_previous_cursor_position(ptr, position) : get_next_cursor_position(ptr, position);
+
+		auto line_begin = start_of_line(ptr, in_line);
+		auto line_end = end_of_line(ptr, in_line);
+		if(is_ltr && position == line_begin) {
+			return text::get_previous_cursor_position(ptr, end_of_line(ptr, in_line - 1));
+		}
+		if(!is_ltr && default_pos == line_end) {
+			return start_of_line(ptr, in_line + 1);
+		}
+		
+		auto default_in_line = line_of_position(ptr, default_pos);
 		auto default_ltr = position_is_ltr(ptr, default_pos);
-		if(default_ltr == is_ltr)
+
+		if(default_ltr == is_ltr && in_line == default_in_line)
 			return default_pos;
 
 		int32_t items_got = 0;
@@ -2603,8 +2930,8 @@ namespace printui::text {
 		state.fArabicNumContext = tm.app_lang == L"ar" ? 1 : 0;
 
 		while(ScriptItemize(
-			str.data(),
-			int32_t(str.length()),
+			str.data() + line_begin,
+			line_end - line_begin,
 			current_size - 1,
 			&control,
 			&state,
@@ -2619,7 +2946,7 @@ namespace printui::text {
 		std::vector<int32_t> logical_to_visual(items_got);
 
 		for(int32_t i = 0; i < items_got; ++i) {
-			if(processed_items[i].iCharPos <= position && position < processed_items[i + 1].iCharPos) {
+			if(processed_items[i].iCharPos <= (position - line_begin) && (position - line_begin) < processed_items[i + 1].iCharPos) {
 				run_position = i;
 			}
 			run_embedding_levels[i] = processed_items[i].a.s.uBidiLevel;
@@ -2628,23 +2955,40 @@ namespace printui::text {
 		ScriptLayout(items_got, run_embedding_levels.data(), visual_to_logical.data(), logical_to_visual.data());
 		auto visual_position_of_run = logical_to_visual[run_position];
 		if(visual_position_of_run == 0) {
-			return position;
+			if(is_ltr) {
+				return text::get_previous_cursor_position(ptr, end_of_line(ptr, in_line - 1));
+			} else {
+				return start_of_line(ptr, in_line + 1);
+			}
 		}
 		auto logical_position_of_left_run = visual_to_logical[visual_position_of_run - 1];
 		auto next_run_is_ltr = (processed_items[logical_position_of_left_run].a.s.uBidiLevel & 0x01) == 0;
 		if(next_run_is_ltr) {
 			// find rightmost char position by moving back from the run after it
-			return get_previous_cursor_position(ptr, processed_items[logical_position_of_left_run + 1].iCharPos);
+			return get_previous_cursor_position(ptr, line_begin + processed_items[logical_position_of_left_run + 1].iCharPos);
 		} else {
 			// rightmost char position is first char
-			return processed_items[logical_position_of_left_run].iCharPos;
+			return line_begin + processed_items[logical_position_of_left_run].iCharPos;
 		}
 	}
 	int32_t right_visual_cursor_position(text_analysis_object* ptr, int32_t position, std::wstring const& str, bool ltr, text_manager const& tm) {
 		auto is_ltr = position_is_ltr(ptr, position);
+		auto in_line = line_of_position(ptr, position);
 		auto default_pos = is_ltr ? get_next_cursor_position(ptr, position) : get_previous_cursor_position(ptr, position);
+		
+		auto line_begin = start_of_line(ptr, in_line);
+		auto line_end = end_of_line(ptr, in_line);
+		if(is_ltr && default_pos == line_end) {
+			return start_of_line(ptr, in_line + 1);
+		}
+		if(!is_ltr && position == line_begin) {
+			return text::get_previous_cursor_position(ptr, end_of_line(ptr, in_line - 1));
+		}
+
+		auto default_in_line = line_of_position(ptr, default_pos);
 		auto default_ltr = position_is_ltr(ptr, default_pos);
-		if(default_ltr == is_ltr)
+
+		if(default_ltr == is_ltr && default_in_line == in_line)
 			return default_pos;
 
 		int32_t items_got = 0;
@@ -2661,8 +3005,8 @@ namespace printui::text {
 		state.fArabicNumContext = tm.app_lang == L"ar" ? 1 : 0;
 
 		while(ScriptItemize(
-			str.data(),
-			int32_t(str.length()),
+			str.data() + line_begin,
+			line_end - line_begin,
 			current_size - 1,
 			&control,
 			&state,
@@ -2677,7 +3021,7 @@ namespace printui::text {
 		std::vector<int32_t> logical_to_visual(items_got);
 
 		for(int32_t i = 0; i < items_got; ++i) {
-			if(processed_items[i].iCharPos <= position && position < processed_items[i + 1].iCharPos) {
+			if(processed_items[i].iCharPos <= (position - line_begin) && (position - line_begin) < processed_items[i + 1].iCharPos) {
 				run_position = i;
 			}
 			run_embedding_levels[i] = processed_items[i].a.s.uBidiLevel;
@@ -2686,16 +3030,20 @@ namespace printui::text {
 		ScriptLayout(items_got, run_embedding_levels.data(), visual_to_logical.data(), logical_to_visual.data());
 		auto visual_position_of_run = logical_to_visual[run_position];
 		if(visual_position_of_run == items_got - 1) { // is already rightmost
-			return position;
+			if(is_ltr) {
+				return start_of_line(ptr, in_line + 1);
+			} else {
+				return text::get_previous_cursor_position(ptr, end_of_line(ptr, in_line - 1));
+			}
 		}
 		auto logical_position_of_left_run = visual_to_logical[visual_position_of_run + 1];
 		auto next_run_is_ltr = (processed_items[logical_position_of_left_run].a.s.uBidiLevel & 0x01) == 0;
 		if(next_run_is_ltr) {
 			// leftmost char position is first char
-			return processed_items[logical_position_of_left_run].iCharPos;
+			return processed_items[logical_position_of_left_run].iCharPos + line_begin;
 		} else {
 			// find leftmost char position by moving back from the run after it
-			return get_previous_cursor_position(ptr, processed_items[logical_position_of_left_run + 1].iCharPos);
+			return get_previous_cursor_position(ptr, processed_items[logical_position_of_left_run + 1].iCharPos + line_begin);
 		}
 	}
 
@@ -2747,7 +3095,7 @@ namespace printui::text {
 		--position;
 		if(position < ptr->char_attributes.size()) {
 			for(; position > 0; --position) {
-				if(ptr->char_attributes[position].fWordStop) {
+				if(ptr->char_attributes[position].fWordStop || ptr->char_attributes[position].fSoftBreak) {
 					return position;
 				}
 			}
@@ -2758,7 +3106,7 @@ namespace printui::text {
 		++position;
 		auto const array_size = ptr->char_attributes.size();
 		for(; position < array_size; ++position) {
-			if(ptr->char_attributes[position].fWordStop) {
+			if(ptr->char_attributes[position].fWordStop || ptr->char_attributes[position].fSoftBreak) {
 				return position;
 			}
 		}
@@ -4199,12 +4547,12 @@ namespace printui::text {
 				formatted_text->SetMaxWidth(float(result.width_used * win.layout_size));
 				formatted_text->SetMaxHeight(float(font.line_spacing));
 				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
-				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
+				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_EMERGENCY_BREAK);
 				result.lines_used = 1;
 			} else {
 				formatted_text->SetMaxWidth(float(max_width * win.layout_size));
 				formatted_text->SetMaxHeight(float(100 * font.line_spacing));
-				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
+				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_EMERGENCY_BREAK);
 
 				formatted_text->GetMetrics(&text_metrics);
 				result.lines_used = int32_t(std::ceil(text_metrics.lineCount * font.line_spacing / float(win.layout_size)));
@@ -4227,12 +4575,12 @@ namespace printui::text {
 				formatted_text->SetMaxHeight(float(result.width_used * font.line_spacing));
 				formatted_text->SetMaxWidth(float(font.line_spacing));
 				formatted_text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT(content_alignment_to_text_alignment(text_alignment)));
-				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
+				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_EMERGENCY_BREAK);
 				result.lines_used = 1;
 			} else {
 				formatted_text->SetMaxHeight(float(max_width * win.layout_size));
 				formatted_text->SetMaxWidth(float(100 * font.line_spacing));
-				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
+				formatted_text->SetWordWrapping(DWRITE_WORD_WRAPPING_EMERGENCY_BREAK);
 
 				formatted_text->GetMetrics(&text_metrics);
 				result.lines_used = int32_t(std::ceil(text_metrics.lineCount * font.line_spacing / float(win.layout_size)));

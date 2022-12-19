@@ -360,6 +360,8 @@ namespace printui {
 	screen_space_rect screen_rectangle_from_layout_in_ui(window_data const& win,
 		int32_t line_position, int32_t page_position, int32_t line_width, int32_t page_height,
 		screen_space_rect const& rect);
+	screen_space_rect screen_rectangle_from_relative_rect_in_ui(window_data const& win,
+		screen_space_rect const& rect_in, screen_space_rect const& rect);
 	screen_space_rect reverse_screen_space_orientation(window_data const& win, screen_space_rect source);
 	screen_space_rect intersection(screen_space_rect a, screen_space_rect b);
 
@@ -730,6 +732,7 @@ namespace printui {
 		virtual void insert_text(window_data&, uint32_t position_start, uint32_t position_end, std::wstring_view content) = 0;
 		virtual void update_analysis(window_data& win) = 0;
 		virtual bool consume_mouse_event(window_data& win, int32_t x, int32_t y, uint32_t buttons) = 0;
+		virtual void make_line_visible(window_data& win, int32_t line) = 0;
 
 		// retrieve information from control
 		virtual uint32_t get_cursor() const = 0;
@@ -756,6 +759,13 @@ namespace printui {
 		virtual uint32_t next_word_position(uint32_t v) = 0;
 		virtual uint32_t previous_valid_cursor_position(uint32_t v) = 0;
 		virtual uint32_t next_valid_cursor_position(uint32_t v) = 0;
+		virtual uint32_t position_visually_above(window_data& win, uint32_t v) = 0;
+		virtual uint32_t position_visually_below(window_data& win, uint32_t v) = 0;
+		virtual bool is_start_of_line(uint32_t v) = 0;
+		virtual uint32_t start_of_line(uint32_t v) = 0;
+		virtual uint32_t line_of_position(uint32_t v) = 0;
+		virtual uint32_t number_of_text_lines() = 0;
+		virtual uint32_t first_visible_line() = 0;
 
 		// notify control of event
 		virtual void on_finalize(window_data&) = 0;
@@ -949,10 +959,15 @@ namespace printui {
 		virtual std::wstring get_name(window_data const&);
 	};
 
+	enum class edit_selection_mode : uint8_t {
+		none, standard, word, line
+	};
+
 	struct simple_editable_text : public render_interface, public edit_interface {
 		struct selection_run {
 			int32_t start = 0;
 			int32_t end = 0;
+			int32_t line = 0;
 		};
 	protected:
 		std::vector<selection_run> cached_selection_region;
@@ -965,6 +980,8 @@ namespace printui {
 		
 		int32_t anchor_position = 0;
 		int32_t cursor_position = 0;
+		int32_t mouse_entry_position = 0;
+		int32_t line_offset = 0;
 		int32_t temp_text_position = 0;
 		int32_t temp_text_length = 0;
 		int32_t cached_cursor_postion = 0;
@@ -973,6 +990,7 @@ namespace printui {
 		uint16_t alt_text;
 
 		uint8_t minimum_layout_space;
+		uint8_t layout_lines = 1;
 		content_alignment text_alignment;
 		
 
@@ -991,7 +1009,7 @@ namespace printui {
 		interactable_state saved_state;
 		edit_contents edit_type = edit_contents::generic_text;
 
-		simple_editable_text(content_alignment text_alignment, uint16_t name, uint16_t alt_text, uint8_t minimum_layout_space);
+		simple_editable_text(content_alignment text_alignment, uint16_t name, uint16_t alt_text, uint8_t minimum_layout_space, uint8_t lines);
 		virtual ~simple_editable_text();
 
 		// render_interface
@@ -1032,6 +1050,7 @@ namespace printui {
 		virtual void insert_text(window_data&, uint32_t position_start, uint32_t position_end, std::wstring_view content) override;
 		virtual void update_analysis(window_data& win) override;
 		virtual bool consume_mouse_event(window_data& win, int32_t x, int32_t y, uint32_t buttons) override;
+		virtual void make_line_visible(window_data& win, int32_t line);
 
 		// retrieve information from control
 		virtual uint32_t get_cursor() const override;
@@ -1060,6 +1079,13 @@ namespace printui {
 		virtual uint32_t next_word_position(uint32_t v) override;
 		virtual uint32_t previous_valid_cursor_position(uint32_t v) override;
 		virtual uint32_t next_valid_cursor_position(uint32_t v) override;
+		virtual uint32_t position_visually_above(window_data& win, uint32_t v) override;
+		virtual uint32_t position_visually_below(window_data& win, uint32_t v) override;
+		virtual bool is_start_of_line(uint32_t v) override;
+		virtual uint32_t start_of_line(uint32_t v) override;
+		virtual uint32_t line_of_position(uint32_t v) override;
+		virtual uint32_t number_of_text_lines() override;
+		virtual uint32_t first_visible_line() override;
 
 		// notify control of event
 		virtual void on_finalize(window_data&) override;
@@ -1098,7 +1124,7 @@ namespace printui {
 		float maximum = 0.0f;
 		int8_t precision = 0;
 
-		editable_numeric_range(content_alignment text_alignment, uint16_t name, uint16_t alt_text, uint8_t minimum_layout_space, float minimum, float maximum, int8_t precision);
+		editable_numeric_range(content_alignment text_alignment, uint16_t name, uint16_t alt_text, uint8_t minimum_layout_space, uint8_t lines, float minimum, float maximum, int8_t precision);
 		virtual accessibility_object* get_accessibility_interface(window_data&) override;
 		void set_value(window_data& win, float v);
 		float get_value(window_data& win) const;
@@ -1604,7 +1630,7 @@ namespace printui {
 	};
 
 	struct ui_scale_edit : public editable_numeric_range {
-		ui_scale_edit() : editable_numeric_range(content_alignment::trailing, text_id::ui_scale_edit_name, text_id::ui_scale_info, 3, 0.5f, 3.0f, 2) { }
+		ui_scale_edit() : editable_numeric_range(content_alignment::trailing, text_id::ui_scale_edit_name, text_id::ui_scale_info, 3, 1, 0.5f, 3.0f, 2) { }
 		virtual void on_edit_finished(window_data& win, std::wstring const&) override;
 	};
 
@@ -1669,6 +1695,8 @@ namespace printui {
 
 		label_control ui_scale_label;
 		ui_scale_edit ui_scale_e;
+
+		simple_editable_text test_edit;
 
 		accessibility_object_ptr acc_obj;
 
@@ -1885,8 +1913,8 @@ namespace printui {
 			void consume_text_file(std::string_view body, std::unordered_map<std::string, uint32_t, string_hash, std::equal_to<>> const& font_name_to_index);
 		};
 
-		void impl_update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm);
-		void update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm);
+		void impl_update_analyzed_text(text_analysis_object* ptr, arranged_text* txt, std::wstring const& str, bool ltr, text_manager const& tm);
+		void update_analyzed_text(text_analysis_object* ptr, arranged_text* txt, std::wstring const& str, bool ltr, text_manager const& tm);
 		int32_t left_visual_cursor_position(text_analysis_object* ptr, int32_t position, std::wstring const& str, bool ltr, text_manager const& tm);
 		int32_t right_visual_cursor_position(text_analysis_object* ptr, int32_t position, std::wstring const& str, bool ltr, text_manager const& tm);
 
@@ -1950,7 +1978,7 @@ namespace printui {
 			replaceable_instance instantiate_text(uint16_t id, text_parameter const* s = nullptr, text_parameter const* e = nullptr) const;
 			replaceable_instance instantiate_text(std::string_view key, text_parameter const* s = nullptr, text_parameter const* e = nullptr) const;
 
-			friend void impl_update_analyzed_text(text_analysis_object* ptr, std::wstring const& str, bool ltr, text_manager const& tm);
+			friend void impl_update_analyzed_text(text_analysis_object* ptr, arranged_text* txt, std::wstring const& str, bool ltr, text_manager const& tm);
 			friend int32_t left_visual_cursor_position(text_analysis_object* ptr, int32_t position, std::wstring const& str, bool ltr, text_manager const& tm);
 			friend int32_t right_visual_cursor_position(text_analysis_object* ptr, int32_t position, std::wstring const& str, bool ltr, text_manager const& tm);
 		};
@@ -1989,6 +2017,10 @@ namespace printui {
 		bool position_is_ltr(text_analysis_object* ptr, int32_t position);
 		int32_t left_visual_word_position(text_analysis_object* ptr, int32_t position);
 		int32_t right_visual_word_position(text_analysis_object* ptr, int32_t position);
+		int32_t number_of_lines(text_analysis_object* ptr);
+		int32_t line_of_position(text_analysis_object* ptr, int32_t position);
+		int32_t start_of_line(text_analysis_object* ptr, int32_t line);
+		int32_t end_of_line(text_analysis_object* ptr, int32_t line);
 	}
 	
 	struct undo_item {
@@ -2090,7 +2122,7 @@ namespace printui {
 
 		edit_interface* keyboard_target = nullptr;
 		undo_buffer edit_undo_buffer;
-		bool selecting_edit_text = false;
+		edit_selection_mode selecting_edit_text = edit_selection_mode::none;
 		int32_t double_click_ms = 5;
 		int32_t caret_blink_ms = 1024;
 		decltype(std::chrono::steady_clock::now()) last_double_click;

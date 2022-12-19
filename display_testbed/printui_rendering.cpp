@@ -137,6 +137,47 @@ namespace printui {
 		return retval;
 	}
 
+	screen_space_rect screen_rectangle_from_relative_rect_in_ui(window_data const& win,
+		screen_space_rect const& rect_in, screen_space_rect const& rect) {
+
+		screen_space_rect retval = screen_space_rect{ 0,0,0,0 };
+
+		switch(win.orientation) {
+			case layout_orientation::horizontal_left_to_right:
+				retval.x = rect.x + rect_in.x;
+				retval.y = rect.y + rect_in.y;
+				retval.width = rect_in.width;
+				retval.height = rect_in.height;
+
+
+				break;
+			case layout_orientation::horizontal_right_to_left:
+				retval.width = rect_in.width;
+				retval.height = rect_in.height;
+				retval.y = rect.y + rect_in.y;
+				retval.x = rect.x + rect.width - (rect_in.x + rect_in.width);
+
+
+				break;
+			case layout_orientation::vertical_left_to_right:
+				retval.height = rect_in.width;
+				retval.width = rect_in.height;
+				retval.y = rect.y + rect_in.x;
+				retval.x = rect.x + rect_in.y;
+
+
+				break;
+			case layout_orientation::vertical_right_to_left:
+				retval.height = rect_in.width;
+				retval.width = rect_in.height;
+				retval.y = rect.y + rect_in.x;
+				retval.x = rect.x + rect.width - (rect_in.y + rect_in.height);
+
+				break;
+		}
+		return retval;
+	}
+
 	screen_space_rect screen_rectangle_from_layout(window_data const& win,
 		int32_t line_position, int32_t page_position, int32_t line_width, int32_t page_height) {
 
