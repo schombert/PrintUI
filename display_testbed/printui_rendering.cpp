@@ -1845,7 +1845,7 @@ namespace printui {
 				refresh_foregound(win);
 
 				if(win.window_interface.is_mouse_cursor_visible()) {
-					win.last_under_cursor = reference_under_point(win.get_ui_rects(), win.last_cursor_x_position, win.last_cursor_y_position);
+					win.last_under_cursor = reference_under_point(win, win.get_ui_rects(), win.last_cursor_x_position, win.last_cursor_y_position);
 				}
 
 				win.update_window_focus();

@@ -188,7 +188,7 @@ namespace printui {
 
 	IFACEMETHODIMP root_window_provider::ElementProviderFromPoint(double x, double y, IRawElementProviderFragment** pRetVal) {
 		auto window_rect = win.window_interface.get_window_location();
-		auto new_l_ref = layout_reference_under_point(win.get_ui_rects(), int32_t(x) - window_rect.x, int32_t(y) - window_rect.y);
+		auto new_l_ref = layout_reference_under_point(win, win.get_ui_rects(), int32_t(x) - window_rect.x, int32_t(y) - window_rect.y);
 
 		while(new_l_ref != layout_reference_none) {
 			auto& n = win.get_node(new_l_ref);
@@ -2604,19 +2604,16 @@ namespace printui {
 		start = std::min(start, max_end);
 
 		if(unit == TextUnit_Character) {
-			control->update_analysis(parent->win);
 			if(!control->is_valid_cursor_position(start)) {
 				start = control->previous_valid_cursor_position(start);
 			}
 			end = control->next_valid_cursor_position(start);
 		} else if(unit == TextUnit_Format || unit == TextUnit_Word) {
-			control->update_analysis(parent->win);
 			if(!control->is_word_position(start)) {
 				start = control->previous_word_position(start);
 			}
 			end = control->next_word_position(start);
 		} else if(unit == TextUnit_Line) {
-			control->update_analysis(parent->win);
 			if(!control->is_start_of_line(start)) {
 				start = control->start_of_line(control->line_of_position(start));
 			}
@@ -2856,7 +2853,6 @@ namespace printui {
 				pRetVal->lVal = CapStyle_None;
 				break;
 			case UIA_CaretBidiModeAttributeId:
-				control->update_analysis(parent->win);
 				pRetVal->vt = VT_I4;
 				pRetVal->lVal = control->position_is_ltr(tstart) ? CaretBidiMode_LTR : CaretBidiMode_RTL;
 				break;
@@ -3080,7 +3076,6 @@ namespace printui {
 
 
 		if(unit == TextUnit_Character) {
-			control->update_analysis(parent->win);
 			if(!control->is_valid_cursor_position(start)) {
 				start = control->previous_valid_cursor_position(start);
 			}
@@ -3110,7 +3105,6 @@ namespace printui {
 			else
 				end = start;
 		} else if(unit == TextUnit_Format || unit == TextUnit_Word) {
-			control->update_analysis(parent->win);
 			if(!control->is_word_position(start)) {
 				start = control->previous_word_position(start);
 			}
@@ -3139,7 +3133,6 @@ namespace printui {
 			else
 				end = start;
 		} else if(unit == TextUnit_Line) {
-			control->update_analysis(parent->win);
 			auto start_line = control->line_of_position(start);
 			auto adj_line = start_line + count;
 			
@@ -3180,7 +3173,6 @@ namespace printui {
 		*pRetVal = 0;
 
 		if(unit == TextUnit_Character) {
-			control->update_analysis(parent->win);
 			while(count > 0) {
 				auto next = control->next_valid_cursor_position(to_move);
 				if(int32_t(next) != to_move) {
@@ -3209,7 +3201,6 @@ namespace printui {
 					start = end;
 			}
 		} else if(unit == TextUnit_Format || unit == TextUnit_Word) {
-			control->update_analysis(parent->win);
 			while(count > 0) {
 				auto next = control->next_word_position(to_move);
 				if(int32_t(next) != to_move) {
@@ -3238,7 +3229,6 @@ namespace printui {
 					start = end;
 			}
 		} else if(unit == TextUnit_Line) {
-			control->update_analysis(parent->win);
 			auto start_line = control->line_of_position(to_move);
 			auto adj_line = start_line + count;
 			to_move = control->start_of_line(adj_line);
@@ -3583,7 +3573,6 @@ namespace printui {
 			return E_FAIL;
 		}
 
-		control->update_analysis(win);
 		auto number_of_lines = win.get_node(parent->l_id).height;
 		auto first_vis_line = control->first_visible_line();
 

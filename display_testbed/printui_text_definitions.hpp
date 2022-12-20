@@ -104,7 +104,8 @@ namespace printui::text {
 		void release_text_format(text_format fmt) const;
 		void* to_dwrite_format(text_format fmt) const;
 		void* to_dwrite_layout(arranged_text* ptr) const;
-		void* get_dwrite_factory();
+		void* get_dwrite_factory() const;
+		std::vector<std::wstring> ennumerate_fonts(std::wstring const& locale) const;
 	private:
 		void update_font_metrics(font_description& desc, wchar_t const* locale, float target_pixels, float dpi_scale, IDWriteFont* font);
 		void load_fallbacks_by_type(std::vector<font_fallback> const& fb, font_type type, IDWriteFontFallbackBuilder* bldr, IDWriteFontCollection1* collection);

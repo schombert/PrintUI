@@ -89,7 +89,13 @@ namespace text_id {
 	inline constexpr uint16_t ui_scale_edit_name = 56;
 	inline constexpr uint16_t ui_scale_info = 57;
 
-	inline constexpr uint16_t first_free_id = 58;
+	inline constexpr uint16_t primary_font_label = 58;
+	inline constexpr uint16_t primary_font_info = 59;
+	inline constexpr uint16_t small_font_label = 60;
+	inline constexpr uint16_t small_font_info = 61;
+
+
+	inline constexpr uint16_t first_free_id = 62;
 }
 
 namespace printui {
@@ -730,7 +736,6 @@ namespace printui {
 		virtual void register_conversion_target_change(window_data&) = 0;
 		virtual void set_cursor_visibility(window_data&, bool is_visible) = 0;
 		virtual void insert_text(window_data&, uint32_t position_start, uint32_t position_end, std::wstring_view content) = 0;
-		virtual void update_analysis(window_data& win) = 0;
 		virtual bool consume_mouse_event(window_data& win, int32_t x, int32_t y, uint32_t buttons) = 0;
 		virtual void make_line_visible(window_data& win, int32_t line) = 0;
 
@@ -739,7 +744,6 @@ namespace printui {
 		virtual uint32_t get_selection_anchor() const = 0;
 		virtual uint32_t get_text_length() const = 0;
 		virtual std::wstring get_text() const = 0;
-		virtual screen_space_rect get_cursor_location(window_data&) const = 0;
 		virtual screen_space_rect get_edit_bounds(window_data&) const = 0;
 		virtual screen_space_rect get_character_bounds(window_data&, uint32_t position) const = 0;
 		virtual uint32_t get_temporary_position() const = 0;
@@ -997,11 +1001,9 @@ namespace printui {
 		bool disabled = false;
 		bool changes_made = false;
 		bool cursor_visible = false;
-		bool analysis_out_of_date = false;
 		bool selection_out_of_date = false;
 
 		void prepare_selection_regions(window_data const& win);
-		void prepare_analysis(window_data const& win);
 		void internal_on_text_changed(window_data&);
 		void internal_on_selection_changed(window_data&);
 		void internal_move_cursor_to_point(window_data&, int32_t x, int32_t y, bool extend_selection);
@@ -1048,7 +1050,6 @@ namespace printui {
 		virtual void register_conversion_target_change(window_data&) override;
 		virtual void set_cursor_visibility(window_data&, bool is_visible) override;
 		virtual void insert_text(window_data&, uint32_t position_start, uint32_t position_end, std::wstring_view content) override;
-		virtual void update_analysis(window_data& win) override;
 		virtual bool consume_mouse_event(window_data& win, int32_t x, int32_t y, uint32_t buttons) override;
 		virtual void make_line_visible(window_data& win, int32_t line);
 
@@ -1059,7 +1060,6 @@ namespace printui {
 		virtual uint32_t get_temporary_position() const override;
 		virtual uint32_t get_temporary_length() const override;
 		virtual std::wstring get_text() const override;
-		virtual screen_space_rect get_cursor_location(window_data&) const override;
 		virtual screen_space_rect get_edit_bounds(window_data&) const override;
 		virtual screen_space_rect get_character_bounds(window_data&, uint32_t position) const override;
 		virtual uint32_t get_position_from_screen_point(window_data&, screen_space_point pt) override;
@@ -1109,8 +1109,8 @@ namespace printui {
 		}
 
 		// for rendering
-		void prepare_text(window_data const& win);
-		void relayout_text(window_data const& win, screen_space_point sz);
+		bool prepare_text(window_data const& win);
+		bool relayout_text(window_data const& win, screen_space_point sz);
 		void draw_text(window_data& win, int32_t x, int32_t y) const;
 
 		// for implementations
@@ -1659,6 +1659,32 @@ namespace printui {
 		virtual layout_interface* selected_item() const override;
 	};
 
+	struct font_button : public button_control_base {
+		std::wstring name;
+		bool for_primary_font = true;
+
+		font_button(bool for_primary_font) : for_primary_font(for_primary_font) {
+			set_text_alignment(content_alignment::trailing);
+		}
+		virtual ~font_button() {
+		}
+		virtual void button_action(window_data&) override;
+	};
+
+	struct font_menu : public menu_control, public generic_selection_container {
+		std::vector<std::unique_ptr<layout_interface>> lbuttons;
+		bool for_primary_font = true;
+
+		font_menu(bool for_primary_font) : for_primary_font(for_primary_font) { }
+		virtual ~font_menu() { }
+
+		virtual std::vector<page_content> get_options(window_data&);
+		virtual void on_open(window_data&);
+		virtual void on_close(window_data&);
+		virtual accessibility_object* get_accessibility_interface(window_data&) override;
+		virtual layout_interface* selected_item() const override;
+	};
+
 	struct settings_orientation_list : public list_control {
 		virtual ~settings_orientation_list() { }
 		virtual void on_select(window_data&, size_t) override;
@@ -1696,7 +1722,11 @@ namespace printui {
 		label_control ui_scale_label;
 		ui_scale_edit ui_scale_e;
 
-		simple_editable_text test_edit;
+		label_control primary_font_name_label;
+		font_menu primary_font_menu;
+
+		label_control small_font_name_label;
+		font_menu small_font_menu;
 
 		accessibility_object_ptr acc_obj;
 
@@ -1766,6 +1796,10 @@ namespace printui {
 	};
 
 
+	namespace render {
+		screen_space_rect extend_rect_to_edges(screen_space_rect content_rect, window_data const& win);
+	}
+
 	void default_recreate_page(window_data& win, layout_interface* l_interface, page_layout_specification const& spec);
 
 	struct focus_tracker {
@@ -1814,7 +1848,7 @@ namespace printui {
 
 		int32_t get_height(window_data const& win, arranged_text* txt, bool standard_size);
 		bool appropriate_directionality(window_data const& win, arranged_text* txt);
-		void adjust_layout_region(arranged_text* txt, int32_t width, int32_t height);
+		bool adjust_layout_region(arranged_text* txt, int32_t width, int32_t height);
 		std::vector<text_metrics> get_metrics_for_range(arranged_text* txt, uint32_t position, uint32_t length);
 		text_metrics get_metrics_at_position(arranged_text* txt, uint32_t position);
 		hit_test_metrics hit_test_text(arranged_text* txt, int32_t x, int32_t y);
@@ -1963,6 +1997,7 @@ namespace printui {
 
 			void change_locale(std::wstring const& lang, std::wstring const& region, window_data& win, bool update_settings);
 			void default_locale(window_data& win, bool update_settings);
+			void update_fonts(window_data& win);
 
 			double text_to_double(wchar_t const* start, uint32_t count) const;
 			int64_t text_to_int(wchar_t const* start, uint32_t count) const;
@@ -2049,11 +2084,6 @@ namespace printui {
 	};
 
 	
-
-	
-}
-
-namespace printui {
 	struct window_data {
 	private:
 		layout_node_storage layout_nodes;
@@ -2336,8 +2366,8 @@ namespace printui {
 
 	
 	ui_rectangle const* interface_under_point(std::vector<ui_rectangle> const& rects, int32_t x, int32_t y);
-	ui_reference reference_under_point(std::vector<ui_rectangle> const& rects, int32_t x, int32_t y);
-	layout_reference layout_reference_under_point(std::vector<ui_rectangle> const& rects, int32_t x, int32_t y);
+	ui_reference reference_under_point(window_data const& win, std::vector<ui_rectangle> const& rects, int32_t x, int32_t y);
+	layout_reference layout_reference_under_point(window_data const& win, std::vector<ui_rectangle> const& rects, int32_t x, int32_t y);
 
 
 	int32_t reading_direction_from_orientation(layout_orientation o);

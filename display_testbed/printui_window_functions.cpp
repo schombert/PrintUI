@@ -320,10 +320,11 @@ namespace printui {
 		}
 		return found;
 	}
-	ui_reference reference_under_point(std::vector<ui_rectangle> const& rects, int32_t x, int32_t y) {
+	ui_reference reference_under_point(window_data const& win, std::vector<ui_rectangle> const& rects, int32_t x, int32_t y) {
 		ui_reference found = std::numeric_limits<ui_reference>::max();
 		for(ui_reference i = 0; i < rects.size(); ++i) {
-			if(x >= rects[i].x_position && x <= rects[i].x_position + rects[i].width && y >= rects[i].y_position && y <= rects[i].y_position + rects[i].height) {
+			auto test_rect = render::extend_rect_to_edges(rects[i], win);
+			if(x >= test_rect.x && x <= test_rect.x + test_rect.width && y >= test_rect.y && y <= test_rect.y + test_rect.height) {
 				if((rects[i].display_flags & ui_rectangle::flag_clear_rect) != 0) {
 					found = std::numeric_limits<ui_reference>::max();
 				} else if((rects[i].display_flags & ui_rectangle::flag_preserve_rect) != 0) {
@@ -336,11 +337,12 @@ namespace printui {
 		}
 		return found;
 	}
-	layout_reference layout_reference_under_point(std::vector<ui_rectangle> const& rects, int32_t x, int32_t y) {
+	layout_reference layout_reference_under_point(window_data const& win, std::vector<ui_rectangle> const& rects, int32_t x, int32_t y) {
 		layout_reference found = std::numeric_limits<layout_reference>::max();
 		for(layout_reference i = 0; i < rects.size(); ++i) {
 
-			if(x >= rects[i].x_position && x <= rects[i].x_position + rects[i].width && y >= rects[i].y_position && y <= rects[i].y_position + rects[i].height) {
+			auto test_rect = render::extend_rect_to_edges(rects[i], win);
+			if(x >= test_rect.x && x <= test_rect.x + test_rect.width && y >= test_rect.y && y <= test_rect.y + test_rect.height) {
 
 				if((rects[i].display_flags & ui_rectangle::flag_clear_rect) != 0) {
 					found = layout_reference_none;
@@ -410,9 +412,9 @@ namespace printui {
 		}
 
 		auto& rects = get_ui_rects();
-		auto new_under_cursor = printui::reference_under_point(rects, last_cursor_x_position, last_cursor_y_position);
+		auto new_under_cursor = printui::reference_under_point(*this, rects, last_cursor_x_position, last_cursor_y_position);
 
-		auto new_l_ref = layout_reference_under_point(rects, last_cursor_x_position, last_cursor_y_position);
+		auto new_l_ref = layout_reference_under_point(*this, rects, last_cursor_x_position, last_cursor_y_position);
 
 		set_window_focus_from_mouse(new_l_ref);
 

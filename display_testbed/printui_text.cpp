@@ -967,6 +967,10 @@ namespace printui::text {
 		register_name("ui_scale", ::text_id::ui_scale);
 		register_name("ui_scale_edit_name", ::text_id::ui_scale_edit_name);
 		register_name("ui_scale_info", ::text_id::ui_scale_info);
+		register_name("primary_font_label", ::text_id::primary_font_label);
+		register_name("primary_font_info", ::text_id::primary_font_info);
+		register_name("small_font_label", ::text_id::small_font_label);
+		register_name("small_font_info", ::text_id::small_font_info);
 	}
 
 	UINT GetGrouping(WCHAR const* locale) {
@@ -1084,6 +1088,11 @@ namespace printui::text {
 			win.set_window_title(L"");
 		}
 
+		win.change_orientation(win.dynamic_settings.preferred_orientation);
+	}
+
+	void text_manager::update_fonts(window_data& win) {
+		win.text_interface.initialize_fonts(win);
 		win.change_orientation(win.dynamic_settings.preferred_orientation);
 	}
 
@@ -3688,7 +3697,6 @@ namespace printui::text {
 					if(fill_variants) {
 						gathered_attributes.back().varValue.vt = VT_BOOL;
 						if(position >= 0) {
-							ei->update_analysis(win);
 							gathered_attributes.back().varValue.boolVal = ei && ei->position_is_ltr(position) ? VARIANT_FALSE : VARIANT_TRUE;
 						} else {
 							gathered_attributes.back().varValue.boolVal = win.orientation == layout_orientation::horizontal_right_to_left ? VARIANT_TRUE : VARIANT_FALSE;
@@ -3751,7 +3759,6 @@ namespace printui::text {
 			bool attributes_that_end = (TS_ATTR_FIND_WANT_END & dwFlags) != 0;
 			for(uint32_t i = 0; i < cFilterAttrs; ++i) {
 				if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Text_RightToLeft)) {
-					ei->update_analysis(win);
 					if(acpPos > 0 && ei && ei->position_is_ltr(uint32_t(acpPos - 1)) != ei->position_is_ltr(uint32_t(acpPos))) {
 
 						gathered_attributes.emplace_back();
@@ -3811,7 +3818,6 @@ namespace printui::text {
 			while(initial_position != end_position) {
 				for(uint32_t i = 0; i < cFilterAttrs; ++i) {
 					if(IsEqualGUID(paFilterAttrs[i], TSATTRID_Text_RightToLeft)) {
-						ei->update_analysis(win);
 						if(ei->position_is_ltr(uint32_t(initial_position - 1)) != ei->position_is_ltr(uint32_t(initial_position))) {
 							*pfFound = TRUE;
 							if(plFoundOffset)
@@ -4266,6 +4272,9 @@ namespace printui::text {
 			small_text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, win.dynamic_settings.small_font.line_spacing, win.dynamic_settings.small_font.baseline);
 			small_text_format->SetAutomaticFontAxes(DWRITE_AUTOMATIC_FONT_AXES_OPTICAL_SIZE);
 		}
+
+		win.window_bar.print_ui_settings.primary_font_menu.open_button.set_text(win, win.dynamic_settings.primary_font.name);
+		win.window_bar.print_ui_settings.small_font_menu.open_button.set_text(win, win.dynamic_settings.small_font.name);
 	}
 
 	void direct_write_text::update_font_metrics(font_description& desc, wchar_t const* locale, float target_pixels, float dpi_scale, IDWriteFont* font) {
@@ -4612,13 +4621,19 @@ namespace printui::text {
 		}
 	}
 
-	void adjust_layout_region(arranged_text* txt, int32_t width, int32_t height) {
+	bool adjust_layout_region(arranged_text* txt, int32_t width, int32_t height) {
 		IDWriteTextLayout* formatted_text = (IDWriteTextLayout*)txt;
 
-		if(formatted_text->GetMaxWidth() != float(width))
+		bool adjusted = false;
+		if(formatted_text->GetMaxWidth() != float(width)) {
 			formatted_text->SetMaxWidth(float(width));
-		if(formatted_text->GetMaxHeight() != float(height))
+			adjusted = true;
+		}
+		if(formatted_text->GetMaxHeight() != float(height)) {
 			formatted_text->SetMaxHeight(float(height));
+			adjusted = true;
+		}
+		return adjusted;
 	}
 
 	std::vector<text_metrics> get_metrics_for_range(arranged_text* txt, uint32_t position, uint32_t length) {
@@ -4705,7 +4720,49 @@ namespace printui::text {
 		return (void*)formatted_text;
 	}
 
-	void* direct_write_text::get_dwrite_factory() {
+	void* direct_write_text::get_dwrite_factory() const {
 		return (void*)dwrite_factory;
+	}
+
+	std::vector<std::wstring> direct_write_text::ennumerate_fonts(std::wstring const& locale) const {
+		std::vector<std::wstring> result;
+
+		auto total_number = font_collection->GetFontFamilyCount();
+		result.reserve(total_number);
+
+		for(uint32_t i = 0; i < total_number; ++i) {
+			IDWriteFontFamily* ffam = nullptr;
+			font_collection->GetFontFamily(i, &ffam);
+
+			IDWriteLocalizedStrings* famnames = nullptr;
+			ffam->GetFamilyNames(&famnames);
+
+			if(famnames->GetCount() > 0) {
+				BOOL exists = FALSE;
+				uint32_t index_out = 0;
+				famnames->FindLocaleName(locale.c_str(), &index_out, &exists);
+
+				if(exists == FALSE) {
+					famnames->FindLocaleName(L"en", &index_out, &exists);
+				}
+				if(exists == FALSE) {
+					index_out = 0;
+				}
+
+				uint32_t length_out = 0;
+				famnames->GetStringLength(index_out, &length_out);
+
+				wchar_t* name = new wchar_t[length_out + 1];
+				famnames->GetString(index_out, name, length_out + 1);
+
+				result.emplace_back(name);
+				
+				delete[] name;
+			}
+			safe_release(famnames);
+			safe_release(ffam);
+		}
+
+		return result;
 	}
 }
