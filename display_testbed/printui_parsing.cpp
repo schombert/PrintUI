@@ -527,6 +527,14 @@ namespace printui::parse {
 					if(extracted.values.size() >= 1) {
 						ls.global_size_multiplier = std::stof(std::string(extracted.values[0].to_string()));
 					}
+				} else if(kstr == "small_size_multiplier") {
+					if(extracted.values.size() >= 1) {
+						ls.small_size_multiplier = std::stof(std::string(extracted.values[0].to_string()));
+					}
+				} else if(kstr == "heading_size_multiplier") {
+					if(extracted.values.size() >= 1) {
+						ls.heading_size_multiplier = std::stof(std::string(extracted.values[0].to_string()));
+					}
 				}
 
 			}
@@ -626,6 +634,8 @@ namespace printui::parse {
 		result += "animation_speed_multiplier{ " + std::to_string(ls.animation_speed_multiplier) + " }\n";
 		result += "locale_is_default{ " + std::string(ls.locale_is_default ? "yes" : "no") + " }\n";
 		result += "global_size_multiplier{ " + std::to_string(ls.global_size_multiplier) + " }\n";
+		result += "small_size_multiplier{ " + std::to_string(ls.small_size_multiplier) + " }\n";
+		result += "heading_size_multiplier{ " + std::to_string(ls.heading_size_multiplier) + " }\n";
 
 		return result;
 	}

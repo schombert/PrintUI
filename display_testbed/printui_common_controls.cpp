@@ -85,6 +85,10 @@ namespace printui {
 	// LARGE HEADER
 	//
 
+	uint8_t large_centered_header::left_decoration = uint8_t(-1);
+	uint8_t large_centered_header::right_decoration = uint8_t(-1);
+	uint8_t large_centered_header::decoration_brush = uint8_t(-1);
+
 	large_centered_header::~large_centered_header() {
 	}
 
@@ -139,7 +143,41 @@ namespace printui {
 		}
 	}
 	void large_centered_header::recreate_contents(window_data& win, layout_node& self) {
+
+		text.prepare_text(win);
+
 		auto width = self.width;
+		auto text_width = text.get_text_width(win);
+
+		auto left_indent = ((width * win.layout_size - text_width) / 2) / win.layout_size;
+		auto right_indent = (((width * win.layout_size + text_width) / 2) + win.layout_size - 1) / win.layout_size;
+
+		bool left_pass = left_decoration == uint8_t(-1) || left_indent >= win.rendering_interface.get_icon_size(left_decoration).x;
+		bool right_pass = right_decoration == uint8_t(-1) || (width - right_indent) >= win.rendering_interface.get_icon_size(right_decoration).x;
+
+		if(left_pass && right_pass) {
+			if(left_decoration != uint8_t(-1)) {
+				auto decoration_node = win.allocate_node();
+				auto& deco = win.get_node(decoration_node);
+				deco.y = 0;
+				deco.x = uint16_t(left_indent - win.rendering_interface.get_icon_size(left_decoration).x);
+				deco.width = win.rendering_interface.get_icon_size(left_decoration).x;
+				deco.height = win.rendering_interface.get_icon_size(left_decoration).y;
+				deco.contents = decoration_id{ left_decoration, decoration_brush };
+				win.immediate_add_child(l_id, decoration_node);
+			}
+			if(right_decoration != uint8_t(-1)) {
+				auto decoration_node = win.allocate_node();
+				auto& deco = win.get_node(decoration_node);
+				deco.y = 0;
+				deco.x = uint16_t(right_indent);
+				deco.width = win.rendering_interface.get_icon_size(right_decoration).x;
+				deco.height = win.rendering_interface.get_icon_size(right_decoration).y;
+				deco.contents = decoration_id{ right_decoration, decoration_brush };
+				win.immediate_add_child(l_id, decoration_node);
+			}
+		}
+
 		auto button = win.create_node(&close_button, 2, 1, false);
 		auto& button_node = win.get_node(button);
 		button_node.x = uint16_t(width - 2);
@@ -193,6 +231,13 @@ namespace printui {
 			return 0;
 		}
 
+	}
+	int32_t stored_text::get_text_width(window_data const& win) const {
+		if(formatted_text) {
+			return text::get_width(win, formatted_text);
+		} else {
+			return 0;
+		}
 	}
 	stored_text::~stored_text() {
 	}

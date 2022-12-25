@@ -3656,7 +3656,7 @@ namespace printui::text {
 			fl2->GetFont(0, &f2);
 			safe_release(fl2);
 
-			update_font_metrics(win.dynamic_settings.small_font, win.text_data.locale_string(), std::round(float(win.layout_size) * 3.0f / 4.0f), win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f, f2);
+			update_font_metrics(win.dynamic_settings.small_font, win.text_data.locale_string(), std::round(float(win.layout_size) * win.dynamic_settings.small_size_multiplier), win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f, f2);
 			safe_release(f2);
 			
 		}
@@ -3673,7 +3673,7 @@ namespace printui::text {
 			fl->GetFont(0, &f);
 			safe_release(fl);
 
-			update_font_metrics(win.dynamic_settings.header_font, win.text_data.locale_string(), std::round(float(win.layout_size) * 11.0f / 8.0f), win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f, f);
+			update_font_metrics(win.dynamic_settings.header_font, win.text_data.locale_string(), std::round(float(win.layout_size) * win.dynamic_settings.heading_size_multiplier), win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f, f);
 			safe_release(f);
 		}
 
@@ -3730,7 +3730,8 @@ namespace printui::text {
 			dwrite_factory->CreateTextFormat(win.dynamic_settings.header_font.name.c_str(), font_collection, fax, 3, win.dynamic_settings.header_font.font_size, locale_str, &header_text_format);
 			header_text_format->SetFontFallback(header_font_fallbacks);
 			header_text_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
-			header_text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, win.dynamic_settings.header_font.line_spacing, win.dynamic_settings.header_font.baseline);
+			header_text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, win.dynamic_settings.header_font.line_spacing, win.dynamic_settings.header_font.baseline + std::round((win.layout_size * 2.0f - win.dynamic_settings.header_font.line_spacing / 2.0f)));
+			//header_text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, win.dynamic_settings.header_font.line_spacing, win.dynamic_settings.header_font.baseline);
 			header_text_format->SetAutomaticFontAxes(DWRITE_AUTOMATIC_FONT_AXES_OPTICAL_SIZE);
 		}
 
@@ -4024,9 +4025,19 @@ namespace printui::text {
 		text_format->SetOpticalAlignment(DWRITE_OPTICAL_ALIGNMENT_NO_SIDE_BEARINGS);
 
 		if(!horizontal(win.orientation)) {
-			text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, font.line_spacing, font.vertical_baseline);
+			if(text_sz == text_size::header) {
+				if(win.orientation == layout_orientation::vertical_right_to_left)
+					text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, font.line_spacing, font.vertical_baseline + std::round((win.layout_size * 2.0f - win.dynamic_settings.header_font.line_spacing) / 2.0f));
+				else
+					text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, font.line_spacing, font.vertical_baseline - std::round((win.layout_size * 2.0f - win.dynamic_settings.header_font.line_spacing) / 2.0f));
+			} else {
+				text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, font.line_spacing, font.vertical_baseline);
+			}
 		} else {
-			text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, font.line_spacing, font.baseline);
+			if(text_sz == text_size::header)
+				header_text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, win.dynamic_settings.header_font.line_spacing, win.dynamic_settings.header_font.baseline + std::round((win.layout_size * 2.0f - win.dynamic_settings.header_font.line_spacing) / 2.0f));
+			else
+				text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, font.line_spacing, font.baseline);
 		}
 		if(horizontal(win.orientation)) {
 
@@ -4097,6 +4108,13 @@ namespace printui::text {
 		IDWriteTextLayout* formatted_text = (IDWriteTextLayout*)txt;
 		formatted_text->GetMetrics(&text_metrics);
 		return int32_t(text_metrics.lineCount * (sz == text_size::standard ? win.dynamic_settings.primary_font.line_spacing : (sz == text_size::note ? win.dynamic_settings.small_font.line_spacing : win.dynamic_settings.header_font.line_spacing)));
+	}
+	int32_t get_width(window_data const&, arranged_text* txt) {
+		DWRITE_TEXT_METRICS text_metrics;
+		IDWriteTextLayout* formatted_text = (IDWriteTextLayout*)txt;
+		formatted_text->GetMetrics(&text_metrics);
+
+		return int32_t(std::ceil(text_metrics.width));
 	}
 	bool appropriate_directionality(window_data const& win, arranged_text* txt) {
 		IDWriteTextLayout* formatted_text = (IDWriteTextLayout*)txt;
@@ -4277,7 +4295,6 @@ namespace printui::text {
 
 				float default_gs_contrast = rparams3 ? rparams3->GetGrayscaleEnhancedContrast() : 1.0f;
 				auto grid_fit = rparams3 ? rparams3->GetGridFitMode() : DWRITE_GRID_FIT_MODE_DEFAULT;
-				DWRITE_RENDERING_MODE1 rmode = rparams3 ? rparams3->GetRenderingMode1() : DWRITE_RENDERING_MODE1_DEFAULT;
 
 				dwrite_factory->CreateCustomRenderingParams(
 					default_gamma,
@@ -4285,7 +4302,7 @@ namespace printui::text {
 					0.0f,
 					0.5f,
 					DWRITE_PIXEL_GEOMETRY_FLAT,
-					DWRITE_RENDERING_MODE1_NATURAL_SYMMETRIC,
+					DWRITE_RENDERING_MODE1_OUTLINE,
 					DWRITE_GRID_FIT_MODE_DISABLED,
 					&header_text_params);
 

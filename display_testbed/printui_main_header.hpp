@@ -275,6 +275,8 @@ namespace printui {
 		std::vector<font_fallback> fallbacks;
 		std::vector<brush> brushes;
 		float layout_base_size = 20.0f;
+		float small_size_multiplier = 0.75f;
+		float heading_size_multiplier = 1.375f;
 		int32_t line_width = 25;
 		int32_t small_width = 15;
 		int32_t window_border = 1;
@@ -791,6 +793,7 @@ namespace printui {
 		void draw_text(window_data& win, int32_t x, int32_t y) const;
 		void invalidate();
 		int32_t get_lines_height(window_data const& win) const;
+		int32_t get_text_width(window_data const& win) const;
 		std::wstring get_raw_text(window_data const& win) const;
 	};
 
@@ -1524,6 +1527,10 @@ namespace printui {
 		accessibility_object_ptr acc_obj;
 		interactable_state saved_state;
 
+		static uint8_t left_decoration;
+		static uint8_t right_decoration;
+		static uint8_t decoration_brush;
+
 		large_centered_header(uint16_t close_text, std::function<void(window_data&, layout_reference)>&& a) : close_button(close_text, std::move(a)) {
 			text.text_alignment = content_alignment::centered;
 			text.text_sz = text_size::header;
@@ -1866,6 +1873,7 @@ namespace printui {
 		
 
 		int32_t get_height(window_data const& win, arranged_text* txt, text_size sz);
+		int32_t get_width(window_data const& win, arranged_text* txt);
 		bool appropriate_directionality(window_data const& win, arranged_text* txt);
 		bool adjust_layout_region(arranged_text* txt, int32_t width, int32_t height);
 		std::vector<text_metrics> get_metrics_for_range(arranged_text* txt, uint32_t position, uint32_t length);
