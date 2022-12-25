@@ -3,6 +3,8 @@
 
 #include <Shlobj.h>
 
+#pragma comment(lib, "Shlwapi.lib")
+
 namespace printui {
 	void win32_file_system::load_settings(window_data& win) {
 		win.load_default_dynamic_settings();

@@ -20,12 +20,6 @@
 #include <shlwapi.h>
 #include <array>
 
-#pragma comment(lib, "d2d1.lib")
-#pragma comment(lib, "D3D11.lib")
-#pragma comment(lib, "Windowscodecs.lib")
-#pragma comment(lib, "Dwrite.lib")
-#pragma comment(lib, "Shlwapi.lib")
-#pragma comment(lib, "dxguid.lib")
 
 namespace printui {
 

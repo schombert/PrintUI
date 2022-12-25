@@ -10,9 +10,6 @@ namespace printui {
 	enum class font_type {
 		roman, sans, script, italic
 	};
-	enum class font_span {
-		normal, condensed, wide
-	};
 	enum class input_mode {
 		keyboard_only, mouse_only, controller_only, controller_with_pointer, mouse_and_keyboard, system_default, follow_input
 	};
@@ -62,6 +59,11 @@ namespace printui {
 	enum class content_alignment : uint8_t {
 		leading, trailing, centered, justified
 	};
+
+	enum class text_size : uint8_t {
+		standard, note, header
+	};
+
 	enum class interactable_type : uint8_t {
 		none, button
 	};
@@ -69,8 +71,8 @@ namespace printui {
 	struct font_description {
 		std::wstring name;
 		font_type type = font_type::roman;
-		font_span span = font_span::normal;
-		bool is_bold = false;
+		float span = 100.0f;
+		int32_t weight = 400;
 		bool is_oblique = false;
 		int32_t top_leading = 0;
 		int32_t bottom_leading = 0;
@@ -168,14 +170,20 @@ namespace printui {
 		};
 		struct impl_group_type {
 		};
+		struct impl_group_start_type {
+		};
 	public:
 		constexpr static impl_group_type group{};
+		constexpr static impl_group_start_type group_start{};
 		constexpr static impl_key_type key{};
 
 		interactable_state() : data(0ui8) {
 		}
 		interactable_state(impl_group_type, uint8_t v) {
 			data = uint8_t(v | 0x20);
+		}
+		interactable_state(impl_group_start_type, uint8_t v) {
+			data = uint8_t(v | 0x30);
 		}
 		interactable_state(impl_key_type, uint8_t v) {
 			data = uint8_t(v | 0x10);
@@ -187,7 +195,10 @@ namespace printui {
 			return (0xF0 & data) == 0x10;
 		}
 		bool holds_group() {
-			return (0xF0 & data) == 0x20;
+			return (0x20 & data) == 0x20;
+		}
+		bool is_group_start() {
+			return (0xF0 & data) == 0x30;
 		}
 	};
 

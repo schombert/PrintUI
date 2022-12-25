@@ -21,10 +21,36 @@
 #include <shlwapi.h>
 #include <array>
 
+#pragma comment(lib, "d2d1.lib")
+#pragma comment(lib, "D3D11.lib")
+#pragma comment(lib, "dxguid.lib")
+#pragma comment(lib, "Windowscodecs.lib")
+
 namespace printui {
 	namespace render {
 		icon::~icon() {
 			safe_release(rendered_layer);
+		}
+
+		icon::icon(icon&& other) noexcept : file_name(std::move(other.file_name)) {
+			rendered_layer = other.rendered_layer;
+			other.rendered_layer = nullptr;
+
+
+			edge_padding = other.edge_padding;
+			xsize = other.xsize;
+			ysize = other.ysize;
+		}
+		icon& icon::operator=(icon&& other) noexcept {
+			rendered_layer = other.rendered_layer;
+			other.rendered_layer = nullptr;
+
+			file_name = std::move(other.file_name);
+			edge_padding = other.edge_padding;
+			xsize = other.xsize;
+			ysize = other.ysize;
+
+			return *this;
 		}
 	}
 
@@ -352,6 +378,14 @@ namespace printui {
 				window_interface.invalidate_window();
 			}
 		}
+	}
+	void window_data::flag_for_update_from_layout_reference(layout_reference i) {
+		auto& n = get_node(i);
+		if(n.visible_rect < get_ui_rects().size()) {
+			get_ui_rects()[n.visible_rect].display_flags |= ui_rectangle::flag_needs_update;
+			window_interface.invalidate_window();
+		}
+		
 	}
 
 
@@ -769,7 +803,16 @@ namespace printui {
 						D2D1_OPACITY_MASK_CONTENT_GRAPHICS);
 					d2d_device_context->SetTransform(D2D1::Matrix3x2F::Identity());
 				} else if(state.holds_group()) {
-					// TODO
+					d2d_device_context->SetTransform(D2D1::Matrix3x2F::Translation(float(location.x), float(location.y)));
+					if(!state.is_group_start())
+						palette[resolved_brush]->SetOpacity(0.8f);
+					d2d_device_context->FillOpacityMask(
+						group_interactable[state.get_key()],
+						palette[resolved_brush],
+						D2D1_OPACITY_MASK_CONTENT_GRAPHICS);
+					if(!state.is_group_start())
+						palette[resolved_brush]->SetOpacity(1.0f);
+					d2d_device_context->SetTransform(D2D1::Matrix3x2F::Identity());
 				}
 			} else {
 				auto is_light = win.dynamic_settings.brushes[fg_brush].is_light_color;
@@ -811,8 +854,45 @@ namespace printui {
 						palette[resolved_brush],
 						D2D1_OPACITY_MASK_CONTENT_GRAPHICS);
 					d2d_device_context->SetTransform(D2D1::Matrix3x2F::Identity());
+
 				} else if(state.holds_group()) {
-					// TODO
+					int32_t resolved_icon = 0;
+					if((win.controller_buttons.val & (win.controller_buttons.button_lb | win.controller_buttons.button_rb)) == 0) {
+						if(state.get_key() < 4) {
+							resolved_icon = state.get_key();
+						} else if(state.get_key() < 8) {
+							resolved_icon = 4;
+						} else {
+							resolved_icon = 5;
+						}
+					} else if((win.controller_buttons.val & win.controller_buttons.button_lb) != 0) {
+						if(state.get_key() < 4) {
+							resolved_icon = 6;
+						} else if(state.get_key() < 8) {
+							resolved_icon = state.get_key() - 4;
+						} else {
+							resolved_icon = 5;
+						}
+					} else {
+						if(state.get_key() < 4) {
+							resolved_icon = 6;
+						} else if(state.get_key() < 8) {
+							resolved_icon = 4;
+						} else {
+							resolved_icon = state.get_key() - 8;
+						}
+					}
+
+					d2d_device_context->SetTransform(D2D1::Matrix3x2F::Translation(float(location.x), float(location.y)));
+					if(!state.is_group_start())
+						palette[resolved_brush]->SetOpacity(0.8f);
+					d2d_device_context->FillOpacityMask(
+						group_interactable[resolved_icon],
+						palette[resolved_brush],
+						D2D1_OPACITY_MASK_CONTENT_GRAPHICS);
+					if(!state.is_group_start())
+						palette[resolved_brush]->SetOpacity(1.0f);
+					d2d_device_context->SetTransform(D2D1::Matrix3x2F::Identity());
 				}
 			}
 		}
@@ -825,6 +905,23 @@ namespace printui {
 			return;
 
 		stop_ui_animations(win);
+		refresh_foregound(win);
+
+		d2d_device_context->SetTarget(animation_background);
+		d2d_device_context->BeginDraw();
+
+		d2d_device_context->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
+		d2d_device_context->SetTransform(D2D1::Matrix3x2F::Identity());
+		d2d_device_context->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
+
+		to_display(win.get_layout(), win);
+
+		d2d_device_context->EndDraw();
+	}
+	void direct2d_rendering::prepare_layered_ui_animation(window_data& win) {
+		if(win.dynamic_settings.uianimations == false)
+			return;
+
 		refresh_foregound(win);
 
 		d2d_device_context->SetTarget(animation_background);
@@ -918,10 +1015,14 @@ namespace printui {
 				d2d_factory->CreateStrokeStyle(style_prop, nullptr, 0, &plain_strokes);
 			}
 
-			horizontal_interactable_bg.file_name = L"left_select_i.svg";
+			horizontal_interactable_bg.file_name = L"left_select_n.svg";
 			horizontal_interactable_bg.edge_padding = 0.0f;
-			vertical_interactable_bg.file_name = L"top_select_i.svg";
+			vertical_interactable_bg.file_name = L"top_select_n.svg";
 			vertical_interactable_bg.edge_padding = 0.0f;
+			group_interactable_bg.file_name = L"group_select_n.svg";
+			group_interactable_bg.edge_padding = 0.0f;
+
+			icons.resize(standard_icons::final_icon);
 
 			icons[standard_icons::header_minimize].file_name = L"min_i.svg";
 			icons[standard_icons::header_minimize].xsize = 1;
@@ -1014,6 +1115,21 @@ namespace printui {
 			icons[standard_icons::window_close].edge_padding = 0.5f;
 		}
 
+		uint8_t direct2d_rendering::load_icon(std::wstring const& file_name, float edge_padding, int8_t x_size, int8_t y_size) {
+			for(uint32_t i = 0; i < icons.size(); ++i) {
+				if(icons[i].file_name == file_name && icons[i].edge_padding == edge_padding
+					&& icons[i].xsize == x_size && icons[i].ysize == y_size) {
+					return uint8_t(i);
+				}
+			}
+			icons.emplace_back();
+			icons.back().file_name = file_name;
+			icons.back().xsize = x_size;
+			icons.back().ysize = y_size;
+			icons.back().edge_padding = edge_padding;
+			return uint8_t(icons.size() - 1);
+		}
+
 		void direct2d_rendering::fill_from_foreground(screen_space_rect location, uint8_t fg_brush, bool optimize_for_text) {
 
 			D2D1_RECT_F content_rect{
@@ -1057,20 +1173,6 @@ namespace printui {
 			if(win.prompts != prompt_mode::hidden)
 				win.repopulate_interactable_statuses();
 
-			d2d_device_context->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
-			
-			auto real_ptr = (IDWriteFactory6*)(win.text_interface.get_dwrite_factory());
-			auto hwnd = (HWND)(win.window_interface.get_hwnd());
-			if(hwnd && real_ptr) {
-				IDWriteRenderingParams* rparams = nullptr;
-				auto monitor_handle = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
-				real_ptr->CreateMonitorRenderingParams(monitor_handle, &rparams);
-				if(rparams) {
-					d2d_device_context->SetTextRenderingParams(rparams);
-					safe_release(rparams);
-				}
-			}
-
 			d2d_device_context->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
 
 			for(ui_reference i = 0; i < uirects.size(); ++i) {
@@ -1087,6 +1189,27 @@ namespace printui {
 					d2d_device_context->SetTransform(D2D1::Matrix3x2F::Identity());
 					if(!(r.parent_object.get_render_interface())) {
 						background_rectangle(r, r.display_flags, r.background_index, win.last_under_cursor == i, win);
+						// TEST for decoration
+						auto lref = r.parent_object.get_layout_reference();
+						if(lref != layout_reference_none) {
+							auto& lnode = win.get_node(lref);
+							if(std::holds_alternative<decoration_id>(lnode.contents)) {
+								auto decoration = std::get<decoration_id>(lnode.contents);
+
+								auto derotated_rect = reverse_screen_space_orientation(win, r);
+								auto centered_width = win.layout_size * (lnode.width - (lnode.left_margin() + lnode.right_margin())) / 2 - win.layout_size * icons[decoration.id].xsize / 2;
+
+								auto final_position = screen_rectangle_from_relative_rect_in_ui(win, 
+									screen_space_rect{
+										lnode.left_margin() * win.layout_size + centered_width,
+										0,
+										win.layout_size * icons[decoration.id].xsize,
+										win.layout_size * icons[decoration.id].ysize }
+									, r);
+
+								icons[decoration.id].present_image(float(final_position.x), float(final_position.y), *this, palette[decoration.brush != uint8_t(-1) ? decoration.brush : r.foreground_index]);
+							}
+						}
 					} else {
 						r.parent_object->render_composite(r, win, win.last_under_cursor == i);
 					}
@@ -1154,20 +1277,6 @@ namespace printui {
 			ID2D1GeometryGroup* with_preserved_rects = nullptr;
 			ID2D1Geometry* old_rects = nullptr;
 
-			d2d_device_context->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
-
-			auto real_ptr = (IDWriteFactory6*)(win.text_interface.get_dwrite_factory());
-			auto hwnd = (HWND)(win.window_interface.get_hwnd());
-			if(hwnd && real_ptr) {
-				IDWriteRenderingParams* rparams = nullptr;
-				auto monitor_handle = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
-				real_ptr->CreateMonitorRenderingParams(monitor_handle, &rparams);
-				if(rparams) {
-					d2d_device_context->SetTextRenderingParams(rparams);
-					safe_release(rparams);
-				}
-			}
-
 			d2d_device_context->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
 
 			for(auto& r : uirects) {
@@ -1199,21 +1308,6 @@ namespace printui {
 		}
 
 		void direct2d_rendering::foregrounds(std::vector<ui_rectangle>& uirects, window_data& win) {
-
-			d2d_device_context->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
-			
-			auto real_ptr = (IDWriteFactory6*)(win.text_interface.get_dwrite_factory());
-			auto hwnd = (HWND)(win.window_interface.get_hwnd());
-			if(hwnd && real_ptr) {
-				IDWriteRenderingParams* rparams = nullptr;
-				auto monitor_handle = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
-				real_ptr->CreateMonitorRenderingParams(monitor_handle, &rparams);
-				if(rparams) {
-					d2d_device_context->SetTextRenderingParams(rparams);
-					safe_release(rparams);
-				}
-			}
-
 			d2d_device_context->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
 
 			ID2D1RectangleGeometry* screen_rect_geom = nullptr;
@@ -1305,8 +1399,9 @@ namespace printui {
 
 		void direct2d_rendering::create_interactiable_tags(window_data& win) {
 
-			auto label_format = win.text_interface.create_text_format(L"Arial", (win.layout_size * 15) / 32);
-
+			auto cap_height = (win.layout_size * 15) / 32;
+			auto label_format = win.text_interface.create_text_format(L"Arial", cap_height);
+			
 
 			std::array<ID2D1Bitmap1*, 12> text_bitmaps;
 
@@ -1327,7 +1422,7 @@ namespace printui {
 
 				if(auto dwf = win.text_interface.to_dwrite_format(label_format); dwf)
 					d2d_device_context->DrawTextW(keyname, length, (IDWriteTextFormat3*)dwf,
-						D2D1_RECT_F{ 0.0f, (float(win.layout_size) * 47.0f) / 64.0f - label_format.baseline, float(win.layout_size), float(win.layout_size) }, dummy_brush);
+						D2D1_RECT_F{ 0.0f, float((win.layout_size - 1) / 2 + (cap_height - 1) / 2) - label_format.baseline, float(win.layout_size), float(win.layout_size) }, dummy_brush);
 
 				d2d_device_context->EndDraw();
 			}
@@ -1359,47 +1454,9 @@ namespace printui {
 			d2d_device_context->CreateEffect(CLSID_D2D1ArithmeticComposite, &arithmeticCompositeEffect);
 			arithmeticCompositeEffect->SetValue(D2D1_ARITHMETICCOMPOSITE_PROP_COEFFICIENTS, D2D1::Vector4F(0.0f, 1.0f, -1.0f, 0.0f));
 
-			arithmeticCompositeEffect->SetInput(0, horizontal_interactable_bg.rendered_layer);
-
-			for(uint32_t i = 0; i < 12; ++i) {
-				arithmeticCompositeEffect->SetInput(1, text_bitmaps[i]);
-
-				safe_release(horizontal_interactable[i]);
-
-				d2d_device_context->CreateBitmap(
-					D2D1_SIZE_U{ uint32_t(win.layout_size), uint32_t(win.layout_size) }, nullptr, 0,
-					D2D1_BITMAP_PROPERTIES1{
-						D2D1::PixelFormat(DXGI_FORMAT_A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED),
-						win.dpi, win.dpi, D2D1_BITMAP_OPTIONS_TARGET, nullptr },
-						&(horizontal_interactable[i]));
-				d2d_device_context->BeginDraw();
-				d2d_device_context->SetTarget(horizontal_interactable[i]);
-				d2d_device_context->Clear(D2D1_COLOR_F{ 0.0f,0.0f,0.0f,0.0f });
-
-				d2d_device_context->DrawImage(arithmeticCompositeEffect);
-				d2d_device_context->SetTarget(nullptr);
-				d2d_device_context->EndDraw();
-			}
-
-			for(uint32_t i = 0; i < 7; ++i) {
-				arithmeticCompositeEffect->SetInput(1, button_text_bitmaps[i]);
-
-				safe_release(horizontal_controller_interactable[i]);
-
-				d2d_device_context->CreateBitmap(
-					D2D1_SIZE_U{ uint32_t(win.layout_size), uint32_t(win.layout_size) }, nullptr, 0,
-					D2D1_BITMAP_PROPERTIES1{
-						D2D1::PixelFormat(DXGI_FORMAT_A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED),
-						win.dpi, win.dpi, D2D1_BITMAP_OPTIONS_TARGET, nullptr },
-						&(horizontal_controller_interactable[i]));
-				d2d_device_context->BeginDraw();
-				d2d_device_context->SetTarget(horizontal_controller_interactable[i]);
-				d2d_device_context->Clear(D2D1_COLOR_F{ 0.0f,0.0f,0.0f,0.0f });
-
-				d2d_device_context->DrawImage(arithmeticCompositeEffect);
-				d2d_device_context->SetTarget(nullptr);
-				d2d_device_context->EndDraw();
-			}
+			//
+			// VERTICALS
+			//
 
 			arithmeticCompositeEffect->SetInput(0, vertical_interactable_bg.rendered_layer);
 
@@ -1445,6 +1502,100 @@ namespace printui {
 				d2d_device_context->EndDraw();
 			}
 
+			//
+			// HORIZONTALS
+			//
+
+			arithmeticCompositeEffect->SetInput(0, horizontal_interactable_bg.rendered_layer);
+
+			for(uint32_t i = 0; i < 12; ++i) {
+				arithmeticCompositeEffect->SetInput(1, text_bitmaps[i]);
+
+				safe_release(horizontal_interactable[i]);
+
+				d2d_device_context->CreateBitmap(
+					D2D1_SIZE_U{ uint32_t(win.layout_size), uint32_t(win.layout_size) }, nullptr, 0,
+					D2D1_BITMAP_PROPERTIES1{
+						D2D1::PixelFormat(DXGI_FORMAT_A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED),
+						win.dpi, win.dpi, D2D1_BITMAP_OPTIONS_TARGET, nullptr },
+						&(horizontal_interactable[i]));
+				d2d_device_context->BeginDraw();
+				d2d_device_context->SetTarget(horizontal_interactable[i]);
+				d2d_device_context->Clear(D2D1_COLOR_F{ 0.0f,0.0f,0.0f,0.0f });
+
+				d2d_device_context->DrawImage(arithmeticCompositeEffect);
+				d2d_device_context->SetTarget(nullptr);
+				d2d_device_context->EndDraw();
+			}
+
+			for(uint32_t i = 0; i < 7; ++i) {
+				arithmeticCompositeEffect->SetInput(1, button_text_bitmaps[i]);
+
+				safe_release(horizontal_controller_interactable[i]);
+
+				d2d_device_context->CreateBitmap(
+					D2D1_SIZE_U{ uint32_t(win.layout_size), uint32_t(win.layout_size) }, nullptr, 0,
+					D2D1_BITMAP_PROPERTIES1{
+						D2D1::PixelFormat(DXGI_FORMAT_A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED),
+						win.dpi, win.dpi, D2D1_BITMAP_OPTIONS_TARGET, nullptr },
+						&(horizontal_controller_interactable[i]));
+				d2d_device_context->BeginDraw();
+				d2d_device_context->SetTarget(horizontal_controller_interactable[i]);
+				d2d_device_context->Clear(D2D1_COLOR_F{ 0.0f,0.0f,0.0f,0.0f });
+
+				d2d_device_context->DrawImage(arithmeticCompositeEffect);
+				d2d_device_context->SetTarget(nullptr);
+				d2d_device_context->EndDraw();
+			}
+
+			//
+			// GROUP
+			//
+
+			arithmeticCompositeEffect->SetInput(0, group_interactable_bg.rendered_layer);
+
+			for(uint32_t i = 0; i < 12; ++i) {
+				arithmeticCompositeEffect->SetInput(1, text_bitmaps[i]);
+
+				safe_release(group_interactable[i]);
+
+				d2d_device_context->CreateBitmap(
+					D2D1_SIZE_U{ uint32_t(win.layout_size), uint32_t(win.layout_size) }, nullptr, 0,
+					D2D1_BITMAP_PROPERTIES1{
+						D2D1::PixelFormat(DXGI_FORMAT_A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED),
+						win.dpi, win.dpi, D2D1_BITMAP_OPTIONS_TARGET, nullptr },
+						&(group_interactable[i]));
+				d2d_device_context->BeginDraw();
+				d2d_device_context->SetTarget(group_interactable[i]);
+				d2d_device_context->Clear(D2D1_COLOR_F{ 0.0f,0.0f,0.0f,0.0f });
+
+
+				d2d_device_context->DrawImage(arithmeticCompositeEffect);
+				d2d_device_context->SetTarget(nullptr);
+				d2d_device_context->EndDraw();
+			}
+
+			for(uint32_t i = 0; i < 7; ++i) {
+				arithmeticCompositeEffect->SetInput(1, button_text_bitmaps[i]);
+
+				safe_release(group_controller_interactable[i]);
+
+				d2d_device_context->CreateBitmap(
+					D2D1_SIZE_U{ uint32_t(win.layout_size), uint32_t(win.layout_size) }, nullptr, 0,
+					D2D1_BITMAP_PROPERTIES1{
+						D2D1::PixelFormat(DXGI_FORMAT_A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED),
+						win.dpi, win.dpi, D2D1_BITMAP_OPTIONS_TARGET, nullptr },
+						&(group_controller_interactable[i]));
+				d2d_device_context->BeginDraw();
+				d2d_device_context->SetTarget(group_controller_interactable[i]);
+				d2d_device_context->Clear(D2D1_COLOR_F{ 0.0f,0.0f,0.0f,0.0f });
+
+
+				d2d_device_context->DrawImage(arithmeticCompositeEffect);
+				d2d_device_context->SetTarget(nullptr);
+				d2d_device_context->EndDraw();
+			}
+
 			safe_release(arithmeticCompositeEffect);
 
 			for(uint32_t i = 0; i < 12; ++i) {
@@ -1461,8 +1612,9 @@ namespace printui {
 		void direct2d_rendering::redraw_icons(window_data& win) {
 			horizontal_interactable_bg.redraw_image(win, *this);
 			vertical_interactable_bg.redraw_image(win, *this);
+			group_interactable_bg.redraw_image(win, *this);
 
-			for(uint32_t i = 0; i < standard_icons::final_icon; ++i) {
+			for(uint32_t i = 0; i < icons.size(); ++i) {
 				icons[i].redraw_image(win, *this);
 			}
 
@@ -1811,6 +1963,12 @@ namespace printui {
 			for(uint32_t i = 0; i < 12; ++i) {
 				safe_release(horizontal_interactable[i]);
 				safe_release(vertical_interactable[i]);
+				safe_release(group_interactable[i]);
+			}
+			for(uint32_t i = 0; i < 7; ++i) {
+				safe_release(horizontal_controller_interactable[i]);
+				safe_release(vertical_controller_interactable[i]);
+				safe_release(group_controller_interactable[i]);
 			}
 			for(auto& i : palette) {
 				safe_release(i);
@@ -1916,10 +2074,17 @@ namespace printui {
 			}
 		}
 
-		void direct2d_rendering::text(window_data const& win, ::printui::text::arranged_text* formatted_text, int32_t x, int32_t y) {
+		void direct2d_rendering::text(window_data const& win, ::printui::text::arranged_text* formatted_text, text_size sz, int32_t x, int32_t y) {
 			auto dwl = win.text_interface.to_dwrite_layout(formatted_text);
-			if(dwl)
+			if(dwl) {
+				auto rparams = (IDWriteRenderingParams*)(win.text_interface.get_rendering_paramters(sz));
+				d2d_device_context->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+				d2d_device_context->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+				if(rparams)
+					d2d_device_context->SetTextRenderingParams(rparams);
 				d2d_device_context->DrawTextLayout(D2D1_POINT_2F{ float(x), float(y) }, (IDWriteTextLayout*)dwl, dummy_brush, 0 /*D2D1_DRAW_TEXT_OPTIONS_CLIP*/);
+				d2d_device_context->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
+			}
 		}
 
 		void direct2d_rendering::set_brush_opacity(uint8_t b, float o) {

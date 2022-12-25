@@ -340,16 +340,14 @@ namespace printui {
 		if(int32_t(win.last_cursor_x_position) < screen_location.x) {
 			screen_location.width += (screen_location.x - win.last_cursor_x_position);
 			screen_location.x = win.last_cursor_x_position;
+		} else if(int32_t(win.last_cursor_x_position) > screen_location.x + screen_location.width) {
+			screen_location.width = (win.last_cursor_x_position - screen_location.x);
 		}
 		if(int32_t(win.last_cursor_y_position) < screen_location.y) {
 			screen_location.height += (screen_location.y - win.last_cursor_y_position);
 			screen_location.y = win.last_cursor_y_position;
-		}
-		if(int32_t(win.last_cursor_x_position) > screen_location.x + screen_location.width) {
-			screen_location.width = (screen_location.x - win.last_cursor_x_position);
-		}
-		if(int32_t(win.last_cursor_y_position) > screen_location.y + screen_location.height) {
-			screen_location.height = (screen_location.y - win.last_cursor_y_position);
+		} else if(int32_t(win.last_cursor_y_position) > screen_location.y + screen_location.height) {
+			screen_location.height = (win.last_cursor_y_position - screen_location.y);
 		}
 		screen_location.x -= int32_t(5 * win.dpi / 96.0f);
 		screen_location.y -= int32_t(5 * win.dpi / 96.0f);

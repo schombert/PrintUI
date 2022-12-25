@@ -302,6 +302,7 @@ namespace printui {
 
 	window_data::window_data(bool mn, bool mx, bool settings) : window_bar(*this, mn, mx, settings, get_settings_items()), accessibility_interface(*this) {
 
+		register_icons();
 	}
 
 	ui_rectangle const* interface_under_point(std::vector<ui_rectangle> const& rects, int32_t x, int32_t y) {
@@ -441,16 +442,14 @@ namespace printui {
 				if(int32_t(last_cursor_x_position) < screen_location.x) {
 					screen_location.width += (screen_location.x - last_cursor_x_position);
 					screen_location.x = last_cursor_x_position;
+				} else if(int32_t(last_cursor_x_position) > screen_location.x + screen_location.width) {
+					screen_location.width = (last_cursor_x_position - screen_location.x);
 				}
 				if(int32_t(last_cursor_y_position) < screen_location.y) {
 					screen_location.height += (screen_location.y - last_cursor_y_position);
 					screen_location.y = last_cursor_y_position;
-				}
-				if(int32_t(last_cursor_x_position) > screen_location.x + screen_location.width) {
-					screen_location.width = (screen_location.x - last_cursor_x_position);
-				}
-				if(int32_t(last_cursor_y_position) > screen_location.y + screen_location.height) {
-					screen_location.height = (screen_location.y - last_cursor_y_position);
+				} else if(int32_t(last_cursor_y_position) > screen_location.y + screen_location.height) {
+					screen_location.height = (last_cursor_y_position - screen_location.y);
 				}
 				screen_location.x -= margin;
 				screen_location.y -= margin;
@@ -466,8 +465,8 @@ namespace printui {
 
 	bool window_data::on_key_down(uint32_t scan_code, uint32_t key_code) {
 		if(keyboard_target && scan_code != secondary_escape_sc) {
-			bool shift_held = (GetKeyState(VK_SHIFT) & 0x80) != 0;
-			bool ctrl_held = (GetKeyState(VK_CONTROL) & 0x80) != 0;
+			bool shift_held = window_interface.is_shift_held_down();
+			bool ctrl_held = window_interface.is_ctrl_held_down();
 
 			if(key_code == VK_RETURN) {
 				keyboard_target->command(*this, edit_command::new_line, false);
@@ -803,6 +802,50 @@ namespace printui {
 		return true;
 	}
 
+	bool window_data::on_mouse_wheel(int32_t quantity) {
+		if(keyboard_target) {
+			if(quantity > 20) {
+				keyboard_target->command(*this, edit_command::cursor_up, window_interface.is_shift_held_down());
+			} else if(quantity < -20) {
+				keyboard_target->command(*this, edit_command::cursor_down, window_interface.is_shift_held_down());
+			}
+			return true;
+		}
+
+		auto under_cursor = printui::layout_reference_under_point(*this, get_ui_rects(), last_cursor_x_position, last_cursor_y_position);
+		if(under_cursor != layout_reference_none) {
+			auto page_container = get_node(under_cursor).page_info() == nullptr || get_node(under_cursor).page_info()->header == layout_reference_none ? get_containing_proper_page(under_cursor) : under_cursor;
+			if(page_container != layout_reference_none) {
+				auto li = get_node(page_container).l_interface;
+				auto pi = get_node(page_container).page_info();
+				if(li) {
+					auto sp = pi->subpage_offset;
+					if(quantity > 20) {
+						if(sp > 0)
+							--sp;
+					} else if(quantity < -20) {
+						if(sp < pi->subpage_divisions.size()) {
+							++sp;
+						}
+					}
+
+					if(sp != pi->subpage_offset) {
+						if((sp > pi->subpage_offset ? page_footer::page_turn_up.type : page_footer::page_turn_down.type) != animation_type::none)
+							rendering_interface.prepare_layered_ui_animation(*this);
+						auto old_page = pi->subpage_offset;
+
+						li->go_to_page(*this, sp, *pi);
+						redraw_ui();
+
+						page_footer::start_page_turn_animation(*this, page_container, sp > old_page);
+					}
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	bool window_data::on_mouse_left_down(uint32_t x, uint32_t y) {
 		if(dynamic_settings.imode == input_mode::follow_input) {
 			if(!window_interface.is_mouse_cursor_visible()) {
@@ -1007,6 +1050,12 @@ namespace printui {
 						ReleaseCapture();
 						app->selecting_edit_text = edit_selection_mode::none;
 						return 0;
+					case WM_MOUSEWHEEL:
+						if(app->on_mouse_wheel(GET_WHEEL_DELTA_WPARAM(wParam))) {
+							return 0;
+						} else {
+							break;
+						}
 					case WM_NCCALCSIZE:
 						if(wParam == TRUE)
 							return 0;

@@ -82,16 +82,27 @@ namespace printui::text {
 
 		IDWriteTextFormat3* common_text_format = nullptr;
 		IDWriteTextFormat3* small_text_format = nullptr;
+		IDWriteTextFormat3* header_text_format = nullptr;
 
 		IDWriteFontFallback* font_fallbacks = nullptr;
 		IDWriteFontFallback* small_font_fallbacks = nullptr;
+		IDWriteFontFallback* header_font_fallbacks = nullptr;
+
+		IDWriteRenderingParams3* common_text_params = nullptr;
+		IDWriteRenderingParams3* small_text_params = nullptr;
+		IDWriteRenderingParams3* header_text_params = nullptr;
 	public:
 		direct_write_text();
 		virtual ~direct_write_text() {
+			safe_release(common_text_params);
+			safe_release(small_text_params);
+			safe_release(header_text_params);
 			safe_release(common_text_format);
 			safe_release(small_text_format);
+			safe_release(header_text_format);
 			safe_release(font_fallbacks);
 			safe_release(small_font_fallbacks);
+			safe_release(header_font_fallbacks);
 			safe_release(font_collection);
 			safe_release(dwrite_factory);
 		}
@@ -99,13 +110,15 @@ namespace printui::text {
 		void initialize_fonts(window_data& win);
 		void initialize_font_fallbacks(window_data& win);
 		void create_font_collection(window_data& win);
-		arrangement_result create_text_arragement(window_data const& win, std::wstring_view text, content_alignment text_alignment, bool large_text, bool single_line, int32_t max_width, std::vector<format_marker> const* formatting = nullptr) const;
+		arrangement_result create_text_arragement(window_data const& win, std::wstring_view text, content_alignment text_alignment, text_size text_sz, bool single_line, int32_t max_width, std::vector<format_marker> const* formatting = nullptr) const;
 		text_format create_text_format(wchar_t const* name, int32_t capheight) const;
 		void release_text_format(text_format fmt) const;
 		void* to_dwrite_format(text_format fmt) const;
 		void* to_dwrite_layout(arranged_text* ptr) const;
 		void* get_dwrite_factory() const;
 		std::vector<std::wstring> ennumerate_fonts(std::wstring const& locale) const;
+		void update_text_rendering_parameters(window_data& win);
+		void* get_rendering_paramters(text_size sz) const;
 	private:
 		void update_font_metrics(font_description& desc, wchar_t const* locale, float target_pixels, float dpi_scale, IDWriteFont* font);
 		void load_fallbacks_by_type(std::vector<font_fallback> const& fb, font_type type, IDWriteFontFallbackBuilder* bldr, IDWriteFontCollection1* collection);

@@ -698,11 +698,12 @@ namespace printui {
 		} else if(std::holds_alternative<go_up>(a)) {
 			if(focus_stack.size() > 1) {
 
-				auto old_focus_id = get_focus_stack_top_ref(focus_stack);
-				focus_stack.pop_back();
-				auto new_focus_id = get_focus_stack_top_ref(focus_stack);
+				auto old_focus_id = focus_stack.empty() ? layout_reference_none : focus_stack.back().l_interface->l_id;
+				auto new_focus_id = focus_stack.size() < 2 ? layout_reference_none : (focus_stack[focus_stack.size() - 2].l_interface->l_id);
 
 				change_focus(old_focus_id, new_focus_id);
+
+				focus_stack.pop_back();
 
 				if(new_focus_id == layout_reference_none) {
 					set_window_focus(nullptr);
@@ -899,7 +900,7 @@ namespace printui {
 		int32_t added = 0;
 
 		auto rng = interactables(win, n);
-		for(auto i = rng.begin(); i != rng.end(); ++i) {
+		for(auto i = rng.begin(); i != rng.end(); ) {
 			if(start_offset > 0) {
 				--start_offset;
 			} else {
@@ -915,18 +916,24 @@ namespace printui {
 							pi->set_interactable(-1, interactable_state(interactable_state::key, uint8_t(added)));
 							++added;
 						}
+						++i;
 					} else {
 						if(auto pi = win.get_interactable_render_holder((*i).ref); pi) {
-							pi->set_interactable(-1, interactable_state(interactable_state::key, uint8_t(added)));
+							pi->set_interactable(-1, interactable_state(interactable_state::group_start, uint8_t(added)));
+							++i;
 
 							int32_t count = (groups[added].end - groups[added].start) - 1;
-							for(int32_t j = 0; j < count; ++j) {
-								++i;
+							for(int32_t j = 0; i != rng.end() && j < count; ++j) {
+								
 								if(auto pi2 = win.get_interactable_render_holder((*i).ref); pi2) {
 									pi2->set_interactable(-1, interactable_state(interactable_state::group, uint8_t(added)));
+									
 								}
+								++i;
 							}
 							++added;
+						} else {
+							++i;
 						}
 					}
 				} else if((*i).desc == node_description::complex_child) {
@@ -935,18 +942,23 @@ namespace printui {
 							pi->set_interactable(-1, interactable_state(interactable_state::key, uint8_t(added)));
 							++added;
 						}
+						++i;
 					} else {
 						if(auto pi = win.get_interactable_render_holder((*i).ref); pi) {
-							pi->set_interactable(-1, interactable_state(interactable_state::key, uint8_t(added)));
+							pi->set_interactable(-1, interactable_state(interactable_state::group_start, uint8_t(added)));
+							++i;
 
 							int32_t count = (groups[added].end - groups[added].start) - 1;
-							for(int32_t j = 0; j < count; ++j) {
-								++i;
+							for(int32_t j = 0;  i != rng.end() && j < count; ++j) {
+								
 								if(auto pi2 = win.get_interactable_render_holder((*i).ref); pi2) {
 									pi2->set_interactable(-1, interactable_state(interactable_state::group, uint8_t(added)));
 								}
+								++i;
 							}
 							++added;
+						} else {
+							++i;
 						}
 					}
 
@@ -956,20 +968,27 @@ namespace printui {
 							ptr->set_interactable(0, interactable_state(interactable_state::key, uint8_t(added)));
 							++added;
 						}
+						++i;
 					} else {
 						if(auto pi = win.get_interactable_render_holder((*i).ref); pi) {
-							pi->set_interactable(-1, interactable_state(interactable_state::key, uint8_t(added)));
+							pi->set_interactable(-1, interactable_state(interactable_state::group_start, uint8_t(added)));
+							++i;
 
 							int32_t count = (groups[added].end - groups[added].start) - 1;
-							for(int32_t j = 0; j < count; ++j) {
-								++i;
+							for(int32_t j = 0; i != rng.end() && j < count; ++j) {
+								
 								if(auto pi2 = win.get_interactable_render_holder((*i).ref); pi2) {
 									pi2->set_interactable(-1, interactable_state(interactable_state::group, uint8_t(added)));
 								}
+								++i;
 							}
 							++added;
+						} else {
+							++i;
 						}
 					}
+				} else {
+					++i;
 				}
 
 				if(added == max_count)
@@ -983,7 +1002,7 @@ namespace printui {
 		int32_t added = 0;
 
 		auto rng = interactables(win, n);
-		for(auto i = rng.begin(); i != rng.end(); ++i) {
+		for(auto i = rng.begin(); i != rng.end(); ) {
 			if(start_offset > 0) {
 				--start_offset;
 			} else {
@@ -999,18 +1018,23 @@ namespace printui {
 							pi->set_interactable(-1, interactable_state());
 							++added;
 						}
+						++i;
 					} else {
 						if(auto pi = win.get_interactable_render_holder((*i).ref); pi) {
 							pi->set_interactable(-1, interactable_state());
+							++i;
 
 							int32_t count = (groups[added].end - groups[added].start) - 1;
-							for(int32_t j = 0; j < count; ++j) {
-								++i;
+							for(int32_t j = 0; i != rng.end() && j < count; ++j) {
+								
 								if(auto pi2 = win.get_interactable_render_holder((*i).ref); pi2) {
 									pi2->set_interactable(-1, interactable_state());
 								}
+								++i;
 							}
 							++added;
+						} else {
+							++i;
 						}
 					}
 				} else if((*i).desc == node_description::complex_child) {
@@ -1019,18 +1043,22 @@ namespace printui {
 							pi->set_interactable(-1, interactable_state());
 							++added;
 						}
+						++i;
 					} else {
 						if(auto pi = win.get_interactable_render_holder((*i).ref); pi) {
 							pi->set_interactable(-1, interactable_state());
+							++i;
 
 							int32_t count = (groups[added].end - groups[added].start) - 1;
-							for(int32_t j = 0; j < count; ++j) {
-								++i;
+							for(int32_t j = 0; i != rng.end() && j < count; ++j) {
 								if(auto pi2 = win.get_interactable_render_holder((*i).ref); pi2) {
 									pi2->set_interactable(-1, interactable_state());
 								}
+								++i;
 							}
 							++added;
+						} else {
+							++i;
 						}
 					}
 
@@ -1040,20 +1068,26 @@ namespace printui {
 							ptr->set_interactable(0, interactable_state());
 							++added;
 						}
+						++i;
 					} else {
 						if(auto pi = win.get_interactable_render_holder((*i).ref); pi) {
 							pi->set_interactable(-1, interactable_state());
+							++i;
 
 							int32_t count = (groups[added].end - groups[added].start) - 1;
-							for(int32_t j = 0; j < count; ++j) {
-								++i;
+							for(int32_t j = 0; i != rng.end() && j < count; ++j) {
 								if(auto pi2 = win.get_interactable_render_holder((*i).ref); pi2) {
 									pi2->set_interactable(-1, interactable_state());
 								}
+								++i;
 							}
 							++added;
+						} else {
+							++i;
 						}
 					}
+				} else {
+					++i;
 				}
 
 				if(added == max_count)

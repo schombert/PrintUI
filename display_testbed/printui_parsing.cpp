@@ -122,9 +122,11 @@ namespace printui::parse {
 					if(extracted.values.size() >= 1) {
 						const auto val = extracted.values[0].to_string();
 						if(val == "yes" || val == "y" || val == "YES" || val == "Y" || val == "true")
-							result.is_bold = true;
+							result.weight = 700;
 						else if(val == "no" || val == "n" || val == "NO" || val == "N" || val == "false")
-							result.is_bold = false;
+							result.weight = 400;
+						else
+							result.weight = std::stoi(std::string(val));
 					}
 				} else if(kstr == "oblique") {
 					if(extracted.values.size() >= 1) {
@@ -138,11 +140,13 @@ namespace printui::parse {
 					if(extracted.values.size() >= 1) {
 						const auto val = extracted.values[0].to_string();
 						if(val == "normal" || val == "NORMAL")
-							result.span = printui::font_span::normal;
+							result.span = 100.0f;
 						else if(val == "condensed" || val == "CONDENSED")
-							result.span = printui::font_span::condensed;
+							result.span = 75.0f;
 						else if(val == "wide" || val == "WIDE")
-							result.span = printui::font_span::wide;
+							result.span = 125.0f;
+						else
+							result.span = std::stof(std::string(val));
 					}
 				} else if(kstr == "type") {
 					if(extracted.values.size() >= 1) {
@@ -192,9 +196,11 @@ namespace printui::parse {
 					if(extracted.values.size() >= 1) {
 						const auto val = extracted.values[0].to_string();
 						if(val == "yes" || val == "y" || val == "YES" || val == "Y" || val == "true")
-							result.is_bold = true;
+							result.weight = 700;
 						else if(val == "no" || val == "n" || val == "NO" || val == "N" || val == "false")
-							result.is_bold = false;
+							result.weight = 400;
+						else
+							result.weight = std::stoi(std::string(val));
 					}
 				} else if(kstr == "oblique") {
 					if(extracted.values.size() >= 1) {
@@ -208,11 +214,13 @@ namespace printui::parse {
 					if(extracted.values.size() >= 1) {
 						const auto val = extracted.values[0].to_string();
 						if(val == "normal" || val == "NORMAL")
-							result.span = printui::font_span::normal;
+							result.span = 100.0f;
 						else if(val == "condensed" || val == "CONDENSED")
-							result.span = printui::font_span::condensed;
+							result.span = 75.0f;
 						else if(val == "wide" || val == "WIDE")
-							result.span = printui::font_span::wide;
+							result.span = 125.0f;
+						else
+							result.span = std::stof(std::string(val));
 					}
 				} else if(kstr == "tag") {
 					if(extracted.values.size() >= 1) {
@@ -414,6 +422,12 @@ namespace printui::parse {
 						parse_main_font_description(new_font, extracted.values[0].start, extracted.values[0].end);
 						ls.small_font = new_font;
 					}
+				} else if(kstr == "header_font") {
+					if(extracted.values.size() >= 1) {
+						printui::font_description new_font;
+						parse_main_font_description(new_font, extracted.values[0].start, extracted.values[0].end);
+						ls.header_font = new_font;
+					}
 				} else if(kstr == "custom_font") {
 					if(extracted.values.size() >= 1) {
 						parse_named_font_description(ls, font_name_to_index, extracted.values[0].start, extracted.values[0].end);
@@ -523,15 +537,10 @@ namespace printui::parse {
 		std::string result;
 
 		result += "\tname{ " + to_string(fnt.name) + " }\n";
-		result += "\tbold{ " + std::string(fnt.is_bold ? "yes" : "no") + " }\n";
+		result += "\tbold{ " + std::to_string(fnt.weight) + " }\n";
 		result += "\toblique{ " + std::string(fnt.is_oblique ? "yes" : "no") + " }\n";
+		result += "\tspan{ " + std::to_string(fnt.span) + " }\n";
 
-		if(fnt.span == font_span::normal)
-			result += "\tspan{ normal }\n";
-		else if(fnt.span == font_span::condensed)
-			result += "\tspan{ condensed }\n";
-		else if(fnt.span == font_span::wide)
-			result += "\tspan{ wide }\n";
 
 		if(fnt.type == font_type::roman)
 			result += "\ttype{ roman }\n";
@@ -578,6 +587,7 @@ namespace printui::parse {
 		result += "small_line_width{ " + std::to_string(int32_t(ls.small_width)) + " }\n";
 		result += "primary_font{\n" + make_font_description(ls.primary_font) + "}\n";
 		result += "small_font{\n" + make_font_description(ls.small_font) + "}\n";
+		result += "header_font{\n" + make_font_description(ls.header_font) + "}\n";
 		result += "palette{\n" + make_palette_description(ls) + "}\n";
 		if(ls.preferred_orientation == layout_orientation::horizontal_left_to_right)
 			result += "orientation{ ltr }\n";

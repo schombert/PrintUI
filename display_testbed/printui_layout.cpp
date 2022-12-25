@@ -167,7 +167,8 @@ namespace printui {
 	enum class highlight_state {
 		highlighting_item,
 		not_highlighting_item,
-		just_finished_higlighted_item,
+		just_finished_highlighted_item,
+		just_finished_not_highlighted_item,
 		painted_normal
 	};
 
@@ -208,7 +209,7 @@ namespace printui {
 			// SIZE CONTENTS, MAKE HIGHLIGHTS
 			//
 
-			highlight_state hs = highlight_state::just_finished_higlighted_item;
+			highlight_state hs = highlight_state::painted_normal;
 			int32_t max_item_width = 0;
 			for(auto i = spec.begin; i != spec.end; ++i) {
 				if(i->item) {
@@ -218,32 +219,28 @@ namespace printui {
 					win.get_node(cn).set_margins(spec.column_left_margin, spec.column_right_margin);
 
 					if(i->type == item_type::item_start) {
-						if(hs == highlight_state::just_finished_higlighted_item) {
-							hs = highlight_state::not_highlighting_item;
-						} else {
+						if(hs == highlight_state::just_finished_not_highlighted_item) {
 							hs = highlight_state::highlighting_item;
-						}
-
-						if(hs == highlight_state::highlighting_item) {
 							win.get_node(cn).set_highlight(true);
 						} else {
+							hs = highlight_state::not_highlighting_item;
 							win.get_node(cn).set_highlight(false);
 						}
 					} else if(i->type == item_type::item_end) {
 						if(hs == highlight_state::highlighting_item) {
 							win.get_node(cn).set_highlight(true);
-							hs = highlight_state::just_finished_higlighted_item;
+							hs = highlight_state::just_finished_highlighted_item;
 						} else {
 							win.get_node(cn).set_highlight(false);
-							hs = highlight_state::painted_normal;
+							hs = highlight_state::just_finished_not_highlighted_item;
 						}
 					} else if(i->type == item_type::single_item) {
-						if(hs == highlight_state::just_finished_higlighted_item) {
-							win.get_node(cn).set_highlight(false);
-							hs = highlight_state::painted_normal;
-						} else {
+						if(hs == highlight_state::just_finished_not_highlighted_item) {
 							win.get_node(cn).set_highlight(true);
-							hs = highlight_state::just_finished_higlighted_item;
+							hs = highlight_state::just_finished_highlighted_item;
+						} else {
+							win.get_node(cn).set_highlight(false);
+							hs = highlight_state::just_finished_not_highlighted_item;
 						}
 					} else {
 						if(hs == highlight_state::highlighting_item) {
@@ -299,9 +296,12 @@ namespace printui {
 						// opt, roll back, make new column
 						if(inside_glued_chunk && !chunk_started_at_zero) {
 							auto ci = win.get_node(current_column).container_info();
+
 							while(i != chunk_start) {
-								ci->modify_children().pop_back();
 								--i;
+								if(ci->view_children().size() != 0 && ((i->item && ci->view_children().back() == i->item->l_id) || (i->type == item_type::decoration_footer && win.get_node(ci->view_children().back()).l_interface == nullptr))) {
+									ci->modify_children().pop_back();
+								}
 							}
 							chunk_started_at_zero = true;
 						}
@@ -332,6 +332,23 @@ namespace printui {
 					vertical_offset += 1;
 				} else if(i->type == item_type::double_space) {
 					vertical_offset += 2;
+				} else if(i->type == item_type::decoration_footer) {
+					if(vertical_offset > 0 && spec.section_footer_decoration != uint8_t(-1)) {
+						auto temp_offset = vertical_offset;
+						vertical_offset += win.rendering_interface.get_icon_size(spec.section_footer_decoration).y;
+						if(vertical_offset <= available_vert_space) {
+							// add decoration
+							auto decoration_node = win.allocate_node();
+							auto& deco = win.get_node(decoration_node);
+							deco.y = uint16_t(temp_offset);
+							deco.x = 0;
+							deco.width = win.rendering_interface.get_icon_size(spec.section_footer_decoration).x;
+							deco.height = win.rendering_interface.get_icon_size(spec.section_footer_decoration).y;
+							deco.contents = decoration_id{ spec.section_footer_decoration , spec.decoration_brush };
+							win.get_node(current_column).height = uint16_t(vertical_offset);
+							win.immediate_add_child(current_column, decoration_node);
+						}
+					}
 				}
 			}
 
@@ -489,7 +506,7 @@ namespace printui {
 			content_rect.x = -base.x;
 		}
 		if(base.y + content_rect.y < 0) {
-			content_rect.x = -base.y;
+			content_rect.y = -base.y;
 		}
 		if(base.x + content_rect.x + n->width + content_rect.width > int32_t(layout_width)) {
 			content_rect.x -= int16_t((base.x + content_rect.x + n->width + content_rect.width) - int32_t(layout_width));
@@ -536,7 +553,6 @@ namespace printui {
 
 			layout_nodes.get_node(id).visible_rect = ui_reference(prepared_layout.size());
 			prepared_layout.push_back(std::move(candidate));
-
 		} else if(auto pi = n->page_info(); pi) {
 			ui_rectangle candidate = n->l_interface->prototype_ui_rectangle(*this, parent_foreground, parent_background);
 
@@ -824,10 +840,10 @@ namespace printui {
 		if(bottom_node_id != layout_reference_none)
 			temp_window_min_size_x = std::max(temp_window_min_size_x, uint32_t(layout_nodes.get_node(bottom_node_id).width));
 
-		auto wbar = create_node(&window_bar, 2, layout_y, true);
-
 		if(info_popup.currently_visible)
 			create_node(&info_popup, layout_x, layout_y, false);
+
+		auto wbar = create_node(&window_bar, 2, layout_y, true);
 
 		temp_window_min_size_x = std::max(temp_window_min_size_x, uint32_t(layout_nodes.get_node(window_bar.settings_pages.l_id).width));
 

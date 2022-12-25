@@ -88,7 +88,7 @@ namespace printui {
 
 		int32_t column_height = win.get_node(column_container_id).height;
 		int32_t column_width = win.get_node(column_container_id).width;
-		resolved_height = std::max(column_height + 1, resolved_height);
+		resolved_height = std::max(column_height + 2, resolved_height);
 		resolved_width = std::max(column_width, resolved_width);
 
 		//create each settings page
@@ -97,13 +97,13 @@ namespace printui {
 		int32_t max_child_width = 0;
 		for(auto& si : settings_items) {
 
-			auto node_id = win.create_node(si->settings_contents, resolved_width - column_width, resolved_height - 1, true);
+			auto node_id = win.create_node(si->settings_contents, resolved_width - column_width, resolved_height - 2, true);
 
 			win.immediate_add_child(l_id, node_id);
 
 			auto& child_page = win.get_node(node_id);
 			child_page.x = uint16_t(column_width);
-			child_page.y = 1ui16;
+			child_page.y = 2ui16;
 
 			max_child_width = std::max(max_child_width, int32_t(child_page.width));
 			max_child_height = std::max(max_child_height, int32_t(child_page.height));
@@ -111,7 +111,7 @@ namespace printui {
 
 		{
 			auto& self = win.get_node(l_id);
-			self.height = uint16_t(std::max(max_child_height + 1, column_height + 2));
+			self.height = uint16_t(std::max(max_child_height + 2, column_height + 2));
 			resolved_height = self.height;
 			self.width = std::max(self.width, uint16_t(max_child_width + column_width));
 			resolved_width = self.width;
@@ -119,48 +119,52 @@ namespace printui {
 
 		for(auto node_id : pi->view_columns()) {
 			auto& child_page = win.get_node(node_id);
-			win.immediate_resize(child_page, resolved_width - column_width, resolved_height - 1);
+			win.immediate_resize(child_page, resolved_width - column_width, resolved_height - 2);
 		}
 
 		{
 			auto& column_container = win.get_node(column_container_id);
 			column_container.x = 0ui16;
-			column_container.y = uint16_t(1 + ((resolved_height - 1) - column_container.height) / 2);
+			column_container.y = uint16_t(2 + ((resolved_height - 2) - column_container.height) / 2);
 		}
 
 		pi->modify_columns().insert(pi->view_columns().begin() + pi->subpage_offset, column_container_id);
 		{
 			auto& self = win.get_node(l_id);
-			pi->header = win.create_node(&page_header, self.width, 1, false);
-			win.get_node(pi->header).parent = l_id;
+			pi->header = win.create_node(&page_header, self.width, 2, false);
+			win.immediate_add_child(l_id, pi->header);
+			win.get_node(pi->header).y = 0;
+			win.get_node(pi->header).x = 0;
 		}
 	}
 
 	void settings_page_container::go_to_page(window_data& win, uint32_t i, page_information& pi) {
 		if(pi.subpage_offset != i) {
+			auto old_page = pi.subpage_offset;
+
+			layout_interface::go_to_page(win, i, pi);
+
 			for(auto& c : settings_items) {
 				if(c->id == i)
 					c->set_selected(win, true);
 				else
 					c->set_selected(win, false);
 			}
-			auto old_sub_off = pi.subpage_offset == 0 ? 0 : pi.subpage_divisions[pi.subpage_offset - 1];
+			auto old_sub_off = old_page == 0 ? 0 : pi.subpage_divisions[old_page - 1];
 			auto new_sub_off = i == 0 ? 0 : pi.subpage_divisions[i - 1];
-			if(pi.subpage_offset < i) {
+			if(old_page < i) {
 				std::rotate(pi.modify_columns().data() + old_sub_off, pi.modify_columns().data() + old_sub_off + 1,
 					pi.modify_columns().data() + new_sub_off);
-				for(auto j = pi.subpage_offset; j < i; ++j) {
+				for(auto j = old_page; j < i; ++j) {
 					pi.subpage_divisions[j] -= 1;
 				}
 			} else {
 				std::rotate(pi.modify_columns().data() + new_sub_off, pi.modify_columns().data() + old_sub_off,
 					pi.modify_columns().data() + old_sub_off + 1);
-				for(auto j = i; j < pi.subpage_offset; ++j) {
+				for(auto j = i; j < old_page; ++j) {
 					pi.subpage_divisions[j] += 1;
 				}
 			}
-
-			pi.subpage_offset = uint16_t(i);
 		}
 
 		if(acc_obj) {
@@ -174,6 +178,7 @@ namespace printui {
 		input_mode_label(text_id::input_mode_label, content_alignment::leading),
 		toggle_animations_label(text_id::ui_animations_label, content_alignment::leading),
 		ui_scale_label(text_id::ui_scale, content_alignment::leading),
+		fonts_header(text_id::fonts_header, content_alignment::centered),
 		primary_font_name_label(text_id::primary_font_label, content_alignment::leading),
 		primary_font_menu(true),
 		small_font_name_label(text_id::small_font_label, content_alignment::leading),
@@ -227,11 +232,21 @@ namespace printui {
 		content_description.push_back(page_content{ &ui_scale_label, column_break_behavior::dont_break_after, item_type::item_start });
 		content_description.push_back(page_content{ &ui_scale_e, column_break_behavior::normal, item_type::item_end });
 
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space });
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_footer });
+		content_description.push_back(page_content{nullptr, column_break_behavior::normal, item_type::single_space });
+		
+		content_description.push_back(page_content{ &fonts_header, column_break_behavior::dont_break_after, item_type::normal });
+		content_description.push_back(page_content{ nullptr, column_break_behavior::dont_break_after, item_type::single_space });
+
 		content_description.push_back(page_content{ &primary_font_name_label, column_break_behavior::dont_break_after, item_type::item_start });
 		content_description.push_back(page_content{ &primary_font_menu, column_break_behavior::normal, item_type::item_end });
 
 		content_description.push_back(page_content{ &small_font_name_label, column_break_behavior::dont_break_after, item_type::item_start });
 		content_description.push_back(page_content{ &small_font_menu, column_break_behavior::normal, item_type::item_end });
+
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space });
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_footer });
 		
 	}
 
@@ -302,6 +317,8 @@ namespace printui {
 		page_spec.vertical_column_alignment = content_alignment::leading;
 		page_spec.horizontal_columns_alignment = content_alignment::centered;
 		page_spec.additional_space_to_outer_margins = true;
+		page_spec.section_footer_decoration = win.window_bar.settings_pages.section_bottom_decorations;
+		page_spec.decoration_brush = uint8_t(-1);
 
 		default_recreate_page(win, this, page_spec);
 	}

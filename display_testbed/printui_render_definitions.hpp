@@ -37,6 +37,11 @@ namespace printui::render {
 		int8_t ysize = 1;
 
 		~icon();
+		icon() noexcept = default;
+		icon(icon const& other) = delete;
+		icon(icon&& other) noexcept;
+		icon& operator=(icon&& other) noexcept;
+		icon& operator=(icon const& other) = delete;
 		void redraw_image(window_data const& win, direct2d_rendering& ri);
 		void present_image(float x, float y, direct2d_rendering& ri, ID2D1Brush* br);
 	};
@@ -64,12 +69,15 @@ namespace printui::render {
 
 		icon horizontal_interactable_bg;
 		icon vertical_interactable_bg;
+		icon group_interactable_bg;
 
 		ID2D1Bitmap1* horizontal_interactable[12] = { nullptr };
 		ID2D1Bitmap1* vertical_interactable[12] = { nullptr };
+		ID2D1Bitmap1* group_interactable[12] = { nullptr };
 
 		ID2D1Bitmap1* horizontal_controller_interactable[7] = { nullptr };
 		ID2D1Bitmap1* vertical_controller_interactable[7] = { nullptr };
+		ID2D1Bitmap1* group_controller_interactable[7] = { nullptr };
 
 		ID3D11Device* d3d_device = nullptr;
 		IDXGIDevice1* dxgi_device = nullptr;
@@ -84,7 +92,7 @@ namespace printui::render {
 		std::vector<ID2D1Brush*> palette;
 		std::vector<ID2D1Bitmap*> palette_bitmaps;
 
-		std::array<icon, standard_icons::final_icon> icons;
+		std::vector<icon> icons;
 
 		bool redraw_completely_pending = true;
 		bool is_suspended = false;
@@ -103,12 +111,13 @@ namespace printui::render {
 		void interactable_or_icon(window_data const& win, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical, uint8_t ico);
 		void interactable_or_foreground(window_data const& win, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical);
 		void interactable(window_data const& win, screen_space_point location, interactable_state state, uint8_t fg_brush, bool vertical);
-		void text(window_data const& win, ::printui::text::arranged_text*, int32_t x, int32_t y);
+		void text(window_data const& win, ::printui::text::arranged_text*, text_size sz, int32_t x, int32_t y);
 		void fill_from_foreground(screen_space_rect location, uint8_t fg_brush, bool optimize_for_text);
 		void create_palette(window_data const& win);
 		void mark_for_complete_redraw();
 		void stop_ui_animations(window_data const& win);
 		void prepare_ui_animation(window_data& win);
+		void prepare_layered_ui_animation(window_data& win);
 		void start_ui_animation(animation_description description, window_data& win);
 		void register_in_place_animation();
 		int64_t in_place_animation_running_ms() const;
@@ -119,6 +128,7 @@ namespace printui::render {
 		void draw_icon(int32_t x, int32_t y, uint8_t ico, uint8_t br);
 		void draw_icon_to_foreground(int32_t x, int32_t y, uint8_t ico);
 		layout_position get_icon_size(uint8_t ico);
+		uint8_t load_icon(std::wstring const& file_name, float edge_padding, int8_t x_size, int8_t y_size);
 	private:
 		void create_device_resources(window_data& win);
 		void to_display(std::vector<ui_rectangle> const& uirects, window_data& win);

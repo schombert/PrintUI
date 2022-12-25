@@ -2878,7 +2878,7 @@ namespace printui {
 				break;
 			case UIA_FontWeightAttributeId:
 				pRetVal->vt = VT_I4;
-				pRetVal->lVal = int32_t(to_font_weight(parent->win.dynamic_settings.primary_font.is_bold));
+				pRetVal->lVal = parent->win.dynamic_settings.primary_font.weight;
 				break;
 			case UIA_ForegroundColorAttributeId:
 				break;

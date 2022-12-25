@@ -93,9 +93,10 @@ namespace text_id {
 	inline constexpr uint16_t primary_font_info = 59;
 	inline constexpr uint16_t small_font_label = 60;
 	inline constexpr uint16_t small_font_info = 61;
+	inline constexpr uint16_t fonts_header = 62;
 
 
-	inline constexpr uint16_t first_free_id = 62;
+	inline constexpr uint16_t first_free_id = 63;
 }
 
 namespace printui {
@@ -253,28 +254,6 @@ namespace printui {
 		}
 	};
 
-	
-	inline float to_font_weight(bool is_bold) {
-		if(is_bold)
-			return 700.0f;
-		else
-			return 400.0f;
-	}
-	inline float to_font_style(bool is_italic) {
-		if(is_italic)
-			return 1.0f;
-		else
-			return 0.0f;
-	}
-	inline float to_font_span(font_span i) {
-		switch(i) {
-			case font_span::normal: return 100.0f;
-			case font_span::condensed: return 75.0f;
-			case font_span::wide: return 125.0f;
-			default: return 100.0f;
-		}
-	}
-
 	struct brush_color {
 		float r = 0.0f;
 		float g = 0.0f;
@@ -291,6 +270,7 @@ namespace printui {
 	struct launch_settings {
 		font_description primary_font;
 		font_description small_font;
+		font_description header_font;
 		std::vector<font_description> named_fonts;
 		std::vector<font_fallback> fallbacks;
 		std::vector<brush> brushes;
@@ -381,7 +361,7 @@ namespace printui {
 		normal, column_header, section_header, dont_break_after
 	};
 	enum class item_type : uint8_t {
-		normal, single_space, double_space, item_start, item_end, single_item
+		normal, single_space, double_space, item_start, item_end, single_item, decoration_footer
 	};
 
 	struct page_content {
@@ -412,6 +392,9 @@ namespace printui {
 
 		uint8_t min_column_horizontal_size = 0;
 		uint8_t max_column_horizontal_size = 255;
+
+		uint8_t decoration_brush = uint8_t(-1);
+		uint8_t section_footer_decoration = uint8_t(-1);
 
 		bool uniform_column_width = true;
 		bool additional_space_to_outer_margins = true; // if false, to inter-column spaces
@@ -541,10 +524,16 @@ namespace printui {
 		}
 	};
 
+	struct decoration_id {
+		uint8_t id;
+		uint8_t brush;
+	};
+
 	struct layout_node {
 		std::variant<
 			std::unique_ptr<page_information>,
 			std::unique_ptr<container_information>,
+			decoration_id,
 			std::monostate> contents = std::monostate{};
 
 		layout_interface* l_interface = nullptr;
@@ -790,7 +779,7 @@ namespace printui {
 	public:
 		layout_position resolved_text_size{ 0,1 };
 		content_alignment text_alignment = content_alignment::leading;
-		bool draw_standard_size = true;
+		text_size text_sz = text_size::standard;
 	public:
 		~stored_text();
 		void set_text(std::wstring const& v);
@@ -937,11 +926,8 @@ namespace printui {
 		virtual void set_interactable(int32_t, interactable_state v) override {
 			saved_state = v;
 		}
-		virtual int32_t interactable_count(window_data const& win) override {
-			if(!is_disabled(win))
-				return 1;
-			else
-				return 0;
+		virtual int32_t interactable_count(window_data const&) override {
+			return 1;
 		}
 		virtual void on_click(window_data&, uint32_t, uint32_t) final override;
 		virtual void on_right_click(window_data&, uint32_t, uint32_t) override;
@@ -1329,8 +1315,10 @@ namespace printui {
 		}
 
 		virtual void render_foreground(ui_rectangle const& rect, window_data& win) override;
+		virtual void render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) override;
 		virtual void button_action(window_data&);
-		void update_page(window_data& win);
+		virtual int32_t interactable_count(window_data const&) override;
+		void update_page(window_data const& win);
 	};
 
 	struct page_back_button : public icon_button_base {
@@ -1411,6 +1399,8 @@ namespace printui {
 		}
 		virtual void open(window_data&, bool move_focus) override;
 		virtual void close(window_data&, bool move_focus) override;
+
+		static void start_page_turn_animation(window_data& win, layout_reference page_container, bool increasing);
 	};
 
 	struct close_info_window : public icon_button_base {
@@ -1481,7 +1471,7 @@ namespace printui {
 
 		info_window() {
 			text.text_alignment = content_alignment::leading;
-			text.draw_standard_size = false;
+			text.text_sz = text_size::note;
 		}
 		virtual ~info_window() { }
 		virtual layout_node_type get_node_type() override {
@@ -1513,6 +1503,32 @@ namespace printui {
 			text.text_alignment = content_alignment::centered;
 		}
 		virtual ~single_line_centered_header();
+
+		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
+		virtual layout_node_type get_node_type() override {
+			return layout_node_type::container;
+		};
+		virtual void set_interactable(int32_t, interactable_state v) override {
+			saved_state = v;
+		}
+		virtual simple_layout_specification get_specification(window_data&) override;
+		virtual void render_foreground(ui_rectangle const& rect, window_data& win) override;
+		virtual void render_composite(ui_rectangle const& rect, window_data& win, bool under_mouse) override;
+		virtual void recreate_contents(window_data&, layout_node&) override;
+		virtual accessibility_object* get_accessibility_interface(window_data&) override;
+	};
+
+	struct large_centered_header : public render_interface {
+		page_header_button close_button;
+		stored_text text;
+		accessibility_object_ptr acc_obj;
+		interactable_state saved_state;
+
+		large_centered_header(uint16_t close_text, std::function<void(window_data&, layout_reference)>&& a) : close_button(close_text, std::move(a)) {
+			text.text_alignment = content_alignment::centered;
+			text.text_sz = text_size::header;
+		}
+		virtual ~large_centered_header();
 
 		virtual ui_rectangle prototype_ui_rectangle(window_data const& win, uint8_t parent_foreground_index, uint8_t parent_background_index) override;
 		virtual layout_node_type get_node_type() override {
@@ -1721,10 +1737,12 @@ namespace printui {
 
 		label_control ui_scale_label;
 		ui_scale_edit ui_scale_e;
+		
+		label_control fonts_header;
 
 		label_control primary_font_name_label;
 		font_menu primary_font_menu;
-
+		
 		label_control small_font_name_label;
 		font_menu small_font_menu;
 
@@ -1749,9 +1767,10 @@ namespace printui {
 	struct settings_page_container : public layout_interface {
 		std::vector<std::unique_ptr<settings_item_button>> settings_items;
 
-		single_line_centered_header page_header;
+		large_centered_header page_header;
 		int32_t settings_item_selected = 0;
 		open_list_control subpage_selection_list;
+		uint8_t section_bottom_decorations = uint8_t(-1);
 
 		accessibility_object_ptr acc_obj;
 
@@ -1846,7 +1865,7 @@ namespace printui {
 		// extra display formatting to apply to a range of characters
 		
 
-		int32_t get_height(window_data const& win, arranged_text* txt, bool standard_size);
+		int32_t get_height(window_data const& win, arranged_text* txt, text_size sz);
 		bool appropriate_directionality(window_data const& win, arranged_text* txt);
 		bool adjust_layout_region(arranged_text* txt, int32_t width, int32_t height);
 		std::vector<text_metrics> get_metrics_for_range(arranged_text* txt, uint32_t position, uint32_t length);
@@ -2030,8 +2049,6 @@ namespace printui {
 			uint16_t low = 0; // aka trailing
 		};
 
-		bool codepoint16_is_nonspacing(uint16_t c16) noexcept;
-		bool codepoint32_is_nonspacing(uint32_t c) noexcept;
 		uint32_t assemble_codepoint(uint16_t high, uint16_t low) noexcept;
 		surrogate_pair make_surrogate_pair(uint32_t val) noexcept;
 		bool is_low_surrogate(uint16_t char_code) noexcept;
@@ -2203,12 +2220,13 @@ namespace printui {
 		bool pending_right_click = false;
 
 		window_data(bool mn, bool mx, bool settings);
-		virtual ~window_data();
+		~window_data();
 
 		void load_default_dynamic_settings();
 		void client_on_dpi_change();
 		void client_on_resize(uint32_t width, uint32_t height);
 		std::vector<printui::settings_menu_item> get_settings_items() const;
+		void register_icons();
 
 		// called directly on message reciept
 
@@ -2220,6 +2238,7 @@ namespace printui {
 		bool on_resize(resize_type type, uint32_t width, uint32_t height);
 		void on_controller_input();
 		void on_device_change(uint64_t status, void* handle);
+		bool on_mouse_wheel(int32_t quantity);
 
 		// OTHER
 
@@ -2343,6 +2362,7 @@ namespace printui {
 		void remove_interactable_statuses();
 
 		void flag_for_update_from_interface(render_interface const* i);
+		void flag_for_update_from_layout_reference(layout_reference i);
 
 		screen_space_rect get_current_location(layout_reference r) const;
 		screen_space_rect get_layout_rect_in_current_location(layout_rect const& rect, layout_reference r) const;
