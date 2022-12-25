@@ -781,7 +781,7 @@ namespace printui {
 
 
 		if(!disabled) {
-			auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, ((node.height - 1) / 2), 1, (((node.height - 1) / 2) + 1), rect);
+			auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, ((node.height - 1) / 2), 1, 1, rect);
 			win.rendering_interface.interactable_or_foreground(win, new_top_left, saved_state, win.keyboard_target != this ? rect.foreground_index : resolved_brush, false);
 		}
 
@@ -793,8 +793,10 @@ namespace printui {
 			prepare_selection_regions(win);
 			// render text
 			{
-				auto text_and_margin = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin()), node.height, rect);
-				win.rendering_interface.fill_from_foreground(text_and_margin, rect.foreground_index, true);
+				auto text_bounding_rect = screen_rectangle_from_relative_rect_in_ui(win,
+					screen_space_rect{ node.left_margin() * win.layout_size - win.layout_size / 2 , 0, (win.get_node(l_id).width - (node.left_margin() + node.right_margin()) + 1) * win.layout_size, win.get_node(l_id).height * win.layout_size }, rect);
+
+				win.rendering_interface.fill_from_foreground(text_bounding_rect, rect.foreground_index, true);
 			}
 
 			auto num_visible_lines = node.height;
@@ -903,7 +905,7 @@ namespace printui {
 			update_analyzed_text(analysis_obj, formatted_text, text, win.orientation != layout_orientation::horizontal_right_to_left, win.text_data);
 		}
 
-		auto icon_location = screen_topleft_from_layout_in_ui(win, 0, ((node.height - 1) / 2), 1, (((node.height - 1) / 2) + 1), rect);
+		auto icon_location = screen_topleft_from_layout_in_ui(win, 0, ((node.height - 1) / 2), 1, 1, rect);
 		win.rendering_interface.draw_icon_to_foreground(icon_location.x, icon_location.y, standard_icons::control_text);
 		
 		// get sub layout positions
@@ -2121,7 +2123,8 @@ namespace printui {
 
 		win.rendering_interface.background_rectangle(rect, rect.display_flags, rect.background_index, under_mouse, win);
 		
-		auto text_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin()), label_text.resolved_text_size.y, rect);
+		auto text_rect = screen_rectangle_from_relative_rect_in_ui(win,
+			screen_space_rect{ node.left_margin() * win.layout_size - win.layout_size / 2 , 0, (win.get_node(l_id).width - (node.left_margin() + node.right_margin()) + 1) * win.layout_size, win.get_node(l_id).height * win.layout_size }, rect);
 
 		win.rendering_interface.fill_from_foreground(text_rect, rect.foreground_index, true);
 	}
@@ -2212,13 +2215,14 @@ namespace printui {
 			bg_index, under_mouse && !disabled, win);
 
 		if(!disabled && !selected) {
-			auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, ((button_text.resolved_text_size.y - 1) / 2), 1, (((button_text.resolved_text_size.y - 1) / 2) + 1), rect);
+			auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, ((button_text.resolved_text_size.y - 1) / 2), 1, 1, rect);
 			win.rendering_interface.interactable_or_foreground(win, new_top_left, saved_state, fg_index, false);
 		}
 
 		auto& node = win.get_node(l_id);
 
-		auto new_content_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin()), button_text.resolved_text_size.y, rect);
+		auto new_content_rect = screen_rectangle_from_relative_rect_in_ui(win,
+			screen_space_rect{ node.left_margin() * win.layout_size - win.layout_size / 2 , 0, (win.get_node(l_id).width - (node.left_margin() + node.right_margin()) + 1) * win.layout_size, win.get_node(l_id).height * win.layout_size }, rect);
 
 		if(!disabled) {
 			win.rendering_interface.fill_from_foreground(new_content_rect, fg_index, true);
@@ -2233,15 +2237,15 @@ namespace printui {
 
 		button_text.relayout_text(win, horizontal(win.orientation) ? screen_space_point{ rect.width - (node.left_margin() + node.right_margin()) * win.layout_size, rect.height } : screen_space_point{ rect.width, rect.height - (node.left_margin() + node.right_margin()) * win.layout_size });
 
-		auto icon_location = screen_topleft_from_layout_in_ui(win, 0, ((button_text.resolved_text_size.y - 1) / 2), 1, (((button_text.resolved_text_size.y - 1) / 2) + 1), rect);
+		auto icon_location = screen_topleft_from_layout_in_ui(win, 0, ((button_text.resolved_text_size.y - 1) / 2), 1, 1, rect);
 
 		win.rendering_interface.draw_icon_to_foreground(icon_location.x, icon_location.y, icon);
 
 		// get sub layout positions
 
-		auto text_bounding_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin() + node.right_margin()), button_text.resolved_text_size.y, rect);
+		auto new_content_rect = screen_rectangle_from_layout_in_ui(win, node.left_margin(), 0, win.get_node(l_id).width - (node.left_margin() + node.right_margin()), button_text.resolved_text_size.y, rect);
 
-		button_text.draw_text(win, text_bounding_rect.x, text_bounding_rect.y);
+		button_text.draw_text(win, new_content_rect.x, new_content_rect.y);
 	}
 
 	void button_control_base::on_right_click(window_data& win, uint32_t, uint32_t) {

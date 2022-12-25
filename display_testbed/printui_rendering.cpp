@@ -1142,6 +1142,10 @@ namespace printui {
 
 		void direct2d_rendering::background_rectangle(screen_space_rect rect, uint8_t display_flags, uint8_t brush, bool under_mouse, window_data const& win) {
 
+			if((display_flags & ui_rectangle::flag_overlay) != 0) {
+				return;
+			}
+
 			D2D1_RECT_F content_rect{
 				float(rect.x), float(rect.y),
 				float(rect.x + rect.width), float(rect.y + rect.height) };
@@ -1185,7 +1189,7 @@ namespace printui {
 					d2d_device_context->PopAxisAlignedClip();
 				} else if((r.display_flags & ui_rectangle::flag_preserve_rect) != 0) {
 					update_preserved_rects(r, *this, screen_rect_geom, with_preserved_rects, old_rects, win.ui_width, win.ui_height);
-				} else if((r.display_flags & ui_rectangle::flag_grouping_only) == 0) {
+				} else {
 					d2d_device_context->SetTransform(D2D1::Matrix3x2F::Identity());
 					if(!(r.parent_object.get_render_interface())) {
 						background_rectangle(r, r.display_flags, r.background_index, win.last_under_cursor == i, win);
@@ -1284,12 +1288,26 @@ namespace printui {
 
 				} else if((r.display_flags & ui_rectangle::flag_preserve_rect) != 0) {
 					update_preserved_rects(r, *this, screen_rect_geom, with_preserved_rects, old_rects, win.ui_width, win.ui_height);
-				} else if((r.display_flags & ui_rectangle::flag_grouping_only) == 0 && (r.display_flags & ui_rectangle::flag_needs_update) != 0) {
+				} else if((r.display_flags & ui_rectangle::flag_needs_update) != 0) {
 					d2d_device_context->SetTransform(D2D1::Matrix3x2F::Identity());
-
-					d2d_device_context->PushAxisAlignedClip(D2D1_RECT_F{
-						float(r.x_position), float(r.y_position),
-						float(r.x_position + r.width), float(r.y_position + r.height) }, D2D1_ANTIALIAS_MODE_ALIASED);
+					auto lid = r.parent_object.get_layout_reference();
+					if(lid == layout_reference_none) {
+						d2d_device_context->PushAxisAlignedClip(D2D1_RECT_F{
+							float(r.x_position), float(r.y_position),
+							float(r.x_position + r.width), float(r.y_position + r.height) }, D2D1_ANTIALIAS_MODE_ALIASED);
+					} else {
+						auto& node = win.get_node(lid);
+						auto content_rect = screen_rectangle_from_relative_rect_in_ui(win,
+							screen_space_rect{
+								node.left_margin() * win.layout_size - win.layout_size / 2,
+								0,
+								(node.width - (node.left_margin() + node.right_margin()) + 1) * win.layout_size,
+								node.height * win.layout_size
+							}, r);
+						d2d_device_context->PushAxisAlignedClip(D2D1_RECT_F{
+							float(content_rect.x), float(content_rect.y),
+							float(content_rect.x + content_rect.width), float(content_rect.y + content_rect.height) }, D2D1_ANTIALIAS_MODE_ALIASED);
+					}
 					d2d_device_context->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
 					if(r.parent_object.get_render_interface())
 						r.parent_object->render_foreground(r, win);
@@ -1323,7 +1341,7 @@ namespace printui {
 					d2d_device_context->PopAxisAlignedClip();
 				} else if((r.display_flags & ui_rectangle::flag_preserve_rect) != 0) {
 					update_preserved_rects(r, *this, screen_rect_geom, with_preserved_rects, old_rects, win.ui_width, win.ui_height);
-				} else if((r.display_flags & ui_rectangle::flag_grouping_only) == 0) {
+				} else {
 					d2d_device_context->SetTransform(D2D1::Matrix3x2F::Identity());
 
 					if(r.parent_object.get_render_interface()) {
@@ -2003,7 +2021,7 @@ namespace printui {
 				refresh_foregound(win);
 
 				if(win.window_interface.is_mouse_cursor_visible()) {
-					win.last_under_cursor = reference_under_point(win, win.get_ui_rects(), win.last_cursor_x_position, win.last_cursor_y_position);
+					win.last_under_cursor = reference_under_point(win, win.get_ui_rects(), win.last_cursor_x_position, win.last_cursor_y_position, true);
 				}
 
 				win.update_window_focus();

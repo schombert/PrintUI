@@ -188,7 +188,7 @@ namespace printui {
 
 	IFACEMETHODIMP root_window_provider::ElementProviderFromPoint(double x, double y, IRawElementProviderFragment** pRetVal) {
 		auto window_rect = win.window_interface.get_window_location();
-		auto new_l_ref = layout_reference_under_point(win, win.get_ui_rects(), int32_t(x) - window_rect.x, int32_t(y) - window_rect.y);
+		auto new_l_ref = layout_reference_under_point(win, win.get_ui_rects(), int32_t(x) - window_rect.x, int32_t(y) - window_rect.y, false);
 
 		while(new_l_ref != layout_reference_none) {
 			auto& n = win.get_node(new_l_ref);

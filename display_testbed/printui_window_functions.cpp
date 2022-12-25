@@ -305,15 +305,17 @@ namespace printui {
 		register_icons();
 	}
 
-	ui_rectangle const* interface_under_point(std::vector<ui_rectangle> const& rects, int32_t x, int32_t y) {
+	ui_rectangle const* interface_under_point(window_data const& win, std::vector<ui_rectangle> const& rects, int32_t x, int32_t y, bool ignore_overlay) {
 		ui_rectangle const* found = nullptr;
 		for(auto& r : rects) {
-			if(x >= r.x_position && x <= r.x_position + r.width && y >= r.y_position && y <= r.y_position + r.height) {
+			auto test_rect = render::extend_rect_to_edges(r, win);
+
+			if(x >= test_rect.x && x <= test_rect.x + test_rect.width && y >= test_rect.y && y <= test_rect.y + test_rect.height) {
 				if((r.display_flags & ui_rectangle::flag_clear_rect) != 0) {
 					found = nullptr;
 				} else if((r.display_flags & ui_rectangle::flag_preserve_rect) != 0) {
 					return found;
-				} else if((r.display_flags & ui_rectangle::flag_grouping_only) == 0) {
+				} else if(!ignore_overlay || (r.display_flags & ui_rectangle::flag_overlay) == 0) {
 					if(r.parent_object.get_render_interface())
 						found = &r;
 				}
@@ -321,16 +323,16 @@ namespace printui {
 		}
 		return found;
 	}
-	ui_reference reference_under_point(window_data const& win, std::vector<ui_rectangle> const& rects, int32_t x, int32_t y) {
-		ui_reference found = std::numeric_limits<ui_reference>::max();
+	ui_reference reference_under_point(window_data const& win, std::vector<ui_rectangle> const& rects, int32_t x, int32_t y, bool ignore_overlay) {
+		ui_reference found = ui_reference_none;
 		for(ui_reference i = 0; i < rects.size(); ++i) {
 			auto test_rect = render::extend_rect_to_edges(rects[i], win);
 			if(x >= test_rect.x && x <= test_rect.x + test_rect.width && y >= test_rect.y && y <= test_rect.y + test_rect.height) {
 				if((rects[i].display_flags & ui_rectangle::flag_clear_rect) != 0) {
-					found = std::numeric_limits<ui_reference>::max();
+					found = ui_reference_none;
 				} else if((rects[i].display_flags & ui_rectangle::flag_preserve_rect) != 0) {
 					return found;
-				} else if(((rects[i].display_flags & ui_rectangle::flag_grouping_only) == 0) &&
+				} else if( (!ignore_overlay || (rects[i].display_flags & ui_rectangle::flag_overlay) == 0) &&
 					((rects[i].display_flags & ui_rectangle::flag_frame) == 0 || rects[i].parent_object.get_render_interface() != nullptr)) {
 					found = i;
 				}
@@ -338,8 +340,8 @@ namespace printui {
 		}
 		return found;
 	}
-	layout_reference layout_reference_under_point(window_data const& win, std::vector<ui_rectangle> const& rects, int32_t x, int32_t y) {
-		layout_reference found = std::numeric_limits<layout_reference>::max();
+	layout_reference layout_reference_under_point(window_data const& win, std::vector<ui_rectangle> const& rects, int32_t x, int32_t y, bool ignore_overlay) {
+		layout_reference found = layout_reference_none;
 		for(layout_reference i = 0; i < rects.size(); ++i) {
 
 			auto test_rect = render::extend_rect_to_edges(rects[i], win);
@@ -349,8 +351,8 @@ namespace printui {
 					found = layout_reference_none;
 				} else if((rects[i].display_flags & ui_rectangle::flag_preserve_rect) != 0) {
 					return found;
-				} else if((rects[i].display_flags & ui_rectangle::flag_frame) != 0) {
-				} else {
+				} else if((rects[i].display_flags & ui_rectangle::flag_frame) != 0 && rects[i].parent_object.get_render_interface() == nullptr) {
+				} else if(!ignore_overlay || (rects[i].display_flags & ui_rectangle::flag_overlay) == 0) {
 					found = rects[i].parent_object.get_layout_reference();
 				}
 			}
@@ -413,9 +415,9 @@ namespace printui {
 		}
 
 		auto& rects = get_ui_rects();
-		auto new_under_cursor = printui::reference_under_point(*this, rects, last_cursor_x_position, last_cursor_y_position);
+		auto new_under_cursor = printui::reference_under_point(*this, rects, last_cursor_x_position, last_cursor_y_position, true);
 
-		auto new_l_ref = layout_reference_under_point(*this, rects, last_cursor_x_position, last_cursor_y_position);
+		auto new_l_ref = layout_reference_under_point(*this, rects, last_cursor_x_position, last_cursor_y_position, true);
 
 		set_window_focus_from_mouse(new_l_ref);
 
@@ -569,6 +571,7 @@ namespace printui {
 					keyboard_target->command(*this, edit_command::redo, false);
 				}
 			}
+			info_popup.close(*this, false);
 			return true;
 		}
 
@@ -607,7 +610,7 @@ namespace printui {
 				}
 			}
 		}
-
+		info_popup.close(*this, false);
 		return true;
 	}
 
@@ -803,6 +806,8 @@ namespace printui {
 	}
 
 	bool window_data::on_mouse_wheel(int32_t quantity) {
+		info_popup.close(*this, false);
+
 		if(keyboard_target) {
 			if(quantity > 20) {
 				keyboard_target->command(*this, edit_command::cursor_up, window_interface.is_shift_held_down());
@@ -812,7 +817,7 @@ namespace printui {
 			return true;
 		}
 
-		auto under_cursor = printui::layout_reference_under_point(*this, get_ui_rects(), last_cursor_x_position, last_cursor_y_position);
+		auto under_cursor = printui::layout_reference_under_point(*this, get_ui_rects(), last_cursor_x_position, last_cursor_y_position, true);
 		if(under_cursor != layout_reference_none) {
 			auto page_container = get_node(under_cursor).page_info() == nullptr || get_node(under_cursor).page_info()->header == layout_reference_none ? get_containing_proper_page(under_cursor) : under_cursor;
 			if(page_container != layout_reference_none) {
@@ -861,13 +866,17 @@ namespace printui {
 			if(keyboard_target->move_cursor_by_screen_pt(*this, screen_space_point{ int32_t(x), int32_t(y) }, false)) {
 				selecting_edit_text = edit_selection_mode::standard;
 
+				info_popup.close(*this, false);
 				return true;
 			} else {
 				set_keyboard_focus(nullptr);
 			}
 		}
 
-		auto under_cursor = printui::interface_under_point(get_ui_rects(), x, y);
+		if(!pending_right_click)
+			info_popup.close(*this, false);
+
+		auto under_cursor = printui::interface_under_point(*this, get_ui_rects(), x, y, true);
 		if(under_cursor) {
 			if(pending_right_click) {
 				auto presult = window_interface.get_key_state(primary_right_click_modifier_sc);
@@ -897,7 +906,7 @@ namespace printui {
 			return false;
 		}
 
-		auto under_cursor = printui::interface_under_point(get_ui_rects(), x, y);
+		auto under_cursor = printui::interface_under_point(*this, get_ui_rects(), x, y, false);
 		if(under_cursor) {
 			if(pending_right_click) {
 				auto presult = window_interface.get_key_state(primary_right_click_modifier_sc);
@@ -1099,13 +1108,13 @@ namespace printui {
 
 								if(app->orientation == layout_orientation::horizontal_left_to_right) {
 									if(ptMouse.x >= rcWindow.left && ptMouse.x < rcWindow.left + app->window_border + 2 * app->layout_size) {
-										if(printui::interface_under_point(app->get_ui_rects(), ptMouse.x - rcWindow.left, ptMouse.y - rcWindow.top) == nullptr) {
+										if(printui::interface_under_point(*app, app->get_ui_rects(), ptMouse.x - rcWindow.left, ptMouse.y - rcWindow.top, true) == nullptr) {
 											return HTCAPTION;
 										}
 									}
 								} else {
 									if(ptMouse.x <= rcWindow.right && ptMouse.x >= rcWindow.right - app->window_border - 2 * app->layout_size) {
-										if(printui::interface_under_point(app->get_ui_rects(), ptMouse.x - rcWindow.left, ptMouse.y - rcWindow.top) == nullptr) {
+										if(printui::interface_under_point(*app, app->get_ui_rects(), ptMouse.x - rcWindow.left, ptMouse.y - rcWindow.top, true) == nullptr) {
 											return HTCAPTION;
 										}
 									}
@@ -1122,7 +1131,7 @@ namespace printui {
 								}
 
 								if(ptMouse.y >= rcWindow.top && ptMouse.y < rcWindow.top + app->window_border + 2 * app->layout_size) {
-									if(printui::interface_under_point(app->get_ui_rects(), ptMouse.x - rcWindow.left, ptMouse.y - rcWindow.top) == nullptr) {
+									if(printui::interface_under_point(*app, app->get_ui_rects(), ptMouse.x - rcWindow.left, ptMouse.y - rcWindow.top, true) == nullptr) {
 										return HTCAPTION;
 									}
 								}

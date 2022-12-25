@@ -218,37 +218,72 @@ namespace printui {
 					max_item_width = std::max(max_item_width, int32_t(item_spec.minimum_line_size));
 					win.get_node(cn).set_margins(spec.column_left_margin, spec.column_right_margin);
 
+					layout_reference label_control = layout_reference_none;
+					if(i->label) {
+						auto label_space = i->label->get_specification(win);
+						label_control = win.create_node(i->label, label_space.minimum_line_size, label_space.minimum_page_size, false, true);
+
+						if((label_space.minimum_line_size + item_spec.minimum_line_size + 1 + spec.column_left_margin + spec.column_right_margin) < spec.max_column_horizontal_size) {
+							max_item_width = std::max(max_item_width, int32_t(label_space.minimum_line_size + item_spec.minimum_line_size + 1));
+							win.get_node(label_control).set_margins(spec.column_left_margin, spec.column_right_margin + item_spec.minimum_line_size + 1);
+							win.get_node(cn).set_margins(spec.column_left_margin + label_space.minimum_line_size + 1, spec.column_right_margin);
+							win.get_node(label_control).flags |= layout_node::flag_overlay;
+						} else {
+							max_item_width = std::max(max_item_width, int32_t(label_space.minimum_line_size));
+							win.get_node(label_control).set_margins(spec.column_left_margin, spec.column_right_margin);
+							win.get_node(label_control).flags &= ~layout_node::flag_overlay;
+						}
+					}
+
 					if(i->type == item_type::item_start) {
 						if(hs == highlight_state::just_finished_not_highlighted_item) {
 							hs = highlight_state::highlighting_item;
 							win.get_node(cn).set_highlight(true);
+							if(label_control != layout_reference_none)
+								win.get_node(label_control).set_highlight(true);
 						} else {
 							hs = highlight_state::not_highlighting_item;
 							win.get_node(cn).set_highlight(false);
+							if(label_control != layout_reference_none)
+								win.get_node(label_control).set_highlight(false);
 						}
 					} else if(i->type == item_type::item_end) {
 						if(hs == highlight_state::highlighting_item) {
 							win.get_node(cn).set_highlight(true);
+							if(label_control != layout_reference_none)
+								win.get_node(label_control).set_highlight(true);
 							hs = highlight_state::just_finished_highlighted_item;
 						} else {
 							win.get_node(cn).set_highlight(false);
+							if(label_control != layout_reference_none)
+								win.get_node(label_control).set_highlight(false);
 							hs = highlight_state::just_finished_not_highlighted_item;
 						}
 					} else if(i->type == item_type::single_item) {
 						if(hs == highlight_state::just_finished_not_highlighted_item) {
 							win.get_node(cn).set_highlight(true);
+							if(label_control != layout_reference_none)
+								win.get_node(label_control).set_highlight(true);
 							hs = highlight_state::just_finished_highlighted_item;
 						} else {
 							win.get_node(cn).set_highlight(false);
+							if(label_control != layout_reference_none)
+								win.get_node(label_control).set_highlight(false);
 							hs = highlight_state::just_finished_not_highlighted_item;
 						}
 					} else {
 						if(hs == highlight_state::highlighting_item) {
 							win.get_node(cn).set_highlight(true);
+							if(label_control != layout_reference_none)
+								win.get_node(label_control).set_highlight(true);
 						} else if(hs == highlight_state::not_highlighting_item) {
 							win.get_node(cn).set_highlight(false);
+							if(label_control != layout_reference_none)
+								win.get_node(label_control).set_highlight(false);
 						} else {
 							win.get_node(cn).set_highlight(false);
+							if(label_control != layout_reference_none)
+								win.get_node(label_control).set_highlight(false);
 							hs = highlight_state::painted_normal;
 						}
 					}
@@ -291,16 +326,28 @@ namespace printui {
 						if(!chunk_start)
 							chunk_start = i;
 					}
-
-					if(win.get_node(i->item->l_id).height + vertical_offset > available_vert_space) {
+					auto item_space = win.get_node(i->item->l_id).height;
+					if(i->label) {
+						item_space = std::max(item_space, win.get_node(i->label->l_id).height);
+					}
+					if(item_space + vertical_offset > available_vert_space) {
 						// opt, roll back, make new column
 						if(inside_glued_chunk && !chunk_started_at_zero) {
 							auto ci = win.get_node(current_column).container_info();
 
 							while(i != chunk_start) {
 								--i;
-								if(ci->view_children().size() != 0 && ((i->item && ci->view_children().back() == i->item->l_id) || (i->type == item_type::decoration_footer && win.get_node(ci->view_children().back()).l_interface == nullptr))) {
-									ci->modify_children().pop_back();
+								if(ci->view_children().size() != 0) {
+									if(i->label && i->item && ci->view_children().back() == i->label->l_id) {
+										ci->modify_children().pop_back();
+										ci->modify_children().pop_back();
+									}
+									if(i->item && ci->view_children().back() == i->item->l_id) {
+										ci->modify_children().pop_back();
+									}
+									if(i->type == item_type::decoration_footer && win.get_node(ci->view_children().back()).l_interface == nullptr) {
+										ci->modify_children().pop_back();
+									}
 								}
 							}
 							chunk_started_at_zero = true;
@@ -320,7 +367,22 @@ namespace printui {
 					win.immediate_add_child(current_column, i->item->l_id);
 					win.get_node(i->item->l_id).x = 0;
 					win.get_node(i->item->l_id).y = uint16_t(vertical_offset);
-					vertical_offset += win.get_node(i->item->l_id).height;
+
+					if(i->label) {
+						win.immediate_add_child(current_column, i->label->l_id);
+						win.get_node(i->label->l_id).x = 0;
+						win.get_node(i->label->l_id).y = uint16_t(vertical_offset);
+						if(win.get_node(i->label->l_id).height > win.get_node(i->item->l_id).height) {
+							auto hoff = (1 + win.get_node(i->label->l_id).height - win.get_node(i->item->l_id).height) / 2;
+							win.get_node(i->item->l_id).y += uint16_t(hoff);
+
+						} else if(win.get_node(i->label->l_id).height < win.get_node(i->item->l_id).height) {
+							auto hoff = (1 + win.get_node(i->item->l_id).height - win.get_node(i->label->l_id).height) / 2;
+							win.get_node(i->label->l_id).y += uint16_t(hoff);
+						}
+					}
+					
+					vertical_offset += item_space;
 					win.get_node(current_column).height = uint16_t(vertical_offset);
 
 					if(i->brk != column_break_behavior::section_header && i->brk != column_break_behavior::dont_break_after) {
@@ -574,6 +636,10 @@ namespace printui {
 					candidate.display_flags |= ui_rectangle::flag_line_highlight;
 			}
 
+			if((n->flags & layout_node::flag_overlay) != 0) {
+				candidate.display_flags |= ui_rectangle::flag_overlay;
+			}
+
 			uint32_t content_start = 0;
 			uint32_t content_end = uint32_t(pi->view_columns().size());
 			if(pi->subpage_offset > 0) {
@@ -634,6 +700,9 @@ namespace printui {
 				if((highlight_line || n->highlight()) && content_rect.width == 0 && content_rect.height == 0)
 					candidate.display_flags |= ui_rectangle::flag_line_highlight;
 			}
+			if((n->flags & layout_node::flag_overlay) != 0) {
+				candidate.display_flags |= ui_rectangle::flag_overlay;
+			}
 
 			candidate.x_position = uint16_t(dest_rect.x);
 			candidate.y_position = uint16_t(dest_rect.y);
@@ -671,8 +740,11 @@ namespace printui {
 			}
 
 			if(candidate.top_border != 0 || candidate.bottom_border != 0 || candidate.left_border != 0 || candidate.right_border != 0) {
-
 				candidate.display_flags |= ui_rectangle::flag_frame;
+			}
+
+			if((n->flags & layout_node::flag_overlay) != 0) {
+				candidate.display_flags |= ui_rectangle::flag_overlay;
 			}
 
 			candidate.x_position = uint16_t(dest_rect.x);
@@ -1083,7 +1155,7 @@ namespace printui {
 		node_storage.clear();
 	}
 	void layout_node_storage::begin_new_generation() {
-		current_generation = uint8_t(0x0F & (current_generation + 1));
+		current_generation = uint8_t(layout_node::flag_generation_mask & (current_generation + 1));
 	}
 	void layout_node_storage::release_node(layout_reference id) {
 		if((node_storage[id].flags & layout_node::flag_freed) == 0) { // prevent double frees

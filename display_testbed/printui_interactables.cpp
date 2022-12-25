@@ -535,7 +535,7 @@ namespace printui {
 
 	void window_data::update_window_focus() {
 		if(window_interface.is_mouse_cursor_visible()) {
-			auto new_lref = layout_reference_under_point(*this, get_ui_rects(), last_cursor_x_position, last_cursor_y_position);
+			auto new_lref = layout_reference_under_point(*this, get_ui_rects(), last_cursor_x_position, last_cursor_y_position, true);
 			set_window_focus_from_mouse(new_lref);
 		} else {
 			auto focus_id = get_focus_stack_top_ref(focus_stack);

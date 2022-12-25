@@ -254,17 +254,7 @@ namespace printui {
 		}
 	};
 
-	struct brush_color {
-		float r = 0.0f;
-		float g = 0.0f;
-		float b = 0.0f;
-	};
-
-	struct brush {
-		std::wstring texture;
-		brush_color rgb;
-		bool is_light_color;
-	};
+	
 
 
 	struct launch_settings {
@@ -353,136 +343,10 @@ namespace printui {
 	screen_space_rect reverse_screen_space_orientation(window_data const& win, screen_space_rect source);
 	screen_space_rect intersection(screen_space_rect a, screen_space_rect b);
 
-
-	
-
 	struct layout_interface;
 	struct render_interface;
 
-	enum class column_break_behavior : uint8_t {
-		normal, column_header, section_header, dont_break_after
-	};
-	enum class item_type : uint8_t {
-		normal, single_space, double_space, item_start, item_end, single_item, decoration_footer
-	};
-
-	struct page_content {
-		layout_interface* item = nullptr;
-		column_break_behavior brk = column_break_behavior::normal;
-		item_type type = item_type::normal;
-	};
-
-	struct page_layout_specification {
-		layout_interface* header = nullptr;
-		layout_interface* footer = nullptr;
-
-		page_content const* begin = nullptr;
-		page_content const* end = nullptr;
-
-		uint8_t ex_page_left_margin = 0;
-		uint8_t ex_page_right_margin = 0;
-		uint8_t ex_inter_column_margin = 0;
-
-		uint8_t ex_page_top_margin = 0; // will be added to space for header
-		uint8_t ex_page_bottom_margin = 0; // will be added to space for footer
-
-		uint8_t column_left_margin = 2;
-		uint8_t column_right_margin = 2;
-
-		uint8_t min_columns = 1;
-		uint8_t max_columns = 255;
-
-		uint8_t min_column_horizontal_size = 0;
-		uint8_t max_column_horizontal_size = 255;
-
-		uint8_t decoration_brush = uint8_t(-1);
-		uint8_t section_footer_decoration = uint8_t(-1);
-
-		bool uniform_column_width = true;
-		bool additional_space_to_outer_margins = true; // if false, to inter-column spaces
-
-		content_alignment vertical_column_alignment = content_alignment::leading;
-		content_alignment horizontal_columns_alignment = content_alignment::centered; // where additional outer margin space goes
-
-		bool horz_shrink_page_to_content = true; // if set, any extra horizontal space will be removed
-		bool vert_shrink_page_to_content = false;
-	};
-
-
-	struct simple_layout_specification {
-		uint16_t minimum_page_size = 0;
-		uint16_t minimum_line_size = 0;
-
-		size_flags page_flags = size_flags::none;
-		size_flags line_flags = size_flags::none;
-	};
-
 	
-
-	using layout_reference = uint16_t;
-	using ui_reference = uint16_t;
-
-	inline constexpr layout_reference layout_reference_none = std::numeric_limits<layout_reference>::max();
-	inline constexpr ui_reference ui_reference_none = std::numeric_limits<ui_reference>::max();
-
-	struct interface_or_layout_ref {
-	private:
-		render_interface* ptr = nullptr;
-	public:
-		interface_or_layout_ref() {}
-		interface_or_layout_ref(render_interface* r) : ptr(r) {
-		}
-		interface_or_layout_ref(layout_reference r) : ptr(reinterpret_cast<render_interface*>((size_t(r) << 1) | 1)) {
-		}
-
-		render_interface* operator->() const {
-			if((reinterpret_cast<size_t>(ptr) & 0x01) == 0)
-				return ptr;
-			else
-				return nullptr;
-		}
-		layout_reference get_layout_reference() const;
-		render_interface* get_render_interface() const;
-	};
-
-	struct ui_rectangle {
-	public:
-		static constexpr uint8_t flag_interactable = 0x01;
-		static constexpr uint8_t flag_line_highlight = 0x02;
-		static constexpr uint8_t flag_frame = 0x04;
-		static constexpr uint8_t flag_skip_bg = 0x08;
-		static constexpr uint8_t flag_clear_rect = 0x10;
-		static constexpr uint8_t flag_preserve_rect = 0x20;
-		static constexpr uint8_t flag_needs_update = 0x40;
-		static constexpr uint8_t flag_grouping_only = 0x80;
-
-		interface_or_layout_ref parent_object; // +8 bytes
-
-		uint16_t x_position = 0; // 2 -- in pixels
-		uint16_t y_position = 0; // 4 -- in pixels
-		uint16_t width = 0; // 6 -- in pixels
-		uint16_t height = 0; // 8 -- in pixels
-
-		uint8_t foreground_index = 1; //9
-		uint8_t background_index = 0; //10
-
-		uint8_t left_border = 0; //11
-		uint8_t right_border = 0; //12
-		uint8_t top_border = 0; //13
-		uint8_t bottom_border = 0; //14
-
-		uint8_t display_flags = 0; //15
-
-		ui_rectangle() {
-		};
-		ui_rectangle(uint8_t fg, uint8_t bg) : foreground_index(fg), background_index(bg) {
-		};
-
-		operator screen_space_rect() const {
-			return screen_space_rect{ x_position, y_position, width, height };
-		}
-		void rotate_borders(layout_orientation o);
-	};
 
 	struct page_information {
 	private:
@@ -553,7 +417,8 @@ namespace printui {
 		uint8_t flags = 0;
 		uint8_t margins = 0;
 
-		constexpr static uint8_t flag_generation_mask = 0x0F;
+		constexpr static uint8_t flag_generation_mask = 0x07;
+		constexpr static uint8_t flag_overlay = 0x08;
 		constexpr static uint8_t flag_layout_deferred = 0x10;
 		constexpr static uint8_t flag_ignore = 0x20;
 		constexpr static uint8_t flag_highlight = 0x40;
@@ -2393,9 +2258,9 @@ namespace printui {
 	};
 
 	
-	ui_rectangle const* interface_under_point(std::vector<ui_rectangle> const& rects, int32_t x, int32_t y);
-	ui_reference reference_under_point(window_data const& win, std::vector<ui_rectangle> const& rects, int32_t x, int32_t y);
-	layout_reference layout_reference_under_point(window_data const& win, std::vector<ui_rectangle> const& rects, int32_t x, int32_t y);
+	ui_rectangle const* interface_under_point(window_data const& win, std::vector<ui_rectangle> const& rects, int32_t x, int32_t y, bool ignore_overlay);
+	ui_reference reference_under_point(window_data const& win, std::vector<ui_rectangle> const& rects, int32_t x, int32_t y, bool ignore_overlay);
+	layout_reference layout_reference_under_point(window_data const& win, std::vector<ui_rectangle> const& rects, int32_t x, int32_t y, bool ignore_overlay);
 
 
 	int32_t reading_direction_from_orientation(layout_orientation o);

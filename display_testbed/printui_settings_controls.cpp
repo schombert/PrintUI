@@ -221,32 +221,32 @@ namespace printui {
 		small_font_menu.alt_text = text_id::small_font_info;
 		small_font_menu.name = text_id::small_font_label;
 
-		content_description.push_back(page_content{&language_label, column_break_behavior::dont_break_after, item_type::item_start});
-		content_description.push_back(page_content{ &lang_menu, column_break_behavior::normal, item_type::item_end });
-		content_description.push_back(page_content{ &orientation_label, column_break_behavior::dont_break_after, item_type::item_start });
-		content_description.push_back(page_content{ &orientation_list, column_break_behavior::normal, item_type::item_end });
-		content_description.push_back(page_content{ &input_mode_label, column_break_behavior::dont_break_after, item_type::item_start });
-		content_description.push_back(page_content{ &input_mode_list, column_break_behavior::normal, item_type::item_end });
-		content_description.push_back(page_content{ &toggle_animations_label, column_break_behavior::dont_break_after, item_type::item_start });
-		content_description.push_back(page_content{ &toggle_animations, column_break_behavior::normal, item_type::item_end });
-		content_description.push_back(page_content{ &ui_scale_label, column_break_behavior::dont_break_after, item_type::item_start });
-		content_description.push_back(page_content{ &ui_scale_e, column_break_behavior::normal, item_type::item_end });
+		content_description.push_back(page_content{&language_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &lang_menu, column_break_behavior::normal, item_type::item_end, nullptr });
+		content_description.push_back(page_content{ &orientation_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &orientation_list, column_break_behavior::normal, item_type::item_end, nullptr });
+		content_description.push_back(page_content{ &input_mode_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &input_mode_list, column_break_behavior::normal, item_type::item_end, nullptr });
+		//content_description.push_back(page_content{ &toggle_animations_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &toggle_animations, column_break_behavior::normal, item_type::single_item, &toggle_animations_label });
+		//content_description.push_back(page_content{ &ui_scale_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &ui_scale_e, column_break_behavior::normal, item_type::single_item, &ui_scale_label });
 
-		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space });
-		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_footer });
-		content_description.push_back(page_content{nullptr, column_break_behavior::normal, item_type::single_space });
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_footer, nullptr });
+		content_description.push_back(page_content{nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
 		
-		content_description.push_back(page_content{ &fonts_header, column_break_behavior::dont_break_after, item_type::normal });
-		content_description.push_back(page_content{ nullptr, column_break_behavior::dont_break_after, item_type::single_space });
+		content_description.push_back(page_content{ &fonts_header, column_break_behavior::dont_break_after, item_type::normal, nullptr });
+		content_description.push_back(page_content{ nullptr, column_break_behavior::dont_break_after, item_type::single_space, nullptr });
 
-		content_description.push_back(page_content{ &primary_font_name_label, column_break_behavior::dont_break_after, item_type::item_start });
-		content_description.push_back(page_content{ &primary_font_menu, column_break_behavior::normal, item_type::item_end });
+		content_description.push_back(page_content{ &primary_font_name_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &primary_font_menu, column_break_behavior::normal, item_type::item_end, nullptr });
 
-		content_description.push_back(page_content{ &small_font_name_label, column_break_behavior::dont_break_after, item_type::item_start });
-		content_description.push_back(page_content{ &small_font_menu, column_break_behavior::normal, item_type::item_end });
+		content_description.push_back(page_content{ &small_font_name_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &small_font_menu, column_break_behavior::normal, item_type::item_end, nullptr });
 
-		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space });
-		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_footer });
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_footer, nullptr });
 		
 	}
 

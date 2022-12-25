@@ -29,8 +29,8 @@ std::vector<printui::settings_menu_item> printui::window_data::get_settings_item
 
 void printui::window_data::register_icons() {
 	window_bar.settings_pages.section_bottom_decorations = rendering_interface.load_icon(L"1x1_087.svg", 0.1f, 1, 1);
-	large_centered_header::left_decoration = rendering_interface.load_icon(L"S1x1_001Left.svg", 0.0f, 2, 2);
-	large_centered_header::right_decoration = rendering_interface.load_icon(L"S1x1_001Right.svg", 0.0f, 2, 2);
+	large_centered_header::left_decoration = rendering_interface.load_icon(L"S1x1_001Left.svg", 0.2f, 2, 2);
+	large_centered_header::right_decoration = rendering_interface.load_icon(L"S1x1_001Right.svg", 0.2f, 2, 2);
 }
 
 void printui::window_data::load_default_dynamic_settings() {
