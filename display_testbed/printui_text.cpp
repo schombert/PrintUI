@@ -975,6 +975,28 @@ namespace printui::text {
 		register_name("small_font_label", ::text_id::small_font_label);
 		register_name("small_font_info", ::text_id::small_font_info);
 		register_name("fonts_header", ::text_id::fonts_header);
+		register_name("generic_toggle_yes", ::text_id::generic_toggle_yes);
+		register_name("generic_toggle_no", ::text_id::generic_toggle_no);
+		register_name("font_weight", ::text_id::font_weight);
+		register_name("font_stretch", ::text_id::font_stretch);
+		register_name("font_italic", ::text_id::font_italic);
+		register_name("font_weight_edit_name", ::text_id::font_weight_edit_name);
+		register_name("font_stretch_edit_name", ::text_id::font_stretch_edit_name);
+		register_name("font_italic_info", ::text_id::font_italic_info);
+		register_name("font_weight_info", ::text_id::font_weight_info);
+		register_name("font_stretch_info", ::text_id::font_stretch_info);
+		register_name("header_font_label", ::text_id::header_font_label);
+		register_name("header_font_info", ::text_id::header_font_info);
+		register_name("relative_size_label", ::text_id::relative_size_label);
+		register_name("relative_size_edit_name", ::text_id::relative_size_edit_name);
+		register_name("relative_size_small_info", ::text_id::relative_size_small_info);
+		register_name("relative_size_header_info", ::text_id::relative_size_header_info);
+		register_name("top_lead_label", ::text_id::top_lead_label);
+		register_name("top_lead_edit_name", ::text_id::top_lead_edit_name);
+		register_name("top_lead_edit_info", ::text_id::top_lead_edit_info);
+		register_name("bottom_lead_label", ::text_id::bottom_lead_label);
+		register_name("bottom_lead_edit_name", ::text_id::bottom_lead_edit_name);
+		register_name("bottom_lead_edit_info", ::text_id::bottom_lead_edit_info);
 	}
 
 	UINT GetGrouping(WCHAR const* locale) {
@@ -3622,6 +3644,28 @@ namespace printui::text {
 		safe_release(bldr);
 	}
 
+	DWRITE_FONT_STRETCH from_float_stretch_to_enum(float val) {
+		if(val < 56.25f) {
+			return DWRITE_FONT_STRETCH_ULTRA_CONDENSED;
+		} else if(val < 68.75f) {
+			return DWRITE_FONT_STRETCH_EXTRA_CONDENSED;
+		} else if(val < 81.25f) {
+			return DWRITE_FONT_STRETCH_CONDENSED;
+		} else if(val < 93.75f) {
+			return DWRITE_FONT_STRETCH_SEMI_CONDENSED;
+		} else if(val < 106.25f) {
+			return DWRITE_FONT_STRETCH_NORMAL;
+		} else if(val < 118.75f) {
+			return DWRITE_FONT_STRETCH_SEMI_EXPANDED;
+		} else if(val < 137.5f) {
+			return DWRITE_FONT_STRETCH_EXPANDED;
+		} else if(val < 175.0f) {
+			return DWRITE_FONT_STRETCH_EXTRA_EXPANDED;
+		} else {
+			return DWRITE_FONT_STRETCH_ULTRA_EXPANDED;
+		}
+	}
+
 	void direct_write_text::initialize_fonts(window_data& win) {
 		// metrics
 		{
@@ -3709,6 +3753,7 @@ namespace printui::text {
 				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_OPTICAL_SIZE,
 					win.dynamic_settings.small_font.font_size * 96.0f / win.dpi} };
 
+
 			dwrite_factory->CreateTextFormat(win.dynamic_settings.small_font.name.c_str(), font_collection, fax, 3, win.dynamic_settings.small_font.font_size, locale_str, &small_text_format);
 			small_text_format->SetFontFallback(small_font_fallbacks);
 
@@ -3739,6 +3784,73 @@ namespace printui::text {
 
 		win.window_bar.print_ui_settings.primary_font_menu.open_button.set_text(win, win.dynamic_settings.primary_font.name);
 		win.window_bar.print_ui_settings.small_font_menu.open_button.set_text(win, win.dynamic_settings.small_font.name);
+		win.window_bar.print_ui_settings.header_font_menu.open_button.set_text(win, win.dynamic_settings.header_font.name);
+
+		if(win.window_bar.print_ui_settings.primary_font_italic_toggle.toggle_is_on != win.dynamic_settings.primary_font.is_oblique) {
+			win.window_bar.print_ui_settings.primary_font_italic_toggle.change_toggle_state(win, win.dynamic_settings.primary_font.is_oblique);
+		}
+		if(win.window_bar.print_ui_settings.small_font_italic_toggle.toggle_is_on != win.dynamic_settings.small_font.is_oblique) {
+			win.window_bar.print_ui_settings.small_font_italic_toggle.change_toggle_state(win, win.dynamic_settings.small_font.is_oblique);
+		}
+		if(win.window_bar.print_ui_settings.header_font_italic_toggle.toggle_is_on != win.dynamic_settings.header_font.is_oblique) {
+			win.window_bar.print_ui_settings.header_font_italic_toggle.change_toggle_state(win, win.dynamic_settings.header_font.is_oblique);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.primary_font.weight, 0);
+			win.window_bar.print_ui_settings.primary_font_weight_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_double(win.dynamic_settings.primary_font.span, 0);
+			win.window_bar.print_ui_settings.primary_font_stretch_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.small_font.weight, 0);
+			win.window_bar.print_ui_settings.small_font_weight_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_double(win.dynamic_settings.small_font.span, 0);
+			win.window_bar.print_ui_settings.small_font_stretch_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.header_font.weight, 0);
+			win.window_bar.print_ui_settings.header_font_weight_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_double(win.dynamic_settings.header_font.span, 0);
+			win.window_bar.print_ui_settings.header_font_stretch_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.primary_font.top_leading, 0);
+			win.window_bar.print_ui_settings.primary_top_lead_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.primary_font.bottom_leading, 0);
+			win.window_bar.print_ui_settings.primary_bottom_lead_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.small_font.top_leading, 0);
+			win.window_bar.print_ui_settings.small_top_lead_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.small_font.bottom_leading, 0);
+			win.window_bar.print_ui_settings.small_bottom_lead_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.header_font.top_leading, 0);
+			win.window_bar.print_ui_settings.header_top_lead_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.header_font.bottom_leading, 0);
+			win.window_bar.print_ui_settings.header_bottom_lead_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_double(win.dynamic_settings.small_size_multiplier, 3);
+			win.window_bar.print_ui_settings.small_relative_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_double(win.dynamic_settings.heading_size_multiplier, 3);
+			win.window_bar.print_ui_settings.header_relative_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
 	}
 
 	void direct_write_text::update_font_metrics(font_description& desc, wchar_t const* locale, float target_pixels, float dpi_scale, IDWriteFont* font) {
@@ -3798,28 +3910,6 @@ namespace printui::text {
 		p->Release();
 	}
 
-	DWRITE_FONT_STRETCH from_float_stretch_to_enum(float val) {
-		if(val < 56.25f) {
-			return DWRITE_FONT_STRETCH_ULTRA_CONDENSED;
-		} else if (val < 68.75f) {
-			return DWRITE_FONT_STRETCH_EXTRA_CONDENSED;
-		} else if(val < 81.25f) {
-			return DWRITE_FONT_STRETCH_CONDENSED;
-		} else if(val < 93.75f) {
-			return DWRITE_FONT_STRETCH_SEMI_CONDENSED;
-		} else if(val < 106.25f) {
-			return DWRITE_FONT_STRETCH_NORMAL;
-		} else if(val < 118.75f) {
-			return DWRITE_FONT_STRETCH_SEMI_EXPANDED;
-		} else if(val < 137.5f) {
-			return DWRITE_FONT_STRETCH_EXPANDED;
-		} else if(val < 175.0f) {
-			return DWRITE_FONT_STRETCH_EXTRA_EXPANDED;
-		} else {
-			return DWRITE_FONT_STRETCH_ULTRA_EXPANDED;
-		}
-	}
-
 	void direct_write_text::apply_formatting(IDWriteTextLayout* target, std::vector<format_marker> const& formatting, std::vector<font_description> const& named_fonts) const {
 		{
 			//apply fonts
@@ -3827,7 +3917,6 @@ namespace printui::text {
 			uint32_t font_start = 0;
 
 			for(auto f : formatting) {
-				format_marker j;
 				if(std::holds_alternative<font_id>(f.format)) {
 					auto fid = std::get<font_id>(f.format);
 					if(fid.id < named_fonts.size()) {
@@ -3837,21 +3926,21 @@ namespace printui::text {
 
 						} else if(font_stack.back() != fid.id) {
 							target->SetFontFamilyName(named_fonts[font_stack.back()].name.c_str(), DWRITE_TEXT_RANGE{ font_start, f.position });
-							target->SetFontWeight(DWRITE_FONT_WEIGHT(named_fonts[font_stack.back()].weight), DWRITE_TEXT_RANGE{ font_start, f.position });
-							target->SetFontStretch(from_float_stretch_to_enum(named_fonts[font_stack.back()].span), DWRITE_TEXT_RANGE{ font_start, f.position });
+							target->SetFontWeight(DWRITE_FONT_WEIGHT(named_fonts[font_stack.back()].weight), DWRITE_TEXT_RANGE{ font_start, f.position - font_start });
+							target->SetFontStretch(from_float_stretch_to_enum(named_fonts[font_stack.back()].span), DWRITE_TEXT_RANGE{ font_start, f.position - font_start });
 							if(named_fonts[font_stack.back()].is_oblique) {
-								target->SetFontStyle(DWRITE_FONT_STYLE_ITALIC, DWRITE_TEXT_RANGE{ font_start, f.position });
+								target->SetFontStyle(DWRITE_FONT_STYLE_ITALIC, DWRITE_TEXT_RANGE{ font_start, f.position - font_start });
 							}
 
 							font_stack.push_back(fid.id);
 							font_start = f.position;
 
 						} else {
-							target->SetFontFamilyName(named_fonts[fid.id].name.c_str(), DWRITE_TEXT_RANGE{ font_start, f.position });
-							target->SetFontWeight(DWRITE_FONT_WEIGHT(named_fonts[fid.id].weight), DWRITE_TEXT_RANGE{ font_start, f.position });
-							target->SetFontStretch(from_float_stretch_to_enum(named_fonts[fid.id].span), DWRITE_TEXT_RANGE{ font_start, f.position });
+							target->SetFontFamilyName(named_fonts[fid.id].name.c_str(), DWRITE_TEXT_RANGE{ font_start, f.position - font_start });
+							target->SetFontWeight(DWRITE_FONT_WEIGHT(named_fonts[fid.id].weight), DWRITE_TEXT_RANGE{ font_start, f.position - font_start });
+							target->SetFontStretch(from_float_stretch_to_enum(named_fonts[fid.id].span), DWRITE_TEXT_RANGE{ font_start, f.position - font_start });
 							if(named_fonts[fid.id].is_oblique) {
-								target->SetFontStyle(DWRITE_FONT_STYLE_ITALIC, DWRITE_TEXT_RANGE{ font_start, f.position });
+								target->SetFontStyle(DWRITE_FONT_STYLE_ITALIC, DWRITE_TEXT_RANGE{ font_start, f.position - font_start });
 							}
 
 							font_stack.pop_back();
@@ -3867,11 +3956,10 @@ namespace printui::text {
 			bool bold_is_applied = false;
 			uint32_t bold_start = 0;
 			for(auto f : formatting) {
-				format_marker j;
 				if(std::holds_alternative<extra_formatting>(f.format)) {
 					if(std::get<extra_formatting>(f.format) == extra_formatting::bold) {
 						if(bold_is_applied) {
-							target->SetFontWeight(DWRITE_FONT_WEIGHT_BOLD, DWRITE_TEXT_RANGE{ bold_start, f.position });
+							target->SetFontWeight(DWRITE_FONT_WEIGHT_BOLD, DWRITE_TEXT_RANGE{ bold_start, f.position - bold_start });
 							bold_is_applied = false;
 						} else {
 							bold_start = f.position;
@@ -3887,11 +3975,10 @@ namespace printui::text {
 			bool italic_is_applied = false;
 			uint32_t italic_start = 0;
 			for(auto f : formatting) {
-				format_marker j;
 				if(std::holds_alternative<extra_formatting>(f.format)) {
 					if(std::get<extra_formatting>(f.format) == extra_formatting::italic) {
 						if(italic_is_applied) {
-							target->SetFontStyle(DWRITE_FONT_STYLE_ITALIC, DWRITE_TEXT_RANGE{ italic_start, f.position });
+							target->SetFontStyle(DWRITE_FONT_STYLE_ITALIC, DWRITE_TEXT_RANGE{ italic_start, f.position - italic_start });
 							italic_is_applied = false;
 						} else {
 							italic_start = f.position;
@@ -3909,7 +3996,6 @@ namespace printui::text {
 			bool typo_applied = false;
 			uint32_t typo_start = 0;
 			for(auto f : formatting) {
-				format_marker j;
 				if(std::holds_alternative<extra_formatting>(f.format)) {
 					if(std::get<extra_formatting>(f.format) == extra_formatting::small_caps) {
 						if(typo_applied) {
@@ -3924,7 +4010,7 @@ namespace printui::text {
 								}
 								apply_small_caps_options(t);
 							}
-							target->SetTypography(t, DWRITE_TEXT_RANGE{ typo_start, f.position });
+							target->SetTypography(t, DWRITE_TEXT_RANGE{ typo_start, f.position - typo_start });
 							typo_applied = false;
 						} else {
 							typo_start = f.position;
@@ -3944,7 +4030,6 @@ namespace printui::text {
 			bool typo_applied = false;
 			uint32_t typo_start = 0;
 			for(auto f : formatting) {
-				format_marker j;
 				if(std::holds_alternative<extra_formatting>(f.format)) {
 					if(std::get<extra_formatting>(f.format) == extra_formatting::tabular_numbers) {
 						if(typo_applied) {
@@ -3959,7 +4044,7 @@ namespace printui::text {
 								}
 								apply_lining_figures_options(t);
 							}
-							target->SetTypography(t, DWRITE_TEXT_RANGE{ typo_start, f.position });
+							target->SetTypography(t, DWRITE_TEXT_RANGE{ typo_start, f.position - typo_start });
 							typo_applied = false;
 						} else {
 							typo_start = f.position;
@@ -3979,7 +4064,6 @@ namespace printui::text {
 			bool typo_applied = false;
 			uint32_t typo_start = 0;
 			for(auto f : formatting) {
-				format_marker j;
 				if(std::holds_alternative<extra_formatting>(f.format)) {
 					if(std::get<extra_formatting>(f.format) == extra_formatting::old_numbers) {
 						if(typo_applied) {
@@ -3994,7 +4078,7 @@ namespace printui::text {
 								}
 								apply_old_style_figures_options(t);
 							}
-							target->SetTypography(t, DWRITE_TEXT_RANGE{ typo_start, f.position });
+							target->SetTypography(t, DWRITE_TEXT_RANGE{ typo_start, f.position - typo_start });
 							typo_applied = false;
 						} else {
 							typo_start = f.position;
@@ -4074,6 +4158,8 @@ namespace printui::text {
 		} else {
 			dwrite_factory->CreateTextLayout(text.data(), uint32_t(text.length()), text_format, float(font.line_spacing), float(font.line_spacing), &formatted_text);
 
+			if(font.is_oblique)
+				formatted_text->SetFontStyle(DWRITE_FONT_STYLE_ITALIC, DWRITE_TEXT_RANGE{ 0, uint32_t(text.length()) });
 			if(formatting)
 				apply_formatting(formatted_text, *formatting, win.dynamic_settings.named_fonts);
 

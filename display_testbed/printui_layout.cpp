@@ -51,8 +51,13 @@ namespace printui {
 
 		bool already_existed = l_interface->l_id != layout_reference_none;
 
-		layout_reference retvalue_id = layout_nodes.allocate_node(l_interface);
-		layout_node* retvalue = &layout_nodes.get_node(retvalue_id);
+		layout_node* retvalue = nullptr;
+		if(!already_existed) {
+			layout_reference retvalue_id = layout_nodes.allocate_node(l_interface);
+			retvalue = &layout_nodes.get_node(retvalue_id);
+		} else {
+			retvalue = &layout_nodes.get_node(l_interface->l_id);
+		}
 
 		auto const spec = l_interface->get_specification(*this);
 		
@@ -93,7 +98,7 @@ namespace printui {
 			}
 		}
 
-		return retvalue_id;
+		return l_interface->l_id;
 	}
 
 	void window_data::recreate_container_contents(layout_interface* l_interface, layout_node* node) {
@@ -143,17 +148,22 @@ namespace printui {
 	void window_data::recreate_page_contents(layout_interface* l_interface, layout_node* node) {
 		auto pi = node->page_info();
 		if(pi) {
+			auto old_page = pi->subpage_offset;
 
-			layout_reference old_focus_column = get_current_page_visibility_marker(*this, l_interface->l_id, *pi);
+			//layout_reference old_focus_column = get_current_page_visibility_marker(*this, l_interface->l_id, *pi);
 
 			pi->clear_columns();
 			pi->subpage_divisions.clear();
 			l_interface->recreate_contents(*this, *node);
 
-			int pn = get_containing_page_number(l_interface->l_id, *pi, old_focus_column);
-			if(pn == -1)
-				pn = std::min(int32_t(pi->subpage_offset), int32_t(pi->subpage_divisions.size()));
-			l_interface->go_to_page(*this, uint32_t(pn), *pi);
+			//int pn = get_containing_page_number(l_interface->l_id, *pi, old_focus_column);
+
+			if(old_page > pi->subpage_divisions.size()) {
+				old_page = uint16_t(pi->subpage_divisions.size());
+			}
+			//if(pn == -1)
+			//	pn = std::min(int32_t(pi->subpage_offset), int32_t(pi->subpage_divisions.size()));
+			l_interface->go_to_page(*this, old_page, *pi);
 			if(pi->footer != layout_reference_none) {
 				if(auto vrect = get_node(pi->footer).visible_rect; vrect < get_ui_rects().size()) {
 					get_ui_rects()[vrect].display_flags |= ui_rectangle::flag_needs_update;
@@ -227,6 +237,7 @@ namespace printui {
 							max_item_width = std::max(max_item_width, int32_t(label_space.minimum_line_size + item_spec.minimum_line_size + 1));
 							win.get_node(label_control).set_margins(spec.column_left_margin, spec.column_right_margin + item_spec.minimum_line_size + 1);
 							win.get_node(cn).set_margins(spec.column_left_margin + label_space.minimum_line_size + 1, spec.column_right_margin);
+							win.get_node(label_control).width = uint16_t(spec.column_left_margin + label_space.minimum_line_size + item_spec.minimum_line_size + 1 + spec.column_right_margin);
 							win.get_node(label_control).flags |= layout_node::flag_overlay;
 						} else {
 							max_item_width = std::max(max_item_width, int32_t(label_space.minimum_line_size));
@@ -433,6 +444,9 @@ namespace printui {
 				auto col_width = win.get_node(col).width;
 				// resize children
 				for(auto cc : col_children) {
+					if((win.get_node(cc).flags & layout_node::flag_overlay) != 0) {
+						win.get_node(cc).set_margins(win.get_node(cc).left_margin(), win.get_node(cc).right_margin() + col_width - win.get_node(cc).width);
+					}
 					win.immediate_resize(win.get_node(cc), col_width, win.get_node(cc).height);
 				}
 			}
@@ -1140,7 +1154,8 @@ namespace printui {
 		width = 0;
 		height = 0;
 		flags = 0;
-		margins = 0;
+		l_margin = 0;
+		r_margin = 0;
 	}
 	
 

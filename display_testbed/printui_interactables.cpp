@@ -734,7 +734,7 @@ namespace printui {
 				return i;
 			}
 		} else {
-			return nullptr; // there is nothing visible to attach the interactable tag to
+
 		}
 		if(auto p = n.page_info(); p) {
 			if(p->header != layout_reference_none) {

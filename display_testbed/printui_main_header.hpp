@@ -41,14 +41,12 @@ namespace text_id {
 	inline constexpr uint16_t input_mode_follow_input = 13;
 	inline constexpr uint16_t page_fraction = 14;
 	inline constexpr uint16_t language_label = 15;
-
 	inline constexpr uint16_t minimize_info = 16;
 	inline constexpr uint16_t maximize_info = 17;
 	inline constexpr uint16_t restore_info = 18;
 	inline constexpr uint16_t settings_info = 19;
 	inline constexpr uint16_t info_info = 20;
 	inline constexpr uint16_t close_info = 21;
-
 	inline constexpr uint16_t orientation_info = 22;
 	inline constexpr uint16_t input_mode_info = 23;
 	inline constexpr uint16_t input_mode_mouse_info = 24;
@@ -59,7 +57,6 @@ namespace text_id {
 	inline constexpr uint16_t input_mode_mk_hybrid_info = 29;
 	inline constexpr uint16_t language_info = 30;
 	inline constexpr uint16_t ui_settings_info = 31;
-
 	inline constexpr uint16_t minimize_name = 32;
 	inline constexpr uint16_t maximize_name = 33;
 	inline constexpr uint16_t restore_name = 34;
@@ -79,24 +76,43 @@ namespace text_id {
 	inline constexpr uint16_t page_next_next_name = 48;
 	inline constexpr uint16_t page_footer_name = 49;
 	inline constexpr uint16_t page_footer_info = 50;
-
 	inline constexpr uint16_t generic_toggle_on = 51;
 	inline constexpr uint16_t generic_toggle_off = 52;
 	inline constexpr uint16_t ui_animations_label = 53;
 	inline constexpr uint16_t ui_animations_info = 54;
-
 	inline constexpr uint16_t ui_scale = 55;
 	inline constexpr uint16_t ui_scale_edit_name = 56;
 	inline constexpr uint16_t ui_scale_info = 57;
-
 	inline constexpr uint16_t primary_font_label = 58;
 	inline constexpr uint16_t primary_font_info = 59;
 	inline constexpr uint16_t small_font_label = 60;
 	inline constexpr uint16_t small_font_info = 61;
 	inline constexpr uint16_t fonts_header = 62;
+	inline constexpr uint16_t generic_toggle_yes = 63;
+	inline constexpr uint16_t generic_toggle_no = 64;
+	inline constexpr uint16_t font_weight = 65;
+	inline constexpr uint16_t font_stretch = 66;
+	inline constexpr uint16_t font_italic = 67;
+	inline constexpr uint16_t font_weight_edit_name = 68;
+	inline constexpr uint16_t font_stretch_edit_name = 69;
+	inline constexpr uint16_t font_italic_info = 70;
+	inline constexpr uint16_t font_weight_info = 71;
+	inline constexpr uint16_t font_stretch_info = 72;
+	inline constexpr uint16_t header_font_label = 73;
+	inline constexpr uint16_t header_font_info = 74;
 
+	inline constexpr uint16_t relative_size_label = 75;
+	inline constexpr uint16_t relative_size_edit_name = 76;
+	inline constexpr uint16_t relative_size_small_info = 77;
+	inline constexpr uint16_t relative_size_header_info = 78;
+	inline constexpr uint16_t top_lead_label = 79;
+	inline constexpr uint16_t top_lead_edit_name = 80;
+	inline constexpr uint16_t top_lead_edit_info = 81;
+	inline constexpr uint16_t bottom_lead_label = 82;
+	inline constexpr uint16_t bottom_lead_edit_name = 83;
+	inline constexpr uint16_t bottom_lead_edit_info = 84;
 
-	inline constexpr uint16_t first_free_id = 63;
+	inline constexpr uint16_t first_free_id = 85;
 }
 
 namespace printui {
@@ -415,7 +431,8 @@ namespace printui {
 		//bool ignore = false;
 
 		uint8_t flags = 0;
-		uint8_t margins = 0;
+		uint8_t l_margin = 0;
+		uint8_t r_margin = 0;
 
 		constexpr static uint8_t flag_generation_mask = 0x07;
 		constexpr static uint8_t flag_overlay = 0x08;
@@ -425,10 +442,10 @@ namespace printui {
 		constexpr static uint8_t flag_freed = 0x80;
 
 		int32_t left_margin() const {
-			return (margins >> 4) & 0x0F;
+			return l_margin;
 		}
 		int32_t right_margin() const {
-			return (margins) & 0x0F;
+			return r_margin;
 		}
 		bool ignore() const { 
 			return (flags & flag_ignore) != 0;
@@ -455,7 +472,8 @@ namespace printui {
 			flags = uint8_t((flags & ~flag_generation_mask) | (v & flag_generation_mask));
 		}
 		void set_margins(int32_t left, int32_t right) {
-			margins = uint8_t((left << 4) | (right & 0x0F));
+			l_margin = uint8_t(left);
+			r_margin = uint8_t(right);
 		}
 
 		void reset_node();
@@ -1031,7 +1049,7 @@ namespace printui {
 		label_control(content_alignment a = content_alignment::leading) {
 			label_text.text_alignment = a;
 		}
-		label_control(uint16_t t, content_alignment a = content_alignment::leading) {
+		label_control(uint16_t t, content_alignment a, uint16_t alt_text) : alt_text(alt_text) {
 			label_text.set_text(t);
 			label_text.text_alignment = a;
 		}
@@ -1549,9 +1567,9 @@ namespace printui {
 
 	struct font_button : public button_control_base {
 		std::wstring name;
-		bool for_primary_font = true;
+		text_size text_sz;
 
-		font_button(bool for_primary_font) : for_primary_font(for_primary_font) {
+		font_button(text_size text_sz) : text_sz(text_sz) {
 			set_text_alignment(content_alignment::trailing);
 		}
 		virtual ~font_button() {
@@ -1561,9 +1579,9 @@ namespace printui {
 
 	struct font_menu : public menu_control, public generic_selection_container {
 		std::vector<std::unique_ptr<layout_interface>> lbuttons;
-		bool for_primary_font = true;
+		text_size text_sz;
 
-		font_menu(bool for_primary_font) : for_primary_font(for_primary_font) { }
+		font_menu(text_size text_sz) : text_sz(text_sz) { }
 		virtual ~font_menu() { }
 
 		virtual std::vector<page_content> get_options(window_data&);
@@ -1571,6 +1589,55 @@ namespace printui {
 		virtual void on_close(window_data&);
 		virtual accessibility_object* get_accessibility_interface(window_data&) override;
 		virtual layout_interface* selected_item() const override;
+	};
+
+	struct font_stretch_edit : public editable_numeric_range {
+		text_size text_sz;
+
+		font_stretch_edit(text_size text_sz) : editable_numeric_range(content_alignment::trailing, text_id::font_stretch_edit_name, text_id::font_stretch_info, 3, 1, 50.0f, 200.0f, 0), text_sz(text_sz) {
+		}
+		virtual void on_edit_finished(window_data& win, std::wstring const&) override;
+	};
+
+	struct font_weight_edit : public editable_numeric_range {
+		text_size text_sz;
+
+		font_weight_edit(text_size text_sz) : editable_numeric_range(content_alignment::trailing, text_id::font_weight_edit_name, text_id::font_weight_info, 3, 1, 100.0f, 900.0f, 0), text_sz(text_sz) {
+		}
+		virtual void on_edit_finished(window_data& win, std::wstring const&) override;
+	};
+
+	struct font_top_lead_edit : public editable_numeric_range {
+		text_size text_sz;
+
+		font_top_lead_edit(text_size text_sz) : editable_numeric_range(content_alignment::trailing, text_id::top_lead_edit_name, text_id::top_lead_edit_info, 3, 1, -20.0f, 20.0f, 0), text_sz(text_sz) {
+		}
+		virtual void on_edit_finished(window_data& win, std::wstring const&) override;
+	};
+	struct font_bottom_lead_edit : public editable_numeric_range {
+		text_size text_sz;
+
+		font_bottom_lead_edit(text_size text_sz) : editable_numeric_range(content_alignment::trailing, text_id::bottom_lead_edit_name, text_id::bottom_lead_edit_info, 3, 1, -20.0f, 20.0f, 0), text_sz(text_sz) {
+		}
+		virtual void on_edit_finished(window_data& win, std::wstring const&) override;
+	};
+	struct small_relative_size : public editable_numeric_range {
+		small_relative_size() : editable_numeric_range(content_alignment::trailing, text_id::relative_size_edit_name, text_id::relative_size_small_info, 3, 1, 0.5f, 1.0f, 3) {
+		}
+		virtual void on_edit_finished(window_data& win, std::wstring const&) override;
+	};
+	struct header_relative_size : public editable_numeric_range {
+		header_relative_size() : editable_numeric_range(content_alignment::trailing, text_id::relative_size_edit_name, text_id::relative_size_header_info, 3, 1, 1.0f, 2.0f, 3) {
+		}
+		virtual void on_edit_finished(window_data& win, std::wstring const&) override;
+	};
+
+	struct font_italic_toggle_button : public button_control_toggle {
+		text_size text_sz;
+
+		font_italic_toggle_button(text_size text_sz) : button_control_toggle(text_id::generic_toggle_yes, text_id::generic_toggle_no, content_alignment::trailing, text_id::font_italic_info), text_sz(text_sz) {
+		}
+		virtual void toggle_action(window_data&, bool toggle_state) override;
 	};
 
 	struct settings_orientation_list : public list_control {
@@ -1612,11 +1679,51 @@ namespace printui {
 		
 		label_control fonts_header;
 
+		//primary font
 		label_control primary_font_name_label;
 		font_menu primary_font_menu;
-		
+		label_control primary_font_weight_label;
+		font_weight_edit primary_font_weight_e;
+		label_control primary_font_stretch_label;
+		font_stretch_edit primary_font_stretch_e;
+		label_control primary_font_italic_label;
+		font_italic_toggle_button primary_font_italic_toggle;
+		label_control primary_top_lead_label;
+		font_top_lead_edit primary_top_lead_e;
+		label_control primary_bottom_lead_label;
+		font_bottom_lead_edit primary_bottom_lead_e;
+
+		//small font
 		label_control small_font_name_label;
 		font_menu small_font_menu;
+		label_control small_relative_label;
+		small_relative_size small_relative_e;
+		label_control small_font_weight_label;
+		font_weight_edit small_font_weight_e;
+		label_control small_font_stretch_label;
+		font_stretch_edit small_font_stretch_e;
+		label_control small_font_italic_label;
+		font_italic_toggle_button small_font_italic_toggle;
+		label_control small_top_lead_label;
+		font_top_lead_edit small_top_lead_e;
+		label_control small_bottom_lead_label;
+		font_bottom_lead_edit small_bottom_lead_e;
+
+		//header font
+		label_control header_font_name_label;
+		font_menu header_font_menu;
+		label_control header_relative_label;
+		header_relative_size header_relative_e;
+		label_control header_font_weight_label;
+		font_weight_edit header_font_weight_e;
+		label_control header_font_stretch_label;
+		font_stretch_edit header_font_stretch_e;
+		label_control header_font_italic_label;
+		font_italic_toggle_button header_font_italic_toggle;
+		label_control header_top_lead_label;
+		font_top_lead_edit header_top_lead_e;
+		label_control header_bottom_lead_label;
+		font_bottom_lead_edit header_bottom_lead_e;
 
 		accessibility_object_ptr acc_obj;
 

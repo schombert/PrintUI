@@ -172,17 +172,59 @@ namespace printui {
 		}
 	}
 
+	/*
+	label_control primary_font_weight_label;
+		font_weight_edit primary_font_weight_e;
+		label_control primary_font_stretch_label;
+		font_stretch_edit primary_font_stretch_e;
+		label_control primary_font_italic_label;
+		font_italic_toggle_button primary_font_italic_toggle;
+	*/
 	common_printui_settings::common_printui_settings() :
-		language_label(text_id::language_label, content_alignment::leading),
-		orientation_label(text_id::orientation_label, content_alignment::leading),
-		input_mode_label(text_id::input_mode_label, content_alignment::leading),
-		toggle_animations_label(text_id::ui_animations_label, content_alignment::leading),
-		ui_scale_label(text_id::ui_scale, content_alignment::leading),
-		fonts_header(text_id::fonts_header, content_alignment::centered),
-		primary_font_name_label(text_id::primary_font_label, content_alignment::leading),
-		primary_font_menu(true),
-		small_font_name_label(text_id::small_font_label, content_alignment::leading),
-		small_font_menu(false) {
+		language_label(text_id::language_label, content_alignment::leading, text_id::language_info),
+		orientation_label(text_id::orientation_label, content_alignment::leading, text_id::orientation_info),
+		input_mode_label(text_id::input_mode_label, content_alignment::leading, text_id::input_mode_info),
+		toggle_animations_label(text_id::ui_animations_label, content_alignment::leading, text_id::ui_animations_info),
+		ui_scale_label(text_id::ui_scale, content_alignment::leading, text_id::ui_scale_info),
+		fonts_header(text_id::fonts_header, content_alignment::centered, uint16_t(-1)),
+		primary_font_name_label(text_id::primary_font_label, content_alignment::leading, text_id::primary_font_info),
+		primary_font_menu(text_size::standard),
+		primary_font_weight_label(text_id::font_weight, content_alignment::leading, text_id::font_weight_info),
+		primary_font_weight_e(text_size::standard),
+		primary_font_stretch_label(text_id::font_stretch, content_alignment::leading, text_id::font_stretch_info),
+		primary_font_stretch_e(text_size::standard),
+		primary_font_italic_label(text_id::font_italic, content_alignment::leading, text_id::font_italic_info),
+		primary_font_italic_toggle(text_size::standard),
+		primary_top_lead_label(text_id::top_lead_label, content_alignment::leading, text_id::top_lead_edit_info),
+		primary_top_lead_e(text_size::standard),
+		primary_bottom_lead_label(text_id::bottom_lead_label, content_alignment::leading, text_id::bottom_lead_edit_info),
+		primary_bottom_lead_e(text_size::standard),
+		small_font_name_label(text_id::small_font_label, content_alignment::leading, text_id::small_font_info),
+		small_font_menu(text_size::note),
+		small_relative_label(text_id::relative_size_label, content_alignment::leading, text_id::relative_size_small_info),
+		small_font_weight_label(text_id::font_weight, content_alignment::leading, text_id::font_weight_info),
+		small_font_weight_e(text_size::note),
+		small_font_stretch_label(text_id::font_stretch, content_alignment::leading, text_id::font_stretch_info),
+		small_font_stretch_e(text_size::note),
+		small_font_italic_label(text_id::font_italic, content_alignment::leading, text_id::font_italic_info),
+		small_font_italic_toggle(text_size::note),
+		small_top_lead_label(text_id::top_lead_label, content_alignment::leading, text_id::top_lead_edit_info),
+		small_top_lead_e(text_size::note),
+		small_bottom_lead_label(text_id::bottom_lead_label, content_alignment::leading, text_id::bottom_lead_edit_info),
+		small_bottom_lead_e(text_size::note),
+		header_font_name_label(text_id::header_font_label, content_alignment::leading, text_id::header_font_info),
+		header_font_menu(text_size::header),
+		header_relative_label(text_id::relative_size_label, content_alignment::leading, text_id::relative_size_header_info),
+		header_font_weight_label(text_id::font_weight, content_alignment::leading, text_id::font_weight_info),
+		header_font_weight_e(text_size::header),
+		header_font_stretch_label(text_id::font_stretch, content_alignment::leading, text_id::font_stretch_info),
+		header_font_stretch_e(text_size::header),
+		header_font_italic_label(text_id::font_italic, content_alignment::leading, text_id::font_italic_info),
+		header_font_italic_toggle(text_size::header),
+		header_top_lead_label(text_id::top_lead_label, content_alignment::leading, text_id::top_lead_edit_info),
+		header_top_lead_e(text_size::header),
+		header_bottom_lead_label(text_id::bottom_lead_label, content_alignment::leading, text_id::bottom_lead_edit_info),
+		header_bottom_lead_e(text_size::header) {
 
 		lang_menu.open_button.set_text_alignment(content_alignment::trailing);
 		lang_menu.page_size = 1;
@@ -192,34 +234,32 @@ namespace printui {
 
 		input_mode_list.text_alignment = content_alignment::trailing;
 
-		language_label.alt_text = text_id::language_info;
 		lang_menu.alt_text = text_id::language_info;
 		lang_menu.name = text_id::language_label;
 
-		orientation_label.alt_text = text_id::orientation_info;
 		orientation_list.alt_text_id = text_id::orientation_info;
 		orientation_list.name = text_id::orientation_label;
 
-		input_mode_label.alt_text = text_id::input_mode_info;
 		input_mode_list.alt_text_id = text_id::input_mode_info;
 		input_mode_list.name = text_id::input_mode_label;
-
-		toggle_animations_label.alt_text = text_id::ui_animations_info;
-		ui_scale_label.alt_text = text_id::ui_scale_info;
 
 		primary_font_menu.open_button.set_text_alignment(content_alignment::trailing);
 		primary_font_menu.page_size = 1;
 		primary_font_menu.line_size = 10;
-		primary_font_name_label.alt_text = text_id::primary_font_info;
 		primary_font_menu.alt_text = text_id::primary_font_info;
 		primary_font_menu.name = text_id::primary_font_label;
 
 		small_font_menu.open_button.set_text_alignment(content_alignment::trailing);
 		small_font_menu.page_size = 1;
 		small_font_menu.line_size = 10;
-		small_font_name_label.alt_text = text_id::small_font_info;
 		small_font_menu.alt_text = text_id::small_font_info;
 		small_font_menu.name = text_id::small_font_label;
+
+		header_font_menu.open_button.set_text_alignment(content_alignment::trailing);
+		header_font_menu.page_size = 1;
+		header_font_menu.line_size = 10;
+		header_font_menu.alt_text = text_id::header_font_info;
+		header_font_menu.name = text_id::header_font_label;
 
 		content_description.push_back(page_content{&language_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
 		content_description.push_back(page_content{ &lang_menu, column_break_behavior::normal, item_type::item_end, nullptr });
@@ -227,9 +267,7 @@ namespace printui {
 		content_description.push_back(page_content{ &orientation_list, column_break_behavior::normal, item_type::item_end, nullptr });
 		content_description.push_back(page_content{ &input_mode_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
 		content_description.push_back(page_content{ &input_mode_list, column_break_behavior::normal, item_type::item_end, nullptr });
-		//content_description.push_back(page_content{ &toggle_animations_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
 		content_description.push_back(page_content{ &toggle_animations, column_break_behavior::normal, item_type::single_item, &toggle_animations_label });
-		//content_description.push_back(page_content{ &ui_scale_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
 		content_description.push_back(page_content{ &ui_scale_e, column_break_behavior::normal, item_type::single_item, &ui_scale_label });
 
 		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
@@ -241,9 +279,34 @@ namespace printui {
 
 		content_description.push_back(page_content{ &primary_font_name_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
 		content_description.push_back(page_content{ &primary_font_menu, column_break_behavior::normal, item_type::item_end, nullptr });
+		content_description.push_back(page_content{ &primary_font_weight_e, column_break_behavior::normal, item_type::single_item, &primary_font_weight_label });
+		content_description.push_back(page_content{ &primary_font_stretch_e, column_break_behavior::normal, item_type::single_item, &primary_font_stretch_label });
+		content_description.push_back(page_content{ &primary_font_italic_toggle, column_break_behavior::normal, item_type::single_item, &primary_font_italic_label });
+		content_description.push_back(page_content{ &primary_top_lead_e, column_break_behavior::normal, item_type::single_item, &primary_top_lead_label });
+		content_description.push_back(page_content{ &primary_bottom_lead_e, column_break_behavior::normal, item_type::single_item, &primary_bottom_lead_label });
+
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
+
 
 		content_description.push_back(page_content{ &small_font_name_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
 		content_description.push_back(page_content{ &small_font_menu, column_break_behavior::normal, item_type::item_end, nullptr });
+		content_description.push_back(page_content{ &small_relative_e, column_break_behavior::normal, item_type::single_item, &small_relative_label });
+		content_description.push_back(page_content{ &small_font_weight_e, column_break_behavior::normal, item_type::single_item, &small_font_weight_label });
+		content_description.push_back(page_content{ &small_font_stretch_e, column_break_behavior::normal, item_type::single_item, &small_font_stretch_label });
+		content_description.push_back(page_content{ &small_font_italic_toggle, column_break_behavior::normal, item_type::single_item, &small_font_italic_label });
+		content_description.push_back(page_content{ &small_top_lead_e, column_break_behavior::normal, item_type::single_item, &small_top_lead_label });
+		content_description.push_back(page_content{ &small_bottom_lead_e, column_break_behavior::normal, item_type::single_item, &small_bottom_lead_label });
+
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
+
+		content_description.push_back(page_content{ &header_font_name_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &header_font_menu, column_break_behavior::normal, item_type::item_end, nullptr });
+		content_description.push_back(page_content{ &header_relative_e, column_break_behavior::normal, item_type::single_item, &header_relative_label });
+		content_description.push_back(page_content{ &header_font_weight_e, column_break_behavior::normal, item_type::single_item, &header_font_weight_label });
+		content_description.push_back(page_content{ &header_font_stretch_e, column_break_behavior::normal, item_type::single_item, &header_font_stretch_label });
+		content_description.push_back(page_content{ &header_font_italic_toggle, column_break_behavior::normal, item_type::single_item, &header_font_italic_label });
+		content_description.push_back(page_content{ &header_top_lead_e, column_break_behavior::normal, item_type::single_item, &header_top_lead_label });
+		content_description.push_back(page_content{ &header_bottom_lead_e, column_break_behavior::normal, item_type::single_item, &header_bottom_lead_label });
 
 		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
 		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_footer, nullptr });
@@ -291,11 +354,79 @@ namespace printui {
 		orientation_list.quiet_select_option_by_value(win, size_t(win.orientation));
 		input_mode_list.quiet_select_option_by_value(win, size_t(win.dynamic_settings.imode));
 
-		auto result_to_str = win.text_data.format_double(win.dynamic_settings.global_size_multiplier, 2);
-		ui_scale_e.quiet_set_text(win, result_to_str.text_content.text);
-
+		{
+			auto result_to_str = win.text_data.format_double(win.dynamic_settings.global_size_multiplier, 2);
+			ui_scale_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
 		primary_font_menu.open_button.set_text(win, win.dynamic_settings.primary_font.name);
 		small_font_menu.open_button.set_text(win, win.dynamic_settings.small_font.name);
+		header_font_menu.open_button.set_text(win, win.dynamic_settings.header_font.name);
+
+		if(primary_font_italic_toggle.toggle_is_on != win.dynamic_settings.primary_font.is_oblique) {
+			primary_font_italic_toggle.change_toggle_state(win, win.dynamic_settings.primary_font.is_oblique);
+		}
+		if(small_font_italic_toggle.toggle_is_on != win.dynamic_settings.small_font.is_oblique) {
+			small_font_italic_toggle.change_toggle_state(win, win.dynamic_settings.small_font.is_oblique);
+		}
+		if(header_font_italic_toggle.toggle_is_on != win.dynamic_settings.header_font.is_oblique) {
+			header_font_italic_toggle.change_toggle_state(win, win.dynamic_settings.header_font.is_oblique);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.primary_font.weight, 0);
+			primary_font_weight_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_double(win.dynamic_settings.primary_font.span, 0);
+			primary_font_stretch_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.small_font.weight, 0);
+			small_font_weight_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_double(win.dynamic_settings.small_font.span, 0);
+			small_font_stretch_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.header_font.weight, 0);
+			header_font_weight_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_double(win.dynamic_settings.header_font.span, 0);
+			header_font_stretch_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.primary_font.top_leading, 0);
+			primary_top_lead_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.primary_font.bottom_leading, 0);
+			primary_bottom_lead_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.small_font.top_leading, 0);
+			small_top_lead_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.small_font.bottom_leading, 0);
+			small_bottom_lead_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.header_font.top_leading, 0);
+			header_top_lead_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.header_font.bottom_leading, 0);
+			header_bottom_lead_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_double(win.dynamic_settings.small_size_multiplier, 3);
+			small_relative_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_double(win.dynamic_settings.heading_size_multiplier, 3);
+			header_relative_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
 
 		page_layout_specification page_spec;
 		page_spec.header = &header;
@@ -369,31 +500,239 @@ namespace printui {
 		get_option(size_t(input_mode::controller_only))->set_disabled(win, win.controller_number_plugged_in == 0);
 	}
 
+
+	void font_italic_toggle_button::toggle_action(window_data& win, bool toggle_state) {
+		if(text_sz == text_size::standard) {
+			if(toggle_state != win.dynamic_settings.primary_font.is_oblique) {
+				win.dynamic_settings.primary_font.is_oblique = toggle_state;
+				win.dynamic_settings.settings_changed = true;
+				win.text_data.update_fonts(win);
+			}
+		} else if(text_sz == text_size::note) {
+			if(toggle_state != win.dynamic_settings.small_font.is_oblique) {
+				win.dynamic_settings.small_font.is_oblique = toggle_state;
+				win.dynamic_settings.settings_changed = true;
+				win.text_data.update_fonts(win);
+			}
+		} else {
+			if(toggle_state != win.dynamic_settings.header_font.is_oblique) {
+				win.dynamic_settings.header_font.is_oblique = toggle_state;
+				win.dynamic_settings.settings_changed = true;
+				win.text_data.update_fonts(win);
+			}
+		}
+
+		win.get_layout();
+		auto containing_pi = win.get_node(win.window_bar.print_ui_settings.l_id).page_info();
+		int pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, l_id);
+		if(pn >= 0) {
+			win.window_bar.print_ui_settings.go_to_page(win, uint32_t(pn), *containing_pi);
+			win.redraw_ui();
+		}
+	}
+
+	void font_top_lead_edit::on_edit_finished(window_data& win, std::wstring const& txt) {
+		auto extracted_value = win.text_data.text_to_int(txt.data(), uint32_t(txt.length()));
+		if(extracted_value > 0) {
+			extracted_value = std::clamp(extracted_value, 0i64, 20i64);
+
+			if(text_sz == text_size::standard)
+				win.dynamic_settings.primary_font.top_leading = int32_t(extracted_value);
+			else if(text_sz == text_size::note)
+				win.dynamic_settings.small_font.top_leading = int32_t(extracted_value);
+			else
+				win.dynamic_settings.header_font.top_leading = int32_t(extracted_value);
+
+			win.dynamic_settings.settings_changed = true;
+			win.text_data.update_fonts(win);
+
+			win.get_layout();
+			auto containing_pi = win.get_node(win.window_bar.print_ui_settings.l_id).page_info();
+			int pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, l_id);
+			if(pn >= 0) {
+				win.window_bar.print_ui_settings.go_to_page(win, uint32_t(pn), *containing_pi);
+				win.redraw_ui();
+			}
+		}
+		auto result_to_str = win.text_data.format_int(extracted_value, 0);
+		quiet_set_text(win, result_to_str.text_content.text);
+	}
+
+	void font_bottom_lead_edit::on_edit_finished(window_data& win, std::wstring const& txt) {
+		auto extracted_value = win.text_data.text_to_int(txt.data(), uint32_t(txt.length()));
+		if(extracted_value > 0) {
+			extracted_value = std::clamp(extracted_value, 0i64, 20i64);
+
+			if(text_sz == text_size::standard)
+				win.dynamic_settings.primary_font.bottom_leading = int32_t(extracted_value);
+			else if(text_sz == text_size::note)
+				win.dynamic_settings.small_font.bottom_leading = int32_t(extracted_value);
+			else
+				win.dynamic_settings.header_font.bottom_leading = int32_t(extracted_value);
+
+			win.dynamic_settings.settings_changed = true;
+			win.text_data.update_fonts(win);
+
+			win.get_layout();
+			auto containing_pi = win.get_node(win.window_bar.print_ui_settings.l_id).page_info();
+			int pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, l_id);
+			if(pn >= 0) {
+				win.window_bar.print_ui_settings.go_to_page(win, uint32_t(pn), *containing_pi);
+				win.redraw_ui();
+			}
+		}
+		auto result_to_str = win.text_data.format_int(extracted_value, 0);
+		quiet_set_text(win, result_to_str.text_content.text);
+	}
+
+	void font_weight_edit::on_edit_finished(window_data& win, std::wstring const& txt) {
+		auto extracted_value = win.text_data.text_to_int(txt.data(), uint32_t(txt.length()));
+		if(extracted_value > 0) {
+			extracted_value = std::clamp(extracted_value, 100i64, 900i64);
+			
+			if(text_sz == text_size::standard)
+				win.dynamic_settings.primary_font.weight = int32_t(extracted_value);
+			else if(text_sz == text_size::note)
+				win.dynamic_settings.small_font.weight = int32_t(extracted_value);
+			else
+				win.dynamic_settings.header_font.weight = int32_t(extracted_value);
+
+			win.dynamic_settings.settings_changed = true;
+			win.text_data.update_fonts(win);
+
+			win.get_layout();
+			auto containing_pi = win.get_node(win.window_bar.print_ui_settings.l_id).page_info();
+			int pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, l_id);
+			if(pn >= 0) {
+				win.window_bar.print_ui_settings.go_to_page(win, uint32_t(pn), *containing_pi);
+				win.redraw_ui();
+			}
+		}
+		auto result_to_str = win.text_data.format_int(extracted_value, 0);
+		quiet_set_text(win, result_to_str.text_content.text);
+	}
+
+	void small_relative_size::on_edit_finished(window_data& win, std::wstring const& txt) {
+		auto extracted_value = win.text_data.text_to_double(txt.data(), uint32_t(txt.length()));
+		if(extracted_value > 0) {
+			extracted_value = std::clamp(extracted_value, 0.5, 1.0);
+
+			win.dynamic_settings.small_size_multiplier = float(extracted_value);
+
+			win.dynamic_settings.settings_changed = true;
+			win.text_data.update_fonts(win);
+
+			win.get_layout();
+			auto containing_pi = win.get_node(win.window_bar.print_ui_settings.l_id).page_info();
+			int pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, l_id);
+			if(pn >= 0) {
+				win.window_bar.print_ui_settings.go_to_page(win, uint32_t(pn), *containing_pi);
+				win.redraw_ui();
+			}
+		}
+		auto result_to_str = win.text_data.format_double(extracted_value, 3);
+		quiet_set_text(win, result_to_str.text_content.text);
+	}
+
+	void header_relative_size::on_edit_finished(window_data& win, std::wstring const& txt) {
+		auto extracted_value = win.text_data.text_to_double(txt.data(), uint32_t(txt.length()));
+		if(extracted_value > 0) {
+			extracted_value = std::clamp(extracted_value, 1.0, 2.0);
+
+			win.dynamic_settings.heading_size_multiplier = float(extracted_value);
+
+			win.dynamic_settings.settings_changed = true;
+			win.text_data.update_fonts(win);
+
+			win.get_layout();
+			auto containing_pi = win.get_node(win.window_bar.print_ui_settings.l_id).page_info();
+			int pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, l_id);
+			if(pn >= 0) {
+				win.window_bar.print_ui_settings.go_to_page(win, uint32_t(pn), *containing_pi);
+				win.redraw_ui();
+			}
+		}
+		auto result_to_str = win.text_data.format_double(extracted_value, 3);
+		quiet_set_text(win, result_to_str.text_content.text);
+	}
+
+	void font_stretch_edit::on_edit_finished(window_data& win, std::wstring const& txt) {
+		auto extracted_value = win.text_data.text_to_double(txt.data(), uint32_t(txt.length()));
+		if(extracted_value > 0) {
+			extracted_value = std::clamp(extracted_value, 50.0, 200.0);
+
+			if(text_sz == text_size::standard)
+				win.dynamic_settings.primary_font.span = float(extracted_value);
+			else if(text_sz == text_size::note)
+				win.dynamic_settings.small_font.span = float(extracted_value);
+			else
+				win.dynamic_settings.header_font.span = float(extracted_value);
+
+			win.dynamic_settings.settings_changed = true;
+			win.text_data.update_fonts(win);
+
+			win.get_layout();
+			auto containing_pi = win.get_node(win.window_bar.print_ui_settings.l_id).page_info();
+			int pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, l_id);
+			if(pn >= 0) {
+				win.window_bar.print_ui_settings.go_to_page(win, uint32_t(pn), *containing_pi);
+				win.redraw_ui();
+			}
+		}
+		auto result_to_str = win.text_data.format_double(extracted_value, 0);
+		quiet_set_text(win, result_to_str.text_content.text);
+	}
+
 	void font_button::button_action(window_data& win) {
-		if(for_primary_font)
+		if(text_sz == text_size::standard)
 			win.dynamic_settings.primary_font.name = name;
-		else
+		else if(text_sz == text_size::note)
 			win.dynamic_settings.small_font.name = name;
+		else
+			win.dynamic_settings.header_font.name = name;
 
 		win.dynamic_settings.settings_changed = true;
 		win.text_data.update_fonts(win);
+		
+		win.get_layout();
 
-		if(for_primary_font)
-			win.window_bar.print_ui_settings.primary_font_menu.close(win, true);
+		auto containing_pi = win.get_node(win.window_bar.print_ui_settings.l_id).page_info();
+		int pn = -1;
+
+		if(text_sz == text_size::standard)
+			pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, win.window_bar.print_ui_settings.primary_font_menu.l_id);
+		else if(text_sz == text_size::note)
+			pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, win.window_bar.print_ui_settings.small_font_menu.l_id);
 		else
+			pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, win.window_bar.print_ui_settings.header_font_menu.l_id);
+
+		
+		if(pn >= 0) {
+			win.window_bar.print_ui_settings.go_to_page(win, uint32_t(pn), *containing_pi);
+			win.redraw_ui();
+		}
+		
+
+		if(text_sz == text_size::standard)
+			win.window_bar.print_ui_settings.primary_font_menu.close(win, true);
+		else if(text_sz == text_size::note)
 			win.window_bar.print_ui_settings.small_font_menu.close(win, true);
+		else
+			win.window_bar.print_ui_settings.header_font_menu.close(win, true);
 	}
+
 	std::vector<page_content> font_menu::get_options(window_data& win) {
 		std::vector<page_content> result;
 
 		if(lbuttons.size() == 0) {
 			auto font_names = win.text_interface.ennumerate_fonts(win.text_data.locale_name());
 			for(auto& l : font_names) {
-				auto ptr = std::make_unique<font_button>(for_primary_font);
+				auto ptr = std::make_unique<font_button>(text_sz);
 				ptr->name = l;
 				ptr->set_text(win, l);
 				ptr->set_text_alignment(content_alignment::trailing);
-				bool is_current = for_primary_font ? (l == win.dynamic_settings.primary_font.name) : (l == win.dynamic_settings.small_font.name);
+				bool is_current = text_sz == text_size::standard ? (l == win.dynamic_settings.primary_font.name) : 
+					(text_sz == text_size::note ? (l == win.dynamic_settings.small_font.name) : (l == win.dynamic_settings.header_font.name));
 				ptr->set_selected(win, is_current);
 				lbuttons.push_back(std::move(ptr));
 			}
@@ -407,7 +746,8 @@ namespace printui {
 	void font_menu::on_open(window_data& win) {
 		for(auto& ptr : lbuttons) {
 			font_button* b = static_cast<font_button*>(ptr.get());
-			bool is_current = for_primary_font ? (b->name == win.dynamic_settings.primary_font.name) : (b->name == win.dynamic_settings.small_font.name);
+			bool is_current = text_sz == text_size::standard ? (b->name == win.dynamic_settings.primary_font.name) :
+				(text_sz == text_size::note ? (b->name == win.dynamic_settings.small_font.name) : (b->name == win.dynamic_settings.header_font.name));
 			b->set_selected(win, is_current);
 		}
 	}
