@@ -2148,8 +2148,8 @@ namespace printui {
 			win.accessibility_interface.on_change_name(acc_obj, L"");
 		}
 	}
-	void label_control::set_text(window_data& win, uint16_t val) {
-		label_text.set_text(val);
+	void label_control::set_text(window_data& win, uint16_t val, text::text_parameter const* begin, text::text_parameter const* end) {
+		label_text.set_text(val, begin, end);
 		if(acc_obj && win.is_visible(l_id)) {
 			if(val != uint16_t(-1)) {
 				win.accessibility_interface.on_change_name(acc_obj, label_text.get_raw_text(win));
@@ -2163,6 +2163,10 @@ namespace printui {
 		if(acc_obj && win.is_visible(l_id)) {
 			win.accessibility_interface.on_change_name(acc_obj, val);
 		}
+	}
+
+	void label_control::quiet_set_text(uint16_t val, text::text_parameter const* begin, text::text_parameter const* end) {
+		label_text.set_text(val, begin, end);
 	}
 
 	//
@@ -2214,11 +2218,6 @@ namespace printui {
 			selected ? (rect.display_flags & ~ui_rectangle::flag_skip_bg) : rect.display_flags,
 			bg_index, under_mouse && !disabled, win);
 
-		if(!disabled && !selected) {
-			auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, ((button_text.resolved_text_size.y - 1) / 2), 1, 1, rect);
-			win.rendering_interface.interactable_or_foreground(win, new_top_left, saved_state, fg_index, false);
-		}
-
 		auto& node = win.get_node(l_id);
 
 		auto new_content_rect = screen_rectangle_from_relative_rect_in_ui(win,
@@ -2226,8 +2225,16 @@ namespace printui {
 
 		if(!disabled) {
 			win.rendering_interface.fill_from_foreground(new_content_rect, fg_index, true);
+			if(!selected) {
+				auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, ((button_text.resolved_text_size.y - 1) / 2), 1, 1, rect);
+				win.rendering_interface.interactable_or_icon(win, new_top_left, saved_state, fg_index, false, icon);
+			}
 		} else {
 			win.rendering_interface.set_brush_opacity(fg_index, 0.6f);
+			if(!selected) {
+				auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, ((button_text.resolved_text_size.y - 1) / 2), 1, 1, rect);
+				win.rendering_interface.interactable_or_icon(win, new_top_left, saved_state, fg_index, false, icon);
+			}
 			win.rendering_interface.fill_from_foreground(new_content_rect, fg_index, true);
 			win.rendering_interface.set_brush_opacity(fg_index, 1.0f);
 		}
@@ -2236,10 +2243,6 @@ namespace printui {
 		auto& node = win.get_node(l_id);
 
 		button_text.relayout_text(win, horizontal(win.orientation) ? screen_space_point{ rect.width - (node.left_margin() + node.right_margin()) * win.layout_size, rect.height } : screen_space_point{ rect.width, rect.height - (node.left_margin() + node.right_margin()) * win.layout_size });
-
-		auto icon_location = screen_topleft_from_layout_in_ui(win, 0, ((button_text.resolved_text_size.y - 1) / 2), 1, 1, rect);
-
-		win.rendering_interface.draw_icon_to_foreground(icon_location.x, icon_location.y, icon);
 
 		// get sub layout positions
 
@@ -2430,7 +2433,10 @@ namespace printui {
 
 		auto icon_sz = win.rendering_interface.get_icon_size(ico);
 
-		if(!is_disabled(win) && saved_state.holds_key()) {
+		if(is_disabled(win))
+			win.rendering_interface.set_brush_opacity(fg_index, 0.6f);
+
+		if(saved_state.holds_key()) {
 			auto new_top_left = screen_topleft_from_layout_in_ui(win, 0, 0,
 				display_vertically ? icon_sz.x : 1,
 				display_vertically ? 1 : icon_sz.y,
@@ -2445,14 +2451,12 @@ namespace printui {
 
 		{
 			auto new_top_left = screen_topleft_from_layout_in_ui(win, display_vertically ? 0 : 1, display_vertically ? 1 : 0, icon_sz.x, icon_sz.y, rect);
-			if(is_disabled(win)) {
-				win.rendering_interface.set_brush_opacity(fg_index, 0.6f);
-				win.rendering_interface.draw_icon(new_top_left.x, new_top_left.y, ico, fg_index);
-				win.rendering_interface.set_brush_opacity(fg_index, 1.0f);
-			} else {
-				win.rendering_interface.draw_icon(new_top_left.x, new_top_left.y, ico, fg_index);
-			}
+			win.rendering_interface.draw_icon(new_top_left.x, new_top_left.y, ico, fg_index);
+			
 		}
+
+		if(is_disabled(win))
+			win.rendering_interface.set_brush_opacity(fg_index, 1.0f);
 	}
 
 	void icon_button_base::on_right_click(window_data& win, uint32_t, uint32_t) {

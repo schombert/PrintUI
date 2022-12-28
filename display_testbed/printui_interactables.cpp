@@ -684,7 +684,7 @@ namespace printui {
 
 			if(pending_right_click) {
 
-				if((window_interface.get_key_state(primary_right_click_modifier_sc) == 0 && window_interface.get_key_state(secondary_right_click_modifier_sc) == 0) || dynamic_settings.imode == input_mode::mouse_only) {
+				if(window_interface.get_key_state(dynamic_settings.keys.info_key.scancode) == 0 || dynamic_settings.imode == input_mode::mouse_only) {
 					pending_right_click = false; // right click modifier not held down
 					window_bar.info_i.mark_for_update(*this);
 				}

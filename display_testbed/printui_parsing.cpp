@@ -302,27 +302,6 @@ namespace printui::parse {
 		}
 	}
 
-	void parse_palette(std::vector<printui::brush>& brushes, char const* start, char const* end) {
-		char const* pos = start;
-		int32_t i = 0;
-
-
-		while(pos < end) {
-			auto extracted = extract_item(pos, end);
-			pos = extracted.terminal;
-
-			if(extracted.key.start != extracted.key.end) {
-				std::string kstr(extracted.key.to_string());
-				if(kstr == "brush") {
-					if(extracted.values.size() >= 1 && i < int32_t(brushes.size())) {
-						parse_brush(brushes[i], extracted.values[0].start, extracted.values[0].end);
-						++i;
-					}
-				}
-			}
-		}
-	}
-
 	std::wstring to_wstring(std::string_view str) {
 
 		WCHAR* buffer = new WCHAR[str.length() * 2];
@@ -362,6 +341,143 @@ namespace printui::parse {
 		delete[] buffer;
 		return result;
 	}
+
+	keyboard_key_descriptor parse_key_description(char const* start, char const* end) {
+		keyboard_key_descriptor result;
+
+		char const* pos = start;
+		while(pos < end) {
+			auto extracted = extract_item(pos, end);
+			pos = extracted.terminal;
+
+			if(extracted.key.start != extracted.key.end) {
+				std::string kstr(extracted.key.to_string());
+				if(kstr == "scancode") {
+					if(extracted.values.size() >= 1) {
+						result.scancode = uint32_t(std::stoi(std::string(extracted.values[0].to_string())));
+					}
+				} else if(kstr == "name") {
+					for(uint32_t i = 0; i < extracted.values.size(); ++i) {
+						result.display_name += wchar_t(uint16_t(std::stoi(std::string(extracted.values[i].to_string()))));
+					}
+					
+				} 
+			}
+		}
+		return result;
+	}
+
+	void parse_keysettings(launch_settings& ls, char const* start, char const* end) {
+		char const* pos = start;
+		while(pos < end) {
+			auto extracted = extract_item(pos, end);
+			pos = extracted.terminal;
+
+			if(extracted.key.start != extracted.key.end) {
+				std::string kstr(extracted.key.to_string());
+				if(kstr == "key0") {
+					if(extracted.values.size() >= 1) {
+						ls.keys.main_keys[0] = parse_key_description(extracted.values[0].start, extracted.values[0].end);
+					}
+				} else if(kstr == "key1") {
+					if(extracted.values.size() >= 1) {
+						ls.keys.main_keys[1] = parse_key_description(extracted.values[0].start, extracted.values[0].end);
+					}
+				} else if(kstr == "key2") {
+					if(extracted.values.size() >= 1) {
+						ls.keys.main_keys[2] = parse_key_description(extracted.values[0].start, extracted.values[0].end);
+					}
+				} else if(kstr == "key3") {
+					if(extracted.values.size() >= 1) {
+						ls.keys.main_keys[3] = parse_key_description(extracted.values[0].start, extracted.values[0].end);
+					}
+				} else if(kstr == "key4") {
+					if(extracted.values.size() >= 1) {
+						ls.keys.main_keys[4] = parse_key_description(extracted.values[0].start, extracted.values[0].end);
+					}
+				} else if(kstr == "key5") {
+					if(extracted.values.size() >= 1) {
+						ls.keys.main_keys[5] = parse_key_description(extracted.values[0].start, extracted.values[0].end);
+					}
+				} else if(kstr == "key6") {
+					if(extracted.values.size() >= 1) {
+						ls.keys.main_keys[6] = parse_key_description(extracted.values[0].start, extracted.values[0].end);
+					}
+				} else if(kstr == "key7") {
+					if(extracted.values.size() >= 1) {
+						ls.keys.main_keys[7] = parse_key_description(extracted.values[0].start, extracted.values[0].end);
+					}
+				} else if(kstr == "key8") {
+					if(extracted.values.size() >= 1) {
+						ls.keys.main_keys[8] = parse_key_description(extracted.values[0].start, extracted.values[0].end);
+					}
+				} else if(kstr == "key9") {
+					if(extracted.values.size() >= 1) {
+						ls.keys.main_keys[9] = parse_key_description(extracted.values[0].start, extracted.values[0].end);
+					}
+				} else if(kstr == "key10") {
+					if(extracted.values.size() >= 1) {
+						ls.keys.main_keys[10] = parse_key_description(extracted.values[0].start, extracted.values[0].end);
+					}
+				} else if(kstr == "key11") {
+					if(extracted.values.size() >= 1) {
+						ls.keys.main_keys[11] = parse_key_description(extracted.values[0].start, extracted.values[0].end);
+					}
+				} else if(kstr == "keyescape") {
+					if(extracted.values.size() >= 1) {
+						ls.keys.primary_escape = parse_key_description(extracted.values[0].start, extracted.values[0].end);
+					}
+				} else if(kstr == "keyinfo") {
+					if(extracted.values.size() >= 1) {
+						ls.keys.info_key = parse_key_description(extracted.values[0].start, extracted.values[0].end);
+					}
+				} else if(kstr == "sticky_info") {
+					if(extracted.values.size() >= 1) {
+						const auto val = extracted.values[0].to_string();
+						if(val == "yes" || val == "y" || val == "YES" || val == "Y" || val == "true")
+							ls.keys.info_key_is_sticky = true;
+						else if(val == "no" || val == "n" || val == "NO" || val == "N" || val == "false")
+							ls.keys.info_key_is_sticky = false;
+					}
+				} else if(kstr == "type") {
+					if(extracted.values.size() >= 1) {
+						const auto val = extracted.values[0].to_string();
+						if(val == "left_hand")
+							ls.keys.type = keyboard_type::left_hand;
+						else if(val == "right_hand")
+							ls.keys.type = keyboard_type::right_hand;
+						else if(val == "right_hand_tilted")
+							ls.keys.type = keyboard_type::right_hand_tilted;
+						else if(val == "custom")
+							ls.keys.type = keyboard_type::custom;
+					}
+				}
+			}
+		}
+	}
+
+	void parse_palette(std::vector<printui::brush>& brushes, char const* start, char const* end) {
+		char const* pos = start;
+		int32_t i = 0;
+
+
+		while(pos < end) {
+			auto extracted = extract_item(pos, end);
+			pos = extracted.terminal;
+
+			if(extracted.key.start != extracted.key.end) {
+				std::string kstr(extracted.key.to_string());
+				if(kstr == "brush") {
+					if(extracted.values.size() >= 1 && i < int32_t(brushes.size())) {
+						parse_brush(brushes[i], extracted.values[0].start, extracted.values[0].end);
+						++i;
+					}
+				}
+			}
+		}
+	}
+
+	
 
 	void custom_fonts_only(launch_settings& ls, std::unordered_map<std::string, uint32_t, text::string_hash, std::equal_to<>>& font_name_to_index, char const* start, char const* end) {
 
@@ -411,6 +527,10 @@ namespace printui::parse {
 						printui::font_description new_font;
 						parse_main_font_description(new_font, extracted.values[0].start, extracted.values[0].end);
 						ls.primary_font = new_font;
+					}
+				} else if(kstr == "keysettings") {
+					if(extracted.values.size() >= 1) {
+						parse_keysettings(ls, extracted.values[0].start, extracted.values[0].end);
 					}
 				} else if(kstr == "font_fallback") {
 					if(extracted.values.size() >= 1) {
@@ -540,6 +660,95 @@ namespace printui::parse {
 			}
 		}
 	}
+	
+	std::string make_key_description(keyboard_key_descriptor const& k) {
+		std::string result;
+		result += "\t\tscancode{ " + std::to_string(k.scancode) + " }\n";
+		result += "\t\tname";
+		for(uint32_t i = 0; i < k.display_name.length(); ++i) {
+			result += "{ " + std::to_string(uint16_t(k.display_name[i])) + " }";
+		}
+		result += "\n";
+		return result;
+	}
+
+	std::string make_keysettings_description(key_mappings const& k) {
+		std::string result;
+		result += "keysettings{\n";
+
+			result += "\tkey0{\n";
+			result += make_key_description(k.main_keys[0]);
+			result += "\t}\n";
+
+			result += "\tkey1{\n";
+			result += make_key_description(k.main_keys[1]);
+			result += "\t}\n";
+
+			result += "\tkey2{\n";
+			result += make_key_description(k.main_keys[2]);
+			result += "\t}\n";
+
+			result += "\tkey3{\n";
+			result += make_key_description(k.main_keys[3]);
+			result += "\t}\n";
+
+			result += "\tkey4{\n";
+			result += make_key_description(k.main_keys[4]);
+			result += "\t}\n";
+
+			result += "\tkey5{\n";
+			result += make_key_description(k.main_keys[5]);
+			result += "\t}\n";
+
+			result += "\tkey6{\n";
+			result += make_key_description(k.main_keys[6]);
+			result += "\t}\n";
+
+			result += "\tkey7{\n";
+			result += make_key_description(k.main_keys[7]);
+			result += "\t}\n";
+
+			result += "\tkey8{\n";
+			result += make_key_description(k.main_keys[8]);
+			result += "\t}\n";
+
+			result += "\tkey9{\n";
+			result += make_key_description(k.main_keys[9]);
+			result += "\t}\n";
+
+			result += "\tkey10{\n";
+			result += make_key_description(k.main_keys[10]);
+			result += "\t}\n";
+
+			result += "\tkey11{\n";
+			result += make_key_description(k.main_keys[11]);
+			result += "\t}\n";
+
+			result += "\tkeyescape{\n";
+			result += make_key_description(k.primary_escape);
+			result += "\t}\n";
+
+			result += "\tkeyinfo{\n";
+			result += make_key_description(k.info_key);
+			result += "\t}\n";
+		
+		result += "\tsticky_info{ " + std::string(k.info_key_is_sticky ? "yes" : "no") + " }\n";
+
+		result += "\ttype{ ";
+		if(k.type == keyboard_type::left_hand) {
+			result += "left_hand";
+		} else if(k.type == keyboard_type::right_hand) {
+			result += "right_hand";
+		} else if(k.type == keyboard_type::right_hand_tilted) {
+			result += "right_hand_tilted";
+		} else if(k.type == keyboard_type::custom) {
+			result += "custom";
+		}
+		result += " }\n";
+
+		result += "}\n";
+		return result;
+	}
 
 	std::string make_font_description(font_description const& fnt) {
 		std::string result;
@@ -637,6 +846,7 @@ namespace printui::parse {
 		result += "small_size_multiplier{ " + std::to_string(ls.small_size_multiplier) + " }\n";
 		result += "heading_size_multiplier{ " + std::to_string(ls.heading_size_multiplier) + " }\n";
 
+		result += make_keysettings_description(ls.keys);
 		return result;
 	}
 

@@ -100,7 +100,6 @@ namespace text_id {
 	inline constexpr uint16_t font_stretch_info = 72;
 	inline constexpr uint16_t header_font_label = 73;
 	inline constexpr uint16_t header_font_info = 74;
-
 	inline constexpr uint16_t relative_size_label = 75;
 	inline constexpr uint16_t relative_size_edit_name = 76;
 	inline constexpr uint16_t relative_size_small_info = 77;
@@ -111,8 +110,27 @@ namespace text_id {
 	inline constexpr uint16_t bottom_lead_label = 82;
 	inline constexpr uint16_t bottom_lead_edit_name = 83;
 	inline constexpr uint16_t bottom_lead_edit_info = 84;
+	inline constexpr uint16_t keyboard_header = 85;
+	inline constexpr uint16_t key_ord_name = 86;
+	inline constexpr uint16_t scan_code = 87;
+	inline constexpr uint16_t key_display_name = 88;
+	inline constexpr uint16_t keyboard_arrangement = 89;
+	inline constexpr uint16_t keyboard_left = 90;
+	inline constexpr uint16_t keyboard_right = 91;
+	inline constexpr uint16_t keyboard_tilted = 92;
+	inline constexpr uint16_t keyboard_custom = 93;
+	inline constexpr uint16_t keyboard_arragnement_info = 94;
+	inline constexpr uint16_t key_escape_name = 95;
+	inline constexpr uint16_t key_escape_info = 96;
+	inline constexpr uint16_t key_info_name = 97;
+	inline constexpr uint16_t key_info_info = 98;
+	inline constexpr uint16_t info_key_is_sticky = 99;
+	inline constexpr uint16_t keyboard_code_info = 100;
+	inline constexpr uint16_t keyboard_display_name_info = 101;
+	inline constexpr uint16_t keyboard_display_edit_name = 102;
+	inline constexpr uint16_t info_key_sticky_info = 103;
 
-	inline constexpr uint16_t first_free_id = 85;
+	inline constexpr uint16_t first_free_id = 104;
 }
 
 namespace printui {
@@ -305,7 +323,10 @@ namespace printui {
 		bool uianimations = true;
 		bool caret_blink = true;
 
+		key_mappings keys;
+
 		bool settings_changed = false;
+		
 	};
 
 	namespace text {
@@ -736,10 +757,7 @@ namespace printui {
 			saved_state = v;
 		}
 		virtual int32_t interactable_count(window_data const&) override {
-			if(!disabled)
-				return 1;
-			else
-				return 0;
+			return 1;
 		}
 		virtual void on_click(window_data&, uint32_t, uint32_t) final override;
 		virtual void on_right_click(window_data&, uint32_t, uint32_t) override;
@@ -1070,8 +1088,10 @@ namespace printui {
 			return label_text;
 		}
 		void set_text(window_data&);
-		void set_text(window_data&, uint16_t);
+		void set_text(window_data&, uint16_t, text::text_parameter const* begin = nullptr, text::text_parameter const* end = nullptr);
 		void set_text(window_data&, std::wstring const&);
+
+		void quiet_set_text(uint16_t, text::text_parameter const* begin = nullptr, text::text_parameter const* end = nullptr);
 	};
 
 	struct list_control;
@@ -1641,21 +1661,38 @@ namespace printui {
 	};
 
 	struct settings_orientation_list : public list_control {
-		virtual ~settings_orientation_list() { }
 		virtual void on_select(window_data&, size_t) override;
 		virtual list_option_description describe_option(window_data const&, uint32_t) override;
 	};
 	struct settings_input_mode_list : public list_control {
-		virtual ~settings_input_mode_list() {
-		}
 		virtual void on_select(window_data&, size_t) override;
 		virtual list_option_description describe_option(window_data const&, uint32_t) override;
 		virtual void on_create(window_data&) override;
+	};
+	struct settings_keyboard_arragement_list : public list_control {
+		virtual void on_select(window_data&, size_t) override;
+		virtual list_option_description describe_option(window_data const&, uint32_t) override;
 	};
 	struct ui_animation_toggle_button : public button_control_toggle {
 		ui_animation_toggle_button() : button_control_toggle(text_id::generic_toggle_on, text_id::generic_toggle_off, content_alignment::trailing, text_id::ui_animations_info) {
 		}
 		virtual void toggle_action(window_data&, bool toggle_state) override;
+	};
+
+	struct key_code_button : public button_control_base {
+		int32_t key = 0;
+
+		key_code_button(int32_t key) : key(key), button_control_base(uint16_t(-1), content_alignment::trailing, text_id::keyboard_code_info) { }
+		virtual void button_action(window_data&) override;
+	};
+
+	struct key_name_edit : public simple_editable_text {
+		int32_t key = 0;
+
+		key_name_edit(int32_t key) : key(key), simple_editable_text(content_alignment::trailing, text_id::keyboard_display_edit_name, text_id::keyboard_display_name_info, 6, 1) {
+		}
+
+		virtual void on_edit_finished(window_data&, std::wstring const&) override;
 	};
 
 	struct common_printui_settings : public layout_interface {
@@ -1725,6 +1762,84 @@ namespace printui {
 		label_control header_bottom_lead_label;
 		font_bottom_lead_edit header_bottom_lead_e;
 
+		//keyboard settings
+		label_control keyboard_header;
+
+		label_control kb_arrangement_label;
+		settings_keyboard_arragement_list kb_arrangement_list;
+
+		label_control key1_label;
+		label_control key1_code_label;
+		key_code_button key1_code_button;
+		label_control key1_name_label;
+		key_name_edit key1_edit;
+
+		label_control key2_label;
+		label_control key2_code_label;
+		key_code_button key2_code_button;
+		label_control key2_name_label;
+		key_name_edit key2_edit;
+
+		label_control key3_label;
+		label_control key3_code_label;
+		key_code_button key3_code_button;
+		label_control key3_name_label;
+		key_name_edit key3_edit;
+		
+		label_control key4_label;
+		label_control key4_code_label;
+		key_code_button key4_code_button;
+		label_control key4_name_label;
+		key_name_edit key4_edit;
+
+		label_control key5_label;
+		label_control key5_code_label;
+		key_code_button key5_code_button;
+		label_control key5_name_label;
+		key_name_edit key5_edit;
+
+		label_control key6_label;
+		label_control key6_code_label;
+		key_code_button key6_code_button;
+		label_control key6_name_label;
+		key_name_edit key6_edit;
+
+		label_control key7_label;
+		label_control key7_code_label;
+		key_code_button key7_code_button;
+		label_control key7_name_label;
+		key_name_edit key7_edit;
+
+		label_control key8_label;
+		label_control key8_code_label;
+		key_code_button key8_code_button;
+		label_control key8_name_label;
+		key_name_edit key8_edit;
+
+		label_control key9_label;
+		label_control key9_code_label;
+		key_code_button key9_code_button;
+		label_control key9_name_label;
+		key_name_edit key9_edit;
+
+		label_control key10_label;
+		label_control key10_code_label;
+		key_code_button key10_code_button;
+		label_control key10_name_label;
+		key_name_edit key10_edit;
+
+		label_control key11_label;
+		label_control key11_code_label;
+		key_code_button key11_code_button;
+		label_control key11_name_label;
+		key_name_edit key11_edit;
+
+		label_control key12_label;
+		label_control key12_code_label;
+		key_code_button key12_code_button;
+		label_control key12_name_label;
+		key_name_edit key12_edit;
+
 		accessibility_object_ptr acc_obj;
 
 		std::vector<page_content> content_description;
@@ -1741,6 +1856,8 @@ namespace printui {
 		virtual void recreate_contents(window_data&, layout_node&) override;
 		virtual accessibility_object* get_accessibility_interface(window_data&) override;
 		virtual void go_to_page(window_data&, uint32_t i, page_information& pi) override;
+
+		void update_with_keyboard_settings(window_data& win);
 	};
 
 	struct settings_page_container : public layout_interface {
@@ -1750,6 +1867,7 @@ namespace printui {
 		int32_t settings_item_selected = 0;
 		open_list_control subpage_selection_list;
 		uint8_t section_bottom_decorations = uint8_t(-1);
+		uint8_t section_separation_decorations = uint8_t(-1);
 
 		accessibility_object_ptr acc_obj;
 
@@ -2182,19 +2300,7 @@ namespace printui {
 		prompt_mode prompts = prompt_mode::keyboard;
 		bool display_interactable_type = true;
 		
-		wchar_t prompt_labels[12] = { L'Q', L'W', L'E', L'R', L'A', L'S', L'D', L'F', L'Z', L'X', L'C', L'V' };
-		uint8_t sc_values[12] = {
-			0x10ui8, 0x11ui8, 0x12ui8, 0x13ui8,   // Q W E R
-			0x1Eui8, 0x1Fui8, 0x20ui8, 0x21ui8,   // A S D F
-			0x2Cui8, 0x2Dui8, 0x2Eui8, 0x2Fui8 }; // Z X C V
-
-		uint8_t primary_escape_sc = 0x39ui8; // space bar
 		uint8_t secondary_escape_sc = 0x01ui8; // esc
-
-		uint8_t primary_right_click_modifier_sc = 0x1Dui8; // left control
-		uint8_t secondary_right_click_modifier_sc = 0x1Dui8; // right control (both are the same if we take only the lower byte)
-		uint8_t primary_right_click_modifier_sc_up = 0x9Dui8; // left control
-		uint8_t secondary_right_click_modifier_sc_up = 0x9Dui8; // right control (both are the same if we take only the lower byte)
 
 		bool is_sizeing = false;
 		bool pending_right_click = false;
@@ -2376,6 +2482,7 @@ namespace printui {
 		return o == layout_orientation::horizontal_left_to_right || o == layout_orientation::horizontal_right_to_left;
 	}
 	uint32_t content_alignment_to_text_alignment(content_alignment align);
+	void populate_key_mappings_by_type(key_mappings& k);
 	
 }
 

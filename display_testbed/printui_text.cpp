@@ -997,6 +997,25 @@ namespace printui::text {
 		register_name("bottom_lead_label", ::text_id::bottom_lead_label);
 		register_name("bottom_lead_edit_name", ::text_id::bottom_lead_edit_name);
 		register_name("bottom_lead_edit_info", ::text_id::bottom_lead_edit_info);
+		register_name("keyboard_header", ::text_id::keyboard_header);
+		register_name("key_ord_name", ::text_id::key_ord_name);
+		register_name("scan_code", ::text_id::scan_code);
+		register_name("key_display_name", ::text_id::key_display_name);
+		register_name("keyboard_arrangement", ::text_id::keyboard_arrangement);
+		register_name("keyboard_left", ::text_id::keyboard_left);
+		register_name("keyboard_right", ::text_id::keyboard_right);
+		register_name("keyboard_tilted", ::text_id::keyboard_tilted);
+		register_name("keyboard_custom", ::text_id::keyboard_custom);
+		register_name("keyboard_arragnement_info", ::text_id::keyboard_arragnement_info);
+		register_name("key_escape_name", ::text_id::key_escape_name);
+		register_name("key_escape_info", ::text_id::key_escape_info);
+		register_name("key_info_name", ::text_id::key_info_name);
+		register_name("key_info_info", ::text_id::key_info_info);
+		register_name("info_key_is_sticky", ::text_id::info_key_is_sticky);
+		register_name("keyboard_code_info", ::text_id::keyboard_code_info);
+		register_name("keyboard_display_name_info", ::text_id::keyboard_display_name_info);
+		register_name("keyboard_display_edit_name", ::text_id::keyboard_display_edit_name);
+		register_name("info_key_sticky_info", ::text_id::info_key_sticky_info);
 	}
 
 	UINT GetGrouping(WCHAR const* locale) {

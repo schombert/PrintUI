@@ -301,7 +301,8 @@ namespace printui {
 
 
 	window_data::window_data(bool mn, bool mx, bool settings) : window_bar(*this, mn, mx, settings, get_settings_items()), accessibility_interface(*this) {
-
+		dynamic_settings.keys.type = keyboard_type::left_hand;
+		populate_key_mappings_by_type(dynamic_settings.keys);
 		register_icons();
 	}
 
@@ -575,8 +576,11 @@ namespace printui {
 			return true;
 		}
 
-		if(scan_code == primary_right_click_modifier_sc || scan_code == secondary_right_click_modifier_sc) {
-			pending_right_click = true;
+		if(scan_code == dynamic_settings.keys.info_key.scancode) {
+			if(dynamic_settings.keys.info_key_is_sticky)
+				pending_right_click = !pending_right_click;
+			else
+				pending_right_click = true;
 			window_bar.info_i.mark_for_update(*this);
 			return true;
 		}
@@ -594,7 +598,7 @@ namespace printui {
 			return false;
 		}
 
-		if(scan_code == primary_escape_sc || scan_code == secondary_escape_sc) {
+		if(scan_code == dynamic_settings.keys.primary_escape.scancode || scan_code == secondary_escape_sc) {
 			// go up
 			if(keyboard_target) {
 				set_keyboard_focus(nullptr);
@@ -603,7 +607,7 @@ namespace printui {
 			}
 		} else {
 			for(int32_t i = 0; i < 12; i++) {
-				if(sc_values[i] == scan_code) {
+				if(dynamic_settings.keys.main_keys[i].scancode == scan_code) {
 					// do something with ith key
 					execute_focus_action(focus_actions.button_actions[i]);
 					break;
@@ -790,9 +794,11 @@ namespace printui {
 	}
 
 	bool window_data::on_key_up(uint32_t scan_code, uint32_t /*key_code*/) {
-		if(scan_code == primary_right_click_modifier_sc || scan_code == secondary_right_click_modifier_sc) {
-			pending_right_click = false;
-			window_bar.info_i.mark_for_update(*this);
+		if(scan_code == dynamic_settings.keys.info_key.scancode) {
+			if(!dynamic_settings.keys.info_key_is_sticky) {
+				pending_right_click = false;
+				window_bar.info_i.mark_for_update(*this);
+			}
 			return true;
 		}
 
@@ -879,9 +885,8 @@ namespace printui {
 		auto under_cursor = printui::interface_under_point(*this, get_ui_rects(), x, y, true);
 		if(under_cursor) {
 			if(pending_right_click) {
-				auto presult = window_interface.get_key_state(primary_right_click_modifier_sc);
-				auto sresult = window_interface.get_key_state(secondary_right_click_modifier_sc);
-				if((presult == 0 && sresult == 0) || dynamic_settings.imode == input_mode::mouse_only) {
+				auto presult = window_interface.get_key_state(dynamic_settings.keys.info_key.scancode);
+				if(presult == 0 || dynamic_settings.imode == input_mode::mouse_only) {
 					pending_right_click = false; // right click modifier not held down
 					window_bar.info_i.mark_for_update(*this);
 				}
@@ -909,9 +914,8 @@ namespace printui {
 		auto under_cursor = printui::interface_under_point(*this, get_ui_rects(), x, y, false);
 		if(under_cursor) {
 			if(pending_right_click) {
-				auto presult = window_interface.get_key_state(primary_right_click_modifier_sc);
-				auto sresult = window_interface.get_key_state(secondary_right_click_modifier_sc);
-				if((presult == 0 && sresult == 0) || dynamic_settings.imode == input_mode::mouse_only) {
+				auto presult = window_interface.get_key_state(dynamic_settings.keys.info_key.scancode);
+				if(presult == 0 || dynamic_settings.imode == input_mode::mouse_only) {
 					pending_right_click = false; // right click modifier not held down
 					window_bar.info_i.mark_for_update(*this);
 				}
@@ -1463,6 +1467,80 @@ namespace printui {
 			file_system.with_file_content(directory + L"\\" + filen, [&](std::string_view content) {
 				parse::custom_fonts_only(dynamic_settings, text_data.font_name_to_index, content.data(), content.data() + content.length());
 				});
+		}
+	}
+
+	void populate_key_mappings_by_type(key_mappings& k) {
+		switch(k.type) {
+			case keyboard_type::left_hand:
+				k.main_keys[0].scancode = 0x10; // Q
+				k.main_keys[1].scancode = 0x11; // W
+				k.main_keys[2].scancode = 0x12; // E
+				k.main_keys[3].scancode = 0x13; // R
+				k.main_keys[4].scancode = 0x1E; // A
+				k.main_keys[5].scancode = 0x1F; // S
+				k.main_keys[6].scancode = 0x20; // D
+				k.main_keys[7].scancode = 0x21; // F
+				k.main_keys[8].scancode = 0x2C; // Z
+				k.main_keys[9].scancode = 0x2D; // X
+				k.main_keys[10].scancode = 0x2E; // C
+				k.main_keys[11].scancode = 0x2F; // V
+				k.primary_escape.scancode = 0x39; // SPACE
+				k.info_key.scancode = 0x2A; // L SHFIT
+				break;
+			case keyboard_type::right_hand:
+				k.main_keys[0].scancode = 0x16; // U
+				k.main_keys[1].scancode = 0x17; // I
+				k.main_keys[2].scancode = 0x18; // O
+				k.main_keys[3].scancode = 0x19; // P
+				k.main_keys[4].scancode = 0x24; // J
+				k.main_keys[5].scancode = 0x25; // K
+				k.main_keys[6].scancode = 0x26; // L
+				k.main_keys[7].scancode = 0x27; // :
+				k.main_keys[8].scancode = 0x32; // M
+				k.main_keys[9].scancode = 0x33; // ,
+				k.main_keys[10].scancode = 0x34; // .
+				k.main_keys[11].scancode = 0x35; // /
+				k.primary_escape.scancode = 0x39; // SPACE
+				k.info_key.scancode = 0x36; // R SHFIT
+				break;
+			case keyboard_type::right_hand_tilted:
+				k.main_keys[0].scancode = 0x17; // I
+				k.main_keys[1].scancode = 0x18; // O
+				k.main_keys[2].scancode = 0x19; // P
+				k.main_keys[3].scancode = 0x1A; // {
+				k.main_keys[4].scancode = 0x24; // J
+				k.main_keys[5].scancode = 0x25; // K
+				k.main_keys[6].scancode = 0x26; // L
+				k.main_keys[7].scancode = 0x27; // :
+				k.main_keys[8].scancode = 0x31; // N
+				k.main_keys[9].scancode = 0x32; // M
+				k.main_keys[10].scancode = 0x33; // ,
+				k.main_keys[11].scancode = 0x34; // .
+				k.primary_escape.scancode = 0x39; // SPACE
+				k.info_key.scancode = 0x36; // R SHFIT
+				break;
+			default:
+				return;
+		}
+
+		for(uint32_t i = 0; i < 12; ++i) {
+			WCHAR keyname[64];
+			auto length = GetKeyNameTextW((uint32_t(k.main_keys[i].scancode) << 16) | 1ui32, keyname, 64);
+			if(length > 0)
+				k.main_keys[i].display_name = std::wstring(size_t(1), keyname[0]);
+			else
+				k.main_keys[i].display_name = L"";
+		}
+		{
+			WCHAR keyname[64];
+			auto length = GetKeyNameTextW((uint32_t(k.primary_escape.scancode) << 16) | 1ui32, keyname, 64);
+			k.primary_escape.display_name = std::wstring(keyname, size_t(length));
+		}
+		{
+			WCHAR keyname[64];
+			auto length = GetKeyNameTextW((uint32_t(k.info_key.scancode) << 16) | 1ui32, keyname, 64);
+			k.info_key.display_name = std::wstring(keyname, size_t(length));
 		}
 	}
 }

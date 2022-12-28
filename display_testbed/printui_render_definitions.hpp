@@ -129,6 +129,7 @@ namespace printui::render {
 		void draw_icon_to_foreground(int32_t x, int32_t y, uint8_t ico);
 		layout_position get_icon_size(uint8_t ico);
 		uint8_t load_icon(std::wstring const& file_name, float edge_padding, int8_t x_size, int8_t y_size);
+		void create_interactiable_tags(window_data& win);
 	private:
 		void create_device_resources(window_data& win);
 		void to_display(std::vector<ui_rectangle> const& uirects, window_data& win);
@@ -138,7 +139,6 @@ namespace printui::render {
 		void release_palette();
 		void create_highlight_brushes();
 		void setup_icon_transform(window_data const& win, float edge_padding, int32_t xsize, int32_t ysize);
-		void create_interactiable_tags(window_data& win);
 		void refresh_foregound(window_data& win);
 		void redraw_icons(window_data& win);
 		void release_device_resources();

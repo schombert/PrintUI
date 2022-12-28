@@ -298,8 +298,10 @@ namespace printui {
 							hs = highlight_state::painted_normal;
 						}
 					}
+				} else { // no item content
+					hs = highlight_state::painted_normal;
 				}
-			}
+			} 
 
 			max_width = std::min(max_item_width + (spec.column_left_margin + spec.column_right_margin), int32_t(spec.max_column_horizontal_size));
 			max_width = std::max(max_width, int32_t(spec.min_column_horizontal_size));
@@ -418,6 +420,23 @@ namespace printui {
 							deco.width = win.rendering_interface.get_icon_size(spec.section_footer_decoration).x;
 							deco.height = win.rendering_interface.get_icon_size(spec.section_footer_decoration).y;
 							deco.contents = decoration_id{ spec.section_footer_decoration , spec.decoration_brush };
+							win.get_node(current_column).height = uint16_t(vertical_offset);
+							win.immediate_add_child(current_column, decoration_node);
+						}
+					}
+				} else if(i->type == item_type::decoration_space) {
+					if(vertical_offset > 0 && spec.spacing_decoration != uint8_t(-1)) {
+						auto temp_offset = vertical_offset;
+						vertical_offset += win.rendering_interface.get_icon_size(spec.spacing_decoration).y;
+						if(vertical_offset <= available_vert_space) {
+							// add decoration
+							auto decoration_node = win.allocate_node();
+							auto& deco = win.get_node(decoration_node);
+							deco.y = uint16_t(temp_offset);
+							deco.x = 0;
+							deco.width = win.rendering_interface.get_icon_size(spec.spacing_decoration).x;
+							deco.height = win.rendering_interface.get_icon_size(spec.spacing_decoration).y;
+							deco.contents = decoration_id{ spec.spacing_decoration , spec.decoration_brush };
 							win.get_node(current_column).height = uint16_t(vertical_offset);
 							win.immediate_add_child(current_column, decoration_node);
 						}
@@ -553,7 +572,7 @@ namespace printui {
 			n.x = 0;
 			n.y = win.get_node(l_id).height - n.height;
 			win.immediate_resize(n, win.get_node(l_id).width, n.height);
-			n.set_margins(1, 1);
+			n.set_margins(2, 2);
 		}
 
 	}

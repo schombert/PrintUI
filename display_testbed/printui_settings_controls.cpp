@@ -224,7 +224,70 @@ namespace printui {
 		header_top_lead_label(text_id::top_lead_label, content_alignment::leading, text_id::top_lead_edit_info),
 		header_top_lead_e(text_size::header),
 		header_bottom_lead_label(text_id::bottom_lead_label, content_alignment::leading, text_id::bottom_lead_edit_info),
-		header_bottom_lead_e(text_size::header) {
+		header_bottom_lead_e(text_size::header),
+		keyboard_header(text_id::keyboard_header, content_alignment::centered, uint16_t(-1)),
+		kb_arrangement_label(text_id::keyboard_arrangement, content_alignment::leading, text_id::keyboard_arragnement_info),
+		key1_label(text_id::key_ord_name, content_alignment::leading, uint16_t(-1)),
+		key1_name_label(text_id::key_display_name, content_alignment::leading, text_id::keyboard_display_name_info),
+		key1_edit(0),
+		key1_code_label(text_id::scan_code, content_alignment::leading, text_id::keyboard_code_info),
+		key1_code_button(0),
+		key2_label(text_id::key_ord_name, content_alignment::leading, uint16_t(-1)),
+		key2_name_label(text_id::key_display_name, content_alignment::leading, text_id::keyboard_display_name_info),
+		key2_edit(1),
+		key2_code_label(text_id::scan_code, content_alignment::leading, text_id::keyboard_code_info),
+		key2_code_button(1),
+		key3_label(text_id::key_ord_name, content_alignment::leading, uint16_t(-1)),
+		key3_name_label(text_id::key_display_name, content_alignment::leading, text_id::keyboard_display_name_info),
+		key3_edit(2),
+		key3_code_label(text_id::scan_code, content_alignment::leading, text_id::keyboard_code_info),
+		key3_code_button(2),
+		key4_label(text_id::key_ord_name, content_alignment::leading, uint16_t(-1)),
+		key4_name_label(text_id::key_display_name, content_alignment::leading, text_id::keyboard_display_name_info),
+		key4_edit(3),
+		key4_code_label(text_id::scan_code, content_alignment::leading, text_id::keyboard_code_info),
+		key4_code_button(3),
+		key5_label(text_id::key_ord_name, content_alignment::leading, uint16_t(-1)),
+		key5_name_label(text_id::key_display_name, content_alignment::leading, text_id::keyboard_display_name_info),
+		key5_edit(4),
+		key5_code_label(text_id::scan_code, content_alignment::leading, text_id::keyboard_code_info),
+		key5_code_button(4),
+		key6_label(text_id::key_ord_name, content_alignment::leading, uint16_t(-1)),
+		key6_name_label(text_id::key_display_name, content_alignment::leading, text_id::keyboard_display_name_info),
+		key6_edit(5),
+		key6_code_label(text_id::scan_code, content_alignment::leading, text_id::keyboard_code_info),
+		key6_code_button(5),
+		key7_label(text_id::key_ord_name, content_alignment::leading, uint16_t(-1)),
+		key7_name_label(text_id::key_display_name, content_alignment::leading, text_id::keyboard_display_name_info),
+		key7_edit(6),
+		key7_code_label(text_id::scan_code, content_alignment::leading, text_id::keyboard_code_info),
+		key7_code_button(6),
+		key8_label(text_id::key_ord_name, content_alignment::leading, uint16_t(-1)),
+		key8_name_label(text_id::key_display_name, content_alignment::leading, text_id::keyboard_display_name_info),
+		key8_edit(7),
+		key8_code_label(text_id::scan_code, content_alignment::leading, text_id::keyboard_code_info),
+		key8_code_button(7),
+		key9_label(text_id::key_ord_name, content_alignment::leading, uint16_t(-1)),
+		key9_name_label(text_id::key_display_name, content_alignment::leading, text_id::keyboard_display_name_info),
+		key9_edit(8),
+		key9_code_label(text_id::scan_code, content_alignment::leading, text_id::keyboard_code_info),
+		key9_code_button(8),
+		key10_label(text_id::key_ord_name, content_alignment::leading, uint16_t(-1)),
+		key10_name_label(text_id::key_display_name, content_alignment::leading, text_id::keyboard_display_name_info),
+		key10_edit(9),
+		key10_code_label(text_id::scan_code, content_alignment::leading, text_id::keyboard_code_info),
+		key10_code_button(9),
+		key11_label(text_id::key_ord_name, content_alignment::leading, uint16_t(-1)),
+		key11_name_label(text_id::key_display_name, content_alignment::leading, text_id::keyboard_display_name_info),
+		key11_edit(10),
+		key11_code_label(text_id::scan_code, content_alignment::leading, text_id::keyboard_code_info),
+		key11_code_button(10),
+		key12_label(text_id::key_ord_name, content_alignment::leading, uint16_t(-1)),
+		key12_name_label(text_id::key_display_name, content_alignment::leading, text_id::keyboard_display_name_info),
+		key12_edit(11),
+		key12_code_label(text_id::scan_code, content_alignment::leading, text_id::keyboard_code_info),
+		key12_code_button(11)
+	{
 
 		lang_menu.open_button.set_text_alignment(content_alignment::trailing);
 		lang_menu.page_size = 1;
@@ -261,7 +324,59 @@ namespace printui {
 		header_font_menu.alt_text = text_id::header_font_info;
 		header_font_menu.name = text_id::header_font_label;
 
-		content_description.push_back(page_content{&language_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		kb_arrangement_list.text_alignment = content_alignment::trailing;
+		kb_arrangement_list.alt_text_id = text_id::keyboard_arragnement_info;
+		kb_arrangement_list.name = text_id::keyboard_arrangement;
+		{
+			text::text_parameter tp = text::int_param{ 1,0 };
+			key1_label.quiet_set_text(text_id::key_ord_name, &tp, &tp + 1);
+		}
+		{
+			text::text_parameter tp = text::int_param{ 2,0 };
+			key2_label.quiet_set_text(text_id::key_ord_name, &tp, &tp + 1);
+		}
+		{
+			text::text_parameter tp = text::int_param{ 3,0 };
+			key3_label.quiet_set_text(text_id::key_ord_name, &tp, &tp + 1);
+		}
+		{
+			text::text_parameter tp = text::int_param{ 4,0 };
+			key4_label.quiet_set_text(text_id::key_ord_name, &tp, &tp + 1);
+		}
+		{
+			text::text_parameter tp = text::int_param{ 5,0 };
+			key5_label.quiet_set_text(text_id::key_ord_name, &tp, &tp + 1);
+		}
+		{
+			text::text_parameter tp = text::int_param{ 6,0 };
+			key6_label.quiet_set_text(text_id::key_ord_name, &tp, &tp + 1);
+		}
+		{
+			text::text_parameter tp = text::int_param{ 7,0 };
+			key7_label.quiet_set_text(text_id::key_ord_name, &tp, &tp + 1);
+		}
+		{
+			text::text_parameter tp = text::int_param{ 8,0 };
+			key8_label.quiet_set_text(text_id::key_ord_name, &tp, &tp + 1);
+		}
+		{
+			text::text_parameter tp = text::int_param{ 9,0 };
+			key9_label.quiet_set_text(text_id::key_ord_name, &tp, &tp + 1);
+		}
+		{
+			text::text_parameter tp = text::int_param{ 10,0 };
+			key10_label.quiet_set_text(text_id::key_ord_name, &tp, &tp + 1);
+		}
+		{
+			text::text_parameter tp = text::int_param{ 11,0 };
+			key11_label.quiet_set_text(text_id::key_ord_name, &tp, &tp + 1);
+		}
+		{
+			text::text_parameter tp = text::int_param{ 12,0 };
+			key12_label.quiet_set_text(text_id::key_ord_name, &tp, &tp + 1);
+		}
+
+		content_description.push_back(page_content{ &language_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
 		content_description.push_back(page_content{ &lang_menu, column_break_behavior::normal, item_type::item_end, nullptr });
 		content_description.push_back(page_content{ &orientation_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
 		content_description.push_back(page_content{ &orientation_list, column_break_behavior::normal, item_type::item_end, nullptr });
@@ -272,8 +387,8 @@ namespace printui {
 
 		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
 		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_footer, nullptr });
-		content_description.push_back(page_content{nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
-		
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
+
 		content_description.push_back(page_content{ &fonts_header, column_break_behavior::dont_break_after, item_type::normal, nullptr });
 		content_description.push_back(page_content{ nullptr, column_break_behavior::dont_break_after, item_type::single_space, nullptr });
 
@@ -285,8 +400,7 @@ namespace printui {
 		content_description.push_back(page_content{ &primary_top_lead_e, column_break_behavior::normal, item_type::single_item, &primary_top_lead_label });
 		content_description.push_back(page_content{ &primary_bottom_lead_e, column_break_behavior::normal, item_type::single_item, &primary_bottom_lead_label });
 
-		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
-
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_space, nullptr });
 
 		content_description.push_back(page_content{ &small_font_name_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
 		content_description.push_back(page_content{ &small_font_menu, column_break_behavior::normal, item_type::item_end, nullptr });
@@ -297,7 +411,7 @@ namespace printui {
 		content_description.push_back(page_content{ &small_top_lead_e, column_break_behavior::normal, item_type::single_item, &small_top_lead_label });
 		content_description.push_back(page_content{ &small_bottom_lead_e, column_break_behavior::normal, item_type::single_item, &small_bottom_lead_label });
 
-		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_space, nullptr });
 
 		content_description.push_back(page_content{ &header_font_name_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
 		content_description.push_back(page_content{ &header_font_menu, column_break_behavior::normal, item_type::item_end, nullptr });
@@ -310,7 +424,64 @@ namespace printui {
 
 		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
 		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_footer, nullptr });
-		
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
+
+		content_description.push_back(page_content{ &keyboard_header, column_break_behavior::dont_break_after, item_type::normal, nullptr });
+		content_description.push_back(page_content{ nullptr, column_break_behavior::dont_break_after, item_type::single_space, nullptr });
+
+		content_description.push_back(page_content{ &kb_arrangement_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &kb_arrangement_list, column_break_behavior::normal, item_type::item_end, nullptr });
+
+		content_description.push_back(page_content{ &key1_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &key1_edit, column_break_behavior::dont_break_after, item_type::normal, &key1_name_label });
+		content_description.push_back(page_content{ &key1_code_button, column_break_behavior::normal, item_type::item_end, &key1_code_label });
+
+		content_description.push_back(page_content{ &key2_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &key2_edit, column_break_behavior::dont_break_after, item_type::normal, &key2_name_label });
+		content_description.push_back(page_content{ &key2_code_button, column_break_behavior::normal, item_type::item_end, &key2_code_label });
+
+		content_description.push_back(page_content{ &key3_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &key3_edit, column_break_behavior::dont_break_after, item_type::normal, &key3_name_label });
+		content_description.push_back(page_content{ &key3_code_button, column_break_behavior::normal, item_type::item_end, &key3_code_label });
+
+		content_description.push_back(page_content{ &key4_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &key4_edit, column_break_behavior::dont_break_after, item_type::normal, &key4_name_label });
+		content_description.push_back(page_content{ &key4_code_button, column_break_behavior::normal, item_type::item_end, &key4_code_label });
+
+		content_description.push_back(page_content{ &key5_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &key5_edit, column_break_behavior::dont_break_after, item_type::normal, &key5_name_label });
+		content_description.push_back(page_content{ &key5_code_button, column_break_behavior::normal, item_type::item_end, &key5_code_label });
+
+		content_description.push_back(page_content{ &key6_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &key6_edit, column_break_behavior::dont_break_after, item_type::normal, &key6_name_label });
+		content_description.push_back(page_content{ &key6_code_button, column_break_behavior::normal, item_type::item_end, &key6_code_label });
+
+		content_description.push_back(page_content{ &key7_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &key7_edit, column_break_behavior::dont_break_after, item_type::normal, &key7_name_label });
+		content_description.push_back(page_content{ &key7_code_button, column_break_behavior::normal, item_type::item_end, &key7_code_label });
+
+		content_description.push_back(page_content{ &key8_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &key8_edit, column_break_behavior::dont_break_after, item_type::normal, &key8_name_label });
+		content_description.push_back(page_content{ &key8_code_button, column_break_behavior::normal, item_type::item_end, &key8_code_label });
+
+		content_description.push_back(page_content{ &key9_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &key9_edit, column_break_behavior::dont_break_after, item_type::normal, &key9_name_label });
+		content_description.push_back(page_content{ &key9_code_button, column_break_behavior::normal, item_type::item_end, &key9_code_label });
+
+		content_description.push_back(page_content{ &key10_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &key10_edit, column_break_behavior::dont_break_after, item_type::normal, &key10_name_label });
+		content_description.push_back(page_content{ &key10_code_button, column_break_behavior::normal, item_type::item_end, &key10_code_label });
+
+		content_description.push_back(page_content{ &key11_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &key11_edit, column_break_behavior::dont_break_after, item_type::normal, &key11_name_label });
+		content_description.push_back(page_content{ &key11_code_button, column_break_behavior::normal, item_type::item_end, &key11_code_label });
+
+		content_description.push_back(page_content{ &key12_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &key12_edit, column_break_behavior::dont_break_after, item_type::normal, &key12_name_label });
+		content_description.push_back(page_content{ &key12_code_button, column_break_behavior::normal, item_type::item_end, &key12_code_label });
+
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_footer, nullptr });
 	}
 
 	accessibility_object* common_printui_settings::get_accessibility_interface(window_data& win) {
@@ -428,6 +599,8 @@ namespace printui {
 			header_relative_e.quiet_set_text(win, result_to_str.text_content.text);
 		}
 
+		update_with_keyboard_settings(win);
+
 		page_layout_specification page_spec;
 		page_spec.header = &header;
 		page_spec.footer = &footer;
@@ -449,9 +622,49 @@ namespace printui {
 		page_spec.horizontal_columns_alignment = content_alignment::centered;
 		page_spec.additional_space_to_outer_margins = true;
 		page_spec.section_footer_decoration = win.window_bar.settings_pages.section_bottom_decorations;
+		page_spec.spacing_decoration = win.window_bar.settings_pages.section_separation_decorations;
+
 		page_spec.decoration_brush = uint8_t(-1);
 
 		default_recreate_page(win, this, page_spec);
+	}
+
+	void key_code_button::button_action(window_data&) {
+		// todo: trigger key code update
+	}
+
+	void key_name_edit::on_edit_finished(window_data& win, std::wstring const& txt) {
+		auto first_char_length = next_valid_cursor_position(0);
+		if(first_char_length > 0) {
+			win.dynamic_settings.keys.main_keys[key].display_name = txt.substr(0, first_char_length);
+			win.window_bar.print_ui_settings.update_with_keyboard_settings(win);
+			win.rendering_interface.create_interactiable_tags(win);
+			win.window_interface.invalidate_window();
+			win.dynamic_settings.settings_changed = true;
+		}
+	}
+
+	void settings_keyboard_arragement_list::on_select(window_data& win, size_t v) {
+		win.dynamic_settings.keys.type = keyboard_type(v);
+		populate_key_mappings_by_type(win.dynamic_settings.keys);
+		win.window_bar.print_ui_settings.update_with_keyboard_settings(win);
+		win.rendering_interface.create_interactiable_tags(win);
+		win.window_interface.invalidate_window();
+		win.dynamic_settings.settings_changed = true;
+	}
+	list_option_description settings_keyboard_arragement_list::describe_option(window_data const&, uint32_t i) {
+		switch(i) {
+			case 0:
+				return list_option_description{ size_t(keyboard_type::left_hand), text_id::keyboard_left, uint16_t(-1) };
+			case 1:
+				return list_option_description{ size_t(keyboard_type::right_hand), text_id::keyboard_right, uint16_t(-1) };
+			case 2:
+				return list_option_description{ size_t(keyboard_type::right_hand_tilted), text_id::keyboard_tilted, uint16_t(-1) };
+			case 3:
+				return list_option_description{ size_t(keyboard_type::custom), text_id::keyboard_custom, uint16_t(-1) };
+			default:
+				return list_option_description{ 0, uint16_t(-1), uint16_t(-1) };
+		}
 	}
 
 	void settings_orientation_list::on_select(window_data& win, size_t v) {
@@ -847,6 +1060,58 @@ namespace printui {
 		}
 		auto result_to_str = win.text_data.format_double(win.dynamic_settings.global_size_multiplier, 2);
 		quiet_set_text(win, result_to_str.text_content.text);
+	}
+
+	void common_printui_settings::update_with_keyboard_settings(window_data& win) {
+		kb_arrangement_list.quiet_select_option_by_value(win, size_t(win.dynamic_settings.keys.type));
+
+		key1_code_button.set_text(win, std::to_wstring(win.dynamic_settings.keys.main_keys[0].scancode));
+		key1_code_button.set_disabled(win, win.dynamic_settings.keys.type != keyboard_type::custom);
+		key1_edit.quiet_set_text(win, win.dynamic_settings.keys.main_keys[0].display_name);
+
+		key2_code_button.set_text(win, std::to_wstring(win.dynamic_settings.keys.main_keys[1].scancode));
+		key2_code_button.set_disabled(win, win.dynamic_settings.keys.type != keyboard_type::custom);
+		key2_edit.quiet_set_text(win, win.dynamic_settings.keys.main_keys[1].display_name);
+
+		key3_code_button.set_text(win, std::to_wstring(win.dynamic_settings.keys.main_keys[2].scancode));
+		key3_code_button.set_disabled(win, win.dynamic_settings.keys.type != keyboard_type::custom);
+		key3_edit.quiet_set_text(win, win.dynamic_settings.keys.main_keys[2].display_name);
+
+		key4_code_button.set_text(win, std::to_wstring(win.dynamic_settings.keys.main_keys[3].scancode));
+		key4_code_button.set_disabled(win, win.dynamic_settings.keys.type != keyboard_type::custom);
+		key4_edit.quiet_set_text(win, win.dynamic_settings.keys.main_keys[3].display_name);
+
+		key5_code_button.set_text(win, std::to_wstring(win.dynamic_settings.keys.main_keys[4].scancode));
+		key5_code_button.set_disabled(win, win.dynamic_settings.keys.type != keyboard_type::custom);
+		key5_edit.quiet_set_text(win, win.dynamic_settings.keys.main_keys[4].display_name);
+
+		key6_code_button.set_text(win, std::to_wstring(win.dynamic_settings.keys.main_keys[5].scancode));
+		key6_code_button.set_disabled(win, win.dynamic_settings.keys.type != keyboard_type::custom);
+		key6_edit.quiet_set_text(win, win.dynamic_settings.keys.main_keys[5].display_name);
+
+		key7_code_button.set_text(win, std::to_wstring(win.dynamic_settings.keys.main_keys[6].scancode));
+		key7_code_button.set_disabled(win, win.dynamic_settings.keys.type != keyboard_type::custom);
+		key7_edit.quiet_set_text(win, win.dynamic_settings.keys.main_keys[6].display_name);
+
+		key8_code_button.set_text(win, std::to_wstring(win.dynamic_settings.keys.main_keys[7].scancode));
+		key8_code_button.set_disabled(win, win.dynamic_settings.keys.type != keyboard_type::custom);
+		key8_edit.quiet_set_text(win, win.dynamic_settings.keys.main_keys[7].display_name);
+
+		key9_code_button.set_text(win, std::to_wstring(win.dynamic_settings.keys.main_keys[8].scancode));
+		key9_code_button.set_disabled(win, win.dynamic_settings.keys.type != keyboard_type::custom);
+		key9_edit.quiet_set_text(win, win.dynamic_settings.keys.main_keys[8].display_name);
+
+		key10_code_button.set_text(win, std::to_wstring(win.dynamic_settings.keys.main_keys[9].scancode));
+		key10_code_button.set_disabled(win, win.dynamic_settings.keys.type != keyboard_type::custom);
+		key10_edit.quiet_set_text(win, win.dynamic_settings.keys.main_keys[9].display_name);
+
+		key11_code_button.set_text(win, std::to_wstring(win.dynamic_settings.keys.main_keys[10].scancode));
+		key11_code_button.set_disabled(win, win.dynamic_settings.keys.type != keyboard_type::custom);
+		key11_edit.quiet_set_text(win, win.dynamic_settings.keys.main_keys[10].display_name);
+
+		key12_code_button.set_text(win, std::to_wstring(win.dynamic_settings.keys.main_keys[11].scancode));
+		key12_code_button.set_disabled(win, win.dynamic_settings.keys.type != keyboard_type::custom);
+		key12_edit.quiet_set_text(win, win.dynamic_settings.keys.main_keys[11].display_name);
 	}
 }
 

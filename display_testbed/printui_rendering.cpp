@@ -1424,8 +1424,8 @@ namespace printui {
 			std::array<ID2D1Bitmap1*, 12> text_bitmaps;
 
 			for(uint32_t i = 0; i < 12; ++i) {
-				WCHAR keyname[16];
-				auto length = GetKeyNameTextW((uint32_t(win.sc_values[i]) << 16) | (1ui32 << 25) | 1ui32, keyname, 16);
+				//WCHAR keyname[16];
+				//auto length = GetKeyNameTextW((uint32_t(win.sc_values[i]) << 16) | (1ui32 << 25) | 1ui32, keyname, 16);
 
 				d2d_device_context->CreateBitmap(
 					D2D1_SIZE_U{ uint32_t(win.layout_size), uint32_t(win.layout_size) }, nullptr, 0,
@@ -1439,7 +1439,7 @@ namespace printui {
 				d2d_device_context->Clear(D2D1_COLOR_F{ 0.0f,0.0f,0.0f,0.0f });
 
 				if(auto dwf = win.text_interface.to_dwrite_format(label_format); dwf)
-					d2d_device_context->DrawTextW(keyname, length, (IDWriteTextFormat3*)dwf,
+					d2d_device_context->DrawTextW(win.dynamic_settings.keys.main_keys[i].display_name.c_str(), uint32_t(win.dynamic_settings.keys.main_keys[i].display_name.length()), (IDWriteTextFormat3*)dwf,
 						D2D1_RECT_F{ 0.0f, float((win.layout_size - 1) / 2 + (cap_height - 1) / 2) - label_format.baseline, float(win.layout_size), float(win.layout_size) }, dummy_brush);
 
 				d2d_device_context->EndDraw();

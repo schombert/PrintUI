@@ -240,7 +240,8 @@ namespace printui {
 		normal, column_header, section_header, dont_break_after
 	};
 	enum class item_type : uint8_t {
-		normal, single_space, double_space, item_start, item_end, single_item, decoration_footer
+		normal, single_space, double_space, item_start, item_end, single_item, decoration_footer,
+		decoration_space
 	};
 
 	using layout_reference = uint16_t;
@@ -279,6 +280,7 @@ namespace printui {
 
 		uint8_t decoration_brush = uint8_t(-1);
 		uint8_t section_footer_decoration = uint8_t(-1);
+		uint8_t spacing_decoration = uint8_t(-1);
 
 		bool uniform_column_width = true;
 		bool additional_space_to_outer_margins = true; // if false, to inter-column spaces
@@ -362,6 +364,23 @@ namespace printui {
 			return screen_space_rect{ x_position, y_position, width, height };
 		}
 		void rotate_borders(layout_orientation o);
+	};
+
+	enum class keyboard_type : uint8_t {
+		left_hand, right_hand, right_hand_tilted, custom
+	};
+
+	struct keyboard_key_descriptor {
+		uint32_t scancode = 0;
+		std::wstring display_name;
+	};
+
+	struct key_mappings {
+		keyboard_type type = keyboard_type::left_hand;
+		keyboard_key_descriptor main_keys[12] = {};
+		keyboard_key_descriptor primary_escape;
+		keyboard_key_descriptor info_key;
+		bool info_key_is_sticky = false;
 	};
 }
 
