@@ -2144,12 +2144,16 @@ namespace printui {
 
 	void label_control::set_text(window_data& win) {
 		label_text.set_text();
+		if(l_id != layout_reference_none)
+			win.flag_for_update_from_layout_reference(l_id);
 		if(acc_obj && win.is_visible(l_id)) {
 			win.accessibility_interface.on_change_name(acc_obj, L"");
 		}
 	}
 	void label_control::set_text(window_data& win, uint16_t val, text::text_parameter const* begin, text::text_parameter const* end) {
 		label_text.set_text(val, begin, end);
+		if(l_id != layout_reference_none)
+			win.flag_for_update_from_layout_reference(l_id);
 		if(acc_obj && win.is_visible(l_id)) {
 			if(val != uint16_t(-1)) {
 				win.accessibility_interface.on_change_name(acc_obj, label_text.get_raw_text(win));
@@ -2160,6 +2164,8 @@ namespace printui {
 	}
 	void label_control::set_text(window_data& win, std::wstring const& val) {
 		label_text.set_text(val);
+		if(l_id != layout_reference_none)
+			win.flag_for_update_from_layout_reference(l_id);
 		if(acc_obj && win.is_visible(l_id)) {
 			win.accessibility_interface.on_change_name(acc_obj, val);
 		}
@@ -2325,6 +2331,8 @@ namespace printui {
 	}
 	void button_control_base::set_text(window_data& win, uint16_t val, text::text_parameter* b, text::text_parameter* e) {
 		button_text.set_text(val, b, e);
+		if(l_id != layout_reference_none)
+			win.flag_for_update_from_layout_reference(l_id);
 		if(acc_obj && win.is_visible(l_id)) {
 			if(val != uint16_t(-1)) {
 				win.accessibility_interface.on_change_name(acc_obj, win.text_data.instantiate_text(val, b, e).text_content.text);
@@ -2335,6 +2343,8 @@ namespace printui {
 	}
 	void button_control_base::set_text(window_data& win, std::wstring const& val) {
 		button_text.set_text(val);
+		if(l_id != layout_reference_none)
+			win.flag_for_update_from_layout_reference(l_id);
 		if(acc_obj && win.is_visible(l_id)) {
 			win.accessibility_interface.on_change_name(acc_obj, val);
 			
@@ -2342,12 +2352,16 @@ namespace printui {
 	}
 	void button_control_base::set_text(window_data& win) {
 		button_text.set_text();
+		if(l_id != layout_reference_none)
+			win.flag_for_update_from_layout_reference(l_id);
 		if(acc_obj && win.is_visible(l_id)) {
 			win.accessibility_interface.on_change_name(acc_obj, L"");
 		}
 	}
 	void button_control_base::set_text(window_data& win, stored_text const& t) {
 		button_text.set_text(t);
+		if(l_id != layout_reference_none)
+			win.flag_for_update_from_layout_reference(l_id);
 		if(acc_obj && win.is_visible(l_id)) {
 			win.accessibility_interface.on_change_name(acc_obj, t.get_raw_text(win));
 		}
@@ -2358,6 +2372,7 @@ namespace printui {
 	void button_control_base::set_text_alignment(content_alignment align) {
 		button_text.text_alignment = align;
 		button_text.invalidate();
+		
 	}
 
 	//

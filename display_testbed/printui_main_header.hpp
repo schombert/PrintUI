@@ -1694,6 +1694,11 @@ namespace printui {
 
 		virtual void on_edit_finished(window_data&, std::wstring const&) override;
 	};
+	struct info_is_sticky_toggle_button : public button_control_toggle {
+		info_is_sticky_toggle_button() : button_control_toggle(text_id::generic_toggle_yes, text_id::generic_toggle_no, content_alignment::trailing, text_id::info_key_sticky_info) {
+		}
+		virtual void toggle_action(window_data&, bool toggle_state) override;
+	};
 
 	struct common_printui_settings : public layout_interface {
 		single_line_empty_header header;
@@ -1839,6 +1844,21 @@ namespace printui {
 		key_code_button key12_code_button;
 		label_control key12_name_label;
 		key_name_edit key12_edit;
+
+
+		label_control esc_key_label;
+		label_control esc_key_code_label;
+		key_code_button esc_key_code_button;
+		label_control esc_key_name_label;
+		label_control esc_key_name_display;
+
+		label_control info_key_label;
+		label_control info_key_code_label;
+		key_code_button info_key_code_button;
+		label_control info_key_name_label;
+		label_control info_key_name_display;
+		label_control info_is_sticky_label;
+		info_is_sticky_toggle_button info_sticky_tb;
 
 		accessibility_object_ptr acc_obj;
 
@@ -2300,6 +2320,7 @@ namespace printui {
 		prompt_mode prompts = prompt_mode::keyboard;
 		bool display_interactable_type = true;
 		
+		int32_t capture_key = -1;
 		uint8_t secondary_escape_sc = 0x01ui8; // esc
 
 		bool is_sizeing = false;

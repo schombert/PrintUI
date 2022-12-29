@@ -286,9 +286,19 @@ namespace printui {
 		key12_name_label(text_id::key_display_name, content_alignment::leading, text_id::keyboard_display_name_info),
 		key12_edit(11),
 		key12_code_label(text_id::scan_code, content_alignment::leading, text_id::keyboard_code_info),
-		key12_code_button(11)
+		key12_code_button(11),
+		esc_key_label(text_id::key_escape_name, content_alignment::leading, text_id::key_escape_info),
+		esc_key_name_label(text_id::key_display_name, content_alignment::leading, uint16_t(-1)),
+		esc_key_name_display(uint16_t(-1), content_alignment::trailing, text_id::key_escape_info),
+		esc_key_code_label(text_id::scan_code, content_alignment::leading, text_id::keyboard_code_info),
+		esc_key_code_button(12),
+		info_key_label(text_id::key_info_name, content_alignment::leading, text_id::key_info_info),
+		info_key_name_label(text_id::key_display_name, content_alignment::leading, uint16_t(-1)),
+		info_key_name_display(uint16_t(-1), content_alignment::trailing, text_id::key_info_info),
+		info_key_code_label(text_id::scan_code, content_alignment::leading, text_id::keyboard_code_info),
+		info_key_code_button(13),
+		info_is_sticky_label(text_id::info_key_is_sticky, content_alignment::leading, text_id::info_key_sticky_info)
 	{
-
 		lang_menu.open_button.set_text_alignment(content_alignment::trailing);
 		lang_menu.page_size = 1;
 		lang_menu.line_size = 10;
@@ -393,33 +403,33 @@ namespace printui {
 		content_description.push_back(page_content{ nullptr, column_break_behavior::dont_break_after, item_type::single_space, nullptr });
 
 		content_description.push_back(page_content{ &primary_font_name_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
-		content_description.push_back(page_content{ &primary_font_menu, column_break_behavior::normal, item_type::item_end, nullptr });
-		content_description.push_back(page_content{ &primary_font_weight_e, column_break_behavior::normal, item_type::single_item, &primary_font_weight_label });
-		content_description.push_back(page_content{ &primary_font_stretch_e, column_break_behavior::normal, item_type::single_item, &primary_font_stretch_label });
-		content_description.push_back(page_content{ &primary_font_italic_toggle, column_break_behavior::normal, item_type::single_item, &primary_font_italic_label });
-		content_description.push_back(page_content{ &primary_top_lead_e, column_break_behavior::normal, item_type::single_item, &primary_top_lead_label });
+		content_description.push_back(page_content{ &primary_font_menu, column_break_behavior::dont_break_after, item_type::item_end, nullptr });
+		content_description.push_back(page_content{ &primary_font_weight_e, column_break_behavior::dont_break_after, item_type::single_item, &primary_font_weight_label });
+		content_description.push_back(page_content{ &primary_font_stretch_e, column_break_behavior::dont_break_after, item_type::single_item, &primary_font_stretch_label });
+		content_description.push_back(page_content{ &primary_font_italic_toggle, column_break_behavior::dont_break_after, item_type::single_item, &primary_font_italic_label });
+		content_description.push_back(page_content{ &primary_top_lead_e, column_break_behavior::dont_break_after, item_type::single_item, &primary_top_lead_label });
 		content_description.push_back(page_content{ &primary_bottom_lead_e, column_break_behavior::normal, item_type::single_item, &primary_bottom_lead_label });
 
 		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_space, nullptr });
 
 		content_description.push_back(page_content{ &small_font_name_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
-		content_description.push_back(page_content{ &small_font_menu, column_break_behavior::normal, item_type::item_end, nullptr });
-		content_description.push_back(page_content{ &small_relative_e, column_break_behavior::normal, item_type::single_item, &small_relative_label });
-		content_description.push_back(page_content{ &small_font_weight_e, column_break_behavior::normal, item_type::single_item, &small_font_weight_label });
-		content_description.push_back(page_content{ &small_font_stretch_e, column_break_behavior::normal, item_type::single_item, &small_font_stretch_label });
-		content_description.push_back(page_content{ &small_font_italic_toggle, column_break_behavior::normal, item_type::single_item, &small_font_italic_label });
-		content_description.push_back(page_content{ &small_top_lead_e, column_break_behavior::normal, item_type::single_item, &small_top_lead_label });
+		content_description.push_back(page_content{ &small_font_menu, column_break_behavior::dont_break_after, item_type::item_end, nullptr });
+		content_description.push_back(page_content{ &small_relative_e, column_break_behavior::dont_break_after, item_type::single_item, &small_relative_label });
+		content_description.push_back(page_content{ &small_font_weight_e, column_break_behavior::dont_break_after, item_type::single_item, &small_font_weight_label });
+		content_description.push_back(page_content{ &small_font_stretch_e, column_break_behavior::dont_break_after, item_type::single_item, &small_font_stretch_label });
+		content_description.push_back(page_content{ &small_font_italic_toggle, column_break_behavior::dont_break_after, item_type::single_item, &small_font_italic_label });
+		content_description.push_back(page_content{ &small_top_lead_e, column_break_behavior::dont_break_after, item_type::single_item, &small_top_lead_label });
 		content_description.push_back(page_content{ &small_bottom_lead_e, column_break_behavior::normal, item_type::single_item, &small_bottom_lead_label });
 
 		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_space, nullptr });
 
 		content_description.push_back(page_content{ &header_font_name_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
-		content_description.push_back(page_content{ &header_font_menu, column_break_behavior::normal, item_type::item_end, nullptr });
-		content_description.push_back(page_content{ &header_relative_e, column_break_behavior::normal, item_type::single_item, &header_relative_label });
-		content_description.push_back(page_content{ &header_font_weight_e, column_break_behavior::normal, item_type::single_item, &header_font_weight_label });
-		content_description.push_back(page_content{ &header_font_stretch_e, column_break_behavior::normal, item_type::single_item, &header_font_stretch_label });
-		content_description.push_back(page_content{ &header_font_italic_toggle, column_break_behavior::normal, item_type::single_item, &header_font_italic_label });
-		content_description.push_back(page_content{ &header_top_lead_e, column_break_behavior::normal, item_type::single_item, &header_top_lead_label });
+		content_description.push_back(page_content{ &header_font_menu, column_break_behavior::dont_break_after, item_type::item_end, nullptr });
+		content_description.push_back(page_content{ &header_relative_e, column_break_behavior::dont_break_after, item_type::single_item, &header_relative_label });
+		content_description.push_back(page_content{ &header_font_weight_e, column_break_behavior::dont_break_after, item_type::single_item, &header_font_weight_label });
+		content_description.push_back(page_content{ &header_font_stretch_e, column_break_behavior::dont_break_after, item_type::single_item, &header_font_stretch_label });
+		content_description.push_back(page_content{ &header_font_italic_toggle, column_break_behavior::dont_break_after, item_type::single_item, &header_font_italic_label });
+		content_description.push_back(page_content{ &header_top_lead_e, column_break_behavior::dont_break_after, item_type::single_item, &header_top_lead_label });
 		content_description.push_back(page_content{ &header_bottom_lead_e, column_break_behavior::normal, item_type::single_item, &header_bottom_lead_label });
 
 		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
@@ -479,6 +489,15 @@ namespace printui {
 		content_description.push_back(page_content{ &key12_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
 		content_description.push_back(page_content{ &key12_edit, column_break_behavior::dont_break_after, item_type::normal, &key12_name_label });
 		content_description.push_back(page_content{ &key12_code_button, column_break_behavior::normal, item_type::item_end, &key12_code_label });
+
+		content_description.push_back(page_content{ &esc_key_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &esc_key_name_display, column_break_behavior::dont_break_after, item_type::normal, &esc_key_name_label });
+		content_description.push_back(page_content{ &esc_key_code_button, column_break_behavior::normal, item_type::item_end, &esc_key_code_label });
+
+		content_description.push_back(page_content{ &info_key_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &info_key_name_display, column_break_behavior::dont_break_after, item_type::normal, &info_key_name_label });
+		content_description.push_back(page_content{ &info_key_code_button, column_break_behavior::dont_break_after, item_type::normal, &info_key_code_label });
+		content_description.push_back(page_content{ &info_sticky_tb, column_break_behavior::normal, item_type::item_end, &info_is_sticky_label });
 
 		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
 		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_footer, nullptr });
@@ -629,8 +648,9 @@ namespace printui {
 		default_recreate_page(win, this, page_spec);
 	}
 
-	void key_code_button::button_action(window_data&) {
-		// todo: trigger key code update
+	void key_code_button::button_action(window_data& win) {
+		win.capture_key = key;
+		win.dynamic_settings.settings_changed = true;
 	}
 
 	void key_name_edit::on_edit_finished(window_data& win, std::wstring const& txt) {
@@ -1062,6 +1082,14 @@ namespace printui {
 		quiet_set_text(win, result_to_str.text_content.text);
 	}
 
+
+	void info_is_sticky_toggle_button::toggle_action(window_data& win, bool toggle_state) {
+		if(toggle_state != win.dynamic_settings.keys.info_key_is_sticky) {
+			win.dynamic_settings.keys.info_key_is_sticky = toggle_state;
+			win.dynamic_settings.settings_changed = true;
+		}
+	}
+
 	void common_printui_settings::update_with_keyboard_settings(window_data& win) {
 		kb_arrangement_list.quiet_select_option_by_value(win, size_t(win.dynamic_settings.keys.type));
 
@@ -1112,6 +1140,18 @@ namespace printui {
 		key12_code_button.set_text(win, std::to_wstring(win.dynamic_settings.keys.main_keys[11].scancode));
 		key12_code_button.set_disabled(win, win.dynamic_settings.keys.type != keyboard_type::custom);
 		key12_edit.quiet_set_text(win, win.dynamic_settings.keys.main_keys[11].display_name);
+
+		esc_key_code_button.set_text(win, std::to_wstring(win.dynamic_settings.keys.primary_escape.scancode));
+		esc_key_code_button.set_disabled(win, win.dynamic_settings.keys.type != keyboard_type::custom);
+		esc_key_name_display.set_text(win, win.dynamic_settings.keys.primary_escape.display_name);
+
+		info_key_code_button.set_text(win, std::to_wstring(win.dynamic_settings.keys.info_key.scancode));
+		info_key_code_button.set_disabled(win, win.dynamic_settings.keys.type != keyboard_type::custom);
+		info_key_name_display.set_text(win, win.dynamic_settings.keys.info_key.display_name);
+
+		if(info_sticky_tb.toggle_is_on != win.dynamic_settings.keys.info_key_is_sticky) {
+			info_sticky_tb.change_toggle_state(win, win.dynamic_settings.keys.info_key_is_sticky);
+		}
 	}
 }
 

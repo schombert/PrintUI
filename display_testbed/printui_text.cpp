@@ -1422,6 +1422,22 @@ namespace printui::text {
 						formatting_stack.push_back(extra_formatting::old_numbers);
 						previous_insert_space = false;
 					}
+				} else if(t.content == "\\sup") {
+					auto next_token = consume_token(body);
+					if(next_token.content.length() == 1 && next_token.content[0] == '{') {
+						body = next_token.remainder;
+						static_format_storage.emplace_back(format_marker{ uint16_t(codepoint_storage.length() - last_text_start), extra_formatting::superscript });
+						formatting_stack.push_back(extra_formatting::superscript);
+						previous_insert_space = false;
+					}
+				} else if(t.content == "\\sub") {
+					auto next_token = consume_token(body);
+					if(next_token.content.length() == 1 && next_token.content[0] == '{') {
+						body = next_token.remainder;
+						static_format_storage.emplace_back(format_marker{ uint16_t(codepoint_storage.length() - last_text_start), extra_formatting::subscript });
+						formatting_stack.push_back(extra_formatting::subscript);
+						previous_insert_space = false;
+					}
 				} else if(t.content == "\\tb") {
 					auto next_token = consume_token(body);
 					if(next_token.content.length() == 1 && next_token.content[0] == '{') {
@@ -2046,6 +2062,12 @@ namespace printui::text {
 		t->AddFontFeature(DWRITE_FONT_FEATURE{ DWRITE_FONT_FEATURE_TAG_SMALL_CAPITALS, 1 });
 	}
 
+	void apply_superscript_options(IDWriteTypography* t) {
+		t->AddFontFeature(DWRITE_FONT_FEATURE{ DWRITE_FONT_FEATURE_TAG_SUPERSCRIPT, 1 });
+	}
+	void apply_subscript_options(IDWriteTypography* t) {
+		t->AddFontFeature(DWRITE_FONT_FEATURE{ DWRITE_FONT_FEATURE_TAG_SUBSCRIPT, 1 });
+	}
 	
 
 	std::vector<language_description> ennumerate_languages(window_data const& win) {
@@ -4028,6 +4050,74 @@ namespace printui::text {
 									apply_default_vertical_options(t);
 								}
 								apply_small_caps_options(t);
+							}
+							target->SetTypography(t, DWRITE_TEXT_RANGE{ typo_start, f.position - typo_start });
+							typo_applied = false;
+						} else {
+							typo_start = f.position;
+							typo_applied = true;
+						}
+					}
+				}
+			}
+
+			safe_release(t);
+		}
+
+		{
+			//apply superscript
+			IDWriteTypography* t = nullptr;
+
+			bool typo_applied = false;
+			uint32_t typo_start = 0;
+			for(auto f : formatting) {
+				if(std::holds_alternative<extra_formatting>(f.format)) {
+					if(std::get<extra_formatting>(f.format) == extra_formatting::superscript) {
+						if(typo_applied) {
+							if(!t) {
+								dwrite_factory->CreateTypography(&t);
+								if(auto dir = target->GetReadingDirection(); dir == DWRITE_READING_DIRECTION_LEFT_TO_RIGHT) {
+									apply_default_ltr_options(t);
+								} else if(dir == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT) {
+									apply_default_rtl_options(t);
+								} else {
+									apply_default_vertical_options(t);
+								}
+								apply_superscript_options(t);
+							}
+							target->SetTypography(t, DWRITE_TEXT_RANGE{ typo_start, f.position - typo_start });
+							typo_applied = false;
+						} else {
+							typo_start = f.position;
+							typo_applied = true;
+						}
+					}
+				}
+			}
+
+			safe_release(t);
+		}
+
+		{
+			//apply subscript
+			IDWriteTypography* t = nullptr;
+
+			bool typo_applied = false;
+			uint32_t typo_start = 0;
+			for(auto f : formatting) {
+				if(std::holds_alternative<extra_formatting>(f.format)) {
+					if(std::get<extra_formatting>(f.format) == extra_formatting::subscript) {
+						if(typo_applied) {
+							if(!t) {
+								dwrite_factory->CreateTypography(&t);
+								if(auto dir = target->GetReadingDirection(); dir == DWRITE_READING_DIRECTION_LEFT_TO_RIGHT) {
+									apply_default_ltr_options(t);
+								} else if(dir == DWRITE_READING_DIRECTION_RIGHT_TO_LEFT) {
+									apply_default_rtl_options(t);
+								} else {
+									apply_default_vertical_options(t);
+								}
+								apply_subscript_options(t);
 							}
 							target->SetTypography(t, DWRITE_TEXT_RANGE{ typo_start, f.position - typo_start });
 							typo_applied = false;

@@ -467,6 +467,45 @@ namespace printui {
 	}
 
 	bool window_data::on_key_down(uint32_t scan_code, uint32_t key_code) {
+		if(capture_key >= 0) {
+			if(capture_key < 12) {
+				dynamic_settings.keys.main_keys[capture_key].scancode = scan_code;
+
+				WCHAR keyname[64];
+				auto length = GetKeyNameTextW((scan_code << 16) | 1ui32, keyname, 64);
+				if(length > 0)
+					dynamic_settings.keys.main_keys[capture_key].display_name = std::wstring(size_t(1), keyname[0]);
+				else
+					dynamic_settings.keys.main_keys[capture_key].display_name = L"";
+
+			} else if(capture_key == 12) {
+				dynamic_settings.keys.primary_escape.scancode = scan_code;
+
+				WCHAR keyname[64];
+				auto length = GetKeyNameTextW((scan_code << 16) | 1ui32, keyname, 64);
+				if(length > 0)
+					dynamic_settings.keys.primary_escape.display_name = std::wstring(keyname);
+				else
+					dynamic_settings.keys.primary_escape.display_name = L"";
+			} else if(capture_key == 13) {
+				dynamic_settings.keys.info_key.scancode = scan_code;
+
+				WCHAR keyname[64];
+				auto length = GetKeyNameTextW((scan_code << 16) | 1ui32, keyname, 64);
+				if(length > 0)
+					dynamic_settings.keys.info_key.display_name = std::wstring(keyname);
+				else
+					dynamic_settings.keys.info_key.display_name = L"";
+			}
+
+			window_bar.print_ui_settings.update_with_keyboard_settings(*this);
+			rendering_interface.create_interactiable_tags(*this);
+			window_interface.invalidate_window();
+			dynamic_settings.settings_changed = true;
+
+			capture_key = -1;
+			return true;
+		}
 		if(keyboard_target && scan_code != secondary_escape_sc) {
 			bool shift_held = window_interface.is_shift_held_down();
 			bool ctrl_held = window_interface.is_ctrl_held_down();
@@ -979,6 +1018,7 @@ namespace printui {
 						else
 							break;
 					}
+					case WM_SYSKEYDOWN:
 					case WM_KEYDOWN:
 					{
 						if((HIWORD(lParam) & KF_REPEAT) != 0 && app->keyboard_target == nullptr)
@@ -990,6 +1030,7 @@ namespace printui {
 							break;
 						}
 					}
+					case WM_SYSKEYUP:
 					case WM_KEYUP:
 					{
 						if(app->on_key_up(0xFF & MapVirtualKey(UINT(wParam), MAPVK_VK_TO_VSC), UINT(wParam))) {
@@ -1486,7 +1527,7 @@ namespace printui {
 				k.main_keys[10].scancode = 0x2E; // C
 				k.main_keys[11].scancode = 0x2F; // V
 				k.primary_escape.scancode = 0x39; // SPACE
-				k.info_key.scancode = 0x2A; // L SHFIT
+				k.info_key.scancode = 0x2A; // SHFIT
 				break;
 			case keyboard_type::right_hand:
 				k.main_keys[0].scancode = 0x16; // U
@@ -1502,7 +1543,7 @@ namespace printui {
 				k.main_keys[10].scancode = 0x34; // .
 				k.main_keys[11].scancode = 0x35; // /
 				k.primary_escape.scancode = 0x39; // SPACE
-				k.info_key.scancode = 0x36; // R SHFIT
+				k.info_key.scancode = 0x2A; // SHFIT
 				break;
 			case keyboard_type::right_hand_tilted:
 				k.main_keys[0].scancode = 0x17; // I
@@ -1518,7 +1559,7 @@ namespace printui {
 				k.main_keys[10].scancode = 0x33; // ,
 				k.main_keys[11].scancode = 0x34; // .
 				k.primary_escape.scancode = 0x39; // SPACE
-				k.info_key.scancode = 0x36; // R SHFIT
+				k.info_key.scancode = 0x2A; // SHFIT
 				break;
 			default:
 				return;

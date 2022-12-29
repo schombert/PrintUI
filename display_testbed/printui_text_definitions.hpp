@@ -22,7 +22,7 @@ namespace printui::text {
 	struct format_marker;
 
 	enum class extra_formatting : uint8_t {
-		none, small_caps, italic, old_numbers, tabular_numbers, bold
+		none, small_caps, italic, old_numbers, tabular_numbers, bold, superscript, subscript
 	};
 	struct font_id {
 		uint8_t id = 0;
