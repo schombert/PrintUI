@@ -297,7 +297,42 @@ namespace printui {
 		info_key_name_display(uint16_t(-1), content_alignment::trailing, text_id::key_info_info),
 		info_key_code_label(text_id::scan_code, content_alignment::leading, text_id::keyboard_code_info),
 		info_key_code_button(13),
-		info_is_sticky_label(text_id::info_key_is_sticky, content_alignment::leading, text_id::info_key_sticky_info)
+		info_is_sticky_label(text_id::info_key_is_sticky, content_alignment::leading, text_id::info_key_sticky_info),
+
+		controller_header(text_id::controller_header, content_alignment::centered, uint16_t(-1)),
+		button1_label(text_id::button_ord_name, content_alignment::leading, text_id::button_assignment_info),
+		button1_selection(1),
+		button2_label(text_id::button_ord_name, content_alignment::leading, text_id::button_assignment_info),
+		button2_selection(2),
+		button3_label(text_id::button_ord_name, content_alignment::leading, text_id::button_assignment_info),
+		button3_selection(3),
+		button4_label(text_id::button_ord_name, content_alignment::leading, text_id::button_assignment_info),
+		button4_selection(4),
+		group1_label(text_id::button_group_name, content_alignment::leading, text_id::button_assignment_info),
+		group1_selection(5),
+		group1_sticky_label(text_id::button_group_sticky, content_alignment::leading, text_id::controller_sticky_info),
+		group1_is_sticky(5),
+		group2_label(text_id::button_group_name, content_alignment::leading, text_id::button_assignment_info),
+		group2_selection(6),
+		group2_sticky_label(text_id::button_group_sticky, content_alignment::leading, text_id::controller_sticky_info),
+		group2_is_sticky(6),
+		button_esc_label(text_id::buttons_escape_name, content_alignment::leading, text_id::escape_button_info),
+		button_esc1_label(text_id::first_button_label, content_alignment::leading, text_id::escape_button_info),
+		esc1_selection(7),
+		button_esc2_label(text_id::second_button_label, content_alignment::leading, text_id::escape_button_info),
+		esc2_selection(8),
+		button_esc_sticky_label(text_id::buttons_are_sticky, content_alignment::leading, text_id::controller_sticky_info),
+		button_esc_is_sticky(7),
+		button_info_label(text_id::buttons_info_name, content_alignment::leading, text_id::info_button_info),
+		button_info1_label(text_id::first_button_label, content_alignment::leading, text_id::info_button_info),
+		info1_selection(9),
+		button_info2_label(text_id::second_button_label, content_alignment::leading, text_id::info_button_info),
+		info2_selection(10),
+		button_info_sticky_label(text_id::buttons_are_sticky, content_alignment::leading, text_id::controller_sticky_info),
+		button_info_is_sticky(9),
+		thumbstick_is_left_label(text_id::thumbstick_label, content_alignment::leading, text_id::thumbstick_info),
+		deadzone_label(text_id::deadzone_label, content_alignment::leading, text_id::deadzone_info),
+		sensitivity_label(text_id::sensitivity_label, content_alignment::leading, text_id::sensitivity_info)
 	{
 		lang_menu.open_button.set_text_alignment(content_alignment::trailing);
 		lang_menu.page_size = 1;
@@ -384,6 +419,32 @@ namespace printui {
 		{
 			text::text_parameter tp = text::int_param{ 12,0 };
 			key12_label.quiet_set_text(text_id::key_ord_name, &tp, &tp + 1);
+		}
+
+		{
+			text::text_parameter tp = text::int_param{ 1,0 };
+			button1_label.quiet_set_text(text_id::button_ord_name, &tp, &tp + 1);
+		}
+		{
+			text::text_parameter tp = text::int_param{ 2,0 };
+			button2_label.quiet_set_text(text_id::button_ord_name, &tp, &tp + 1);
+		}
+		{
+			text::text_parameter tp = text::int_param{ 3,0 };
+			button3_label.quiet_set_text(text_id::button_ord_name, &tp, &tp + 1);
+		}
+		{
+			text::text_parameter tp = text::int_param{ 4,0 };
+			button4_label.quiet_set_text(text_id::button_ord_name, &tp, &tp + 1);
+		}
+
+		{
+			text::text_parameter tp = text::int_param{ 2,0 };
+			group1_label.quiet_set_text(text_id::button_group_name, &tp, &tp + 1);
+		}
+		{
+			text::text_parameter tp = text::int_param{ 3,0 };
+			group2_label.quiet_set_text(text_id::button_group_name, &tp, &tp + 1);
 		}
 
 		content_description.push_back(page_content{ &language_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
@@ -498,6 +559,40 @@ namespace printui {
 		content_description.push_back(page_content{ &info_key_name_display, column_break_behavior::dont_break_after, item_type::normal, &info_key_name_label });
 		content_description.push_back(page_content{ &info_key_code_button, column_break_behavior::dont_break_after, item_type::normal, &info_key_code_label });
 		content_description.push_back(page_content{ &info_sticky_tb, column_break_behavior::normal, item_type::item_end, &info_is_sticky_label });
+
+
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_footer, nullptr });
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
+
+		content_description.push_back(page_content{ &controller_header, column_break_behavior::dont_break_after, item_type::normal, nullptr });
+		content_description.push_back(page_content{ nullptr, column_break_behavior::dont_break_after, item_type::single_space, nullptr });
+
+		content_description.push_back(page_content{ &button1_selection, column_break_behavior::normal, item_type::single_item, &button1_label });
+		content_description.push_back(page_content{ &button2_selection, column_break_behavior::normal, item_type::single_item, &button2_label });
+		content_description.push_back(page_content{ &button3_selection, column_break_behavior::normal, item_type::single_item, &button3_label });
+		content_description.push_back(page_content{ &button4_selection, column_break_behavior::normal, item_type::single_item, &button4_label });
+
+		content_description.push_back(page_content{ &group1_selection, column_break_behavior::dont_break_after, item_type::item_start, &group1_label });
+		content_description.push_back(page_content{ &group1_is_sticky, column_break_behavior::normal, item_type::item_end, &group1_sticky_label });
+
+		content_description.push_back(page_content{ &group2_selection, column_break_behavior::dont_break_after, item_type::item_start, &group2_label });
+		content_description.push_back(page_content{ &group2_is_sticky, column_break_behavior::normal, item_type::item_end, &group2_sticky_label });
+
+
+		content_description.push_back(page_content{ &button_esc_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &esc1_selection, column_break_behavior::dont_break_after, item_type::normal, &button_esc1_label });
+		content_description.push_back(page_content{ &esc2_selection, column_break_behavior::dont_break_after, item_type::normal, &button_esc2_label });
+		content_description.push_back(page_content{ &button_esc_is_sticky, column_break_behavior::normal, item_type::item_end, &button_esc_sticky_label });
+
+		content_description.push_back(page_content{ &button_info_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &info1_selection, column_break_behavior::dont_break_after, item_type::normal, &button_info1_label });
+		content_description.push_back(page_content{ &info2_selection, column_break_behavior::dont_break_after, item_type::normal, &button_info2_label });
+		content_description.push_back(page_content{ &button_info_is_sticky, column_break_behavior::normal, item_type::item_end, &button_info_sticky_label });
+
+		content_description.push_back(page_content{ &thumbstick_is_left, column_break_behavior::dont_break_after, item_type::item_start, &thumbstick_is_left_label });
+		content_description.push_back(page_content{ &deadzone_e, column_break_behavior::dont_break_after, item_type::normal, &deadzone_label });
+		content_description.push_back(page_content{ &sensitivity_e, column_break_behavior::normal, item_type::item_end, &sensitivity_label });
 
 		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
 		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_footer, nullptr });
@@ -619,6 +714,7 @@ namespace printui {
 		}
 
 		update_with_keyboard_settings(win);
+		update_with_controller_settings(win);
 
 		page_layout_specification page_spec;
 		page_spec.header = &header;
@@ -651,6 +747,65 @@ namespace printui {
 	void key_code_button::button_action(window_data& win) {
 		win.capture_key = key;
 		win.dynamic_settings.settings_changed = true;
+
+		switch(key) {
+			case 0:
+				win.window_bar.print_ui_settings.key1_code_button.set_text(win, L"-");
+				win.window_bar.print_ui_settings.key1_edit.quiet_set_text(win, L"-");
+				break;
+			case 1:
+				win.window_bar.print_ui_settings.key2_code_button.set_text(win, L"-");
+				win.window_bar.print_ui_settings.key2_edit.quiet_set_text(win, L"-");
+				break;
+			case 2:
+				win.window_bar.print_ui_settings.key3_code_button.set_text(win, L"-");
+				win.window_bar.print_ui_settings.key3_edit.quiet_set_text(win, L"-");
+				break;
+			case 3:
+				win.window_bar.print_ui_settings.key4_code_button.set_text(win, L"-");
+				win.window_bar.print_ui_settings.key4_edit.quiet_set_text(win, L"-");
+				break;
+			case 4:
+				win.window_bar.print_ui_settings.key5_code_button.set_text(win, L"-");
+				win.window_bar.print_ui_settings.key5_edit.quiet_set_text(win, L"-");
+				break;
+			case 5:
+				win.window_bar.print_ui_settings.key6_code_button.set_text(win, L"-");
+				win.window_bar.print_ui_settings.key6_edit.quiet_set_text(win, L"-");
+				break;
+			case 6:
+				win.window_bar.print_ui_settings.key7_code_button.set_text(win, L"-");
+				win.window_bar.print_ui_settings.key7_edit.quiet_set_text(win, L"-");
+				break;
+			case 7:
+				win.window_bar.print_ui_settings.key8_code_button.set_text(win, L"-");
+				win.window_bar.print_ui_settings.key8_edit.quiet_set_text(win, L"-");
+				break;
+			case 8:
+				win.window_bar.print_ui_settings.key9_code_button.set_text(win, L"-");
+				win.window_bar.print_ui_settings.key9_edit.quiet_set_text(win, L"-");
+				break;
+			case 9:
+				win.window_bar.print_ui_settings.key10_code_button.set_text(win, L"-");
+				win.window_bar.print_ui_settings.key10_edit.quiet_set_text(win, L"-");
+				break;
+			case 10:
+				win.window_bar.print_ui_settings.key11_code_button.set_text(win, L"-");
+				win.window_bar.print_ui_settings.key11_edit.quiet_set_text(win, L"-");
+				break;
+			case 11:
+				win.window_bar.print_ui_settings.key12_code_button.set_text(win, L"-");
+				win.window_bar.print_ui_settings.key12_edit.quiet_set_text(win, L"-");
+				break;
+			case 12:
+				win.window_bar.print_ui_settings.esc_key_code_button.set_text(win, L"-");
+				win.window_bar.print_ui_settings.esc_key_name_display.set_text(win, L"-");
+				break;
+			case 13:
+				win.window_bar.print_ui_settings.info_key_code_button.set_text(win, L"-");
+				win.window_bar.print_ui_settings.info_key_name_display.set_text(win, L"-");
+				break;
+		}
 	}
 
 	void key_name_edit::on_edit_finished(window_data& win, std::wstring const& txt) {
@@ -1087,6 +1242,148 @@ namespace printui {
 		if(toggle_state != win.dynamic_settings.keys.info_key_is_sticky) {
 			win.dynamic_settings.keys.info_key_is_sticky = toggle_state;
 			win.dynamic_settings.settings_changed = true;
+		}
+	}
+
+	void deadzone_edit::on_edit_finished(window_data& win, std::wstring const& txt) {
+		auto extracted_value = win.text_data.text_to_double(txt.data(), uint32_t(txt.length()));
+		if(extracted_value > 0.0) {
+			extracted_value = std::clamp(extracted_value, 0.0, 90.0) / 100.0;
+			win.dynamic_settings.controller.deadzone = extracted_value;
+			win.dynamic_settings.settings_changed = true;
+		}
+		auto result_to_str = win.text_data.format_double(win.dynamic_settings.controller.deadzone * 100.0, 0);
+		quiet_set_text(win, result_to_str.text_content.text);
+	}
+
+	void sensitivity_edit::on_edit_finished(window_data& win, std::wstring const& txt) {
+		auto extracted_value = win.text_data.text_to_double(txt.data(), uint32_t(txt.length()));
+		if(extracted_value > 0.0) {
+			extracted_value = std::clamp(extracted_value, 0.1, 3.0);
+			win.dynamic_settings.controller.sensitivity = float(extracted_value);
+			win.dynamic_settings.settings_changed = true;
+		}
+		auto result_to_str = win.text_data.format_double(win.dynamic_settings.controller.sensitivity, 1);
+		quiet_set_text(win, result_to_str.text_content.text);
+	}
+
+	void thumbstick_toggle_button::toggle_action(window_data& win, bool toggle_state) {
+		if(toggle_state != win.dynamic_settings.controller.left_thumbstick) {
+			win.dynamic_settings.controller.left_thumbstick = toggle_state;
+			win.dynamic_settings.settings_changed = true;
+		}
+	}
+	void button_choice_button::button_action(window_data& win) {
+		win.capture_button = key;
+		win.dynamic_settings.settings_changed = true;
+
+		switch(key) {
+			case 1:
+				win.window_bar.print_ui_settings.button1_selection.set_text(win, L"-");
+				break;
+			case 2:
+				win.window_bar.print_ui_settings.button2_selection.set_text(win, L"-");
+				break;
+			case 3:
+				win.window_bar.print_ui_settings.button3_selection.set_text(win, L"-");
+				break;
+			case 4:
+				win.window_bar.print_ui_settings.button4_selection.set_text(win, L"-");
+				break;
+			case 5:
+				win.window_bar.print_ui_settings.group1_selection.set_text(win, L"-");
+				break;
+			case 6:
+				win.window_bar.print_ui_settings.group2_selection.set_text(win, L"-");
+				break;
+			case 7:
+				win.window_bar.print_ui_settings.esc1_selection.set_text(win, L"-");
+				break;
+			case 8:
+				win.window_bar.print_ui_settings.esc2_selection.set_text(win, L"-");
+				break;
+			case 9:
+				win.window_bar.print_ui_settings.info1_selection.set_text(win, L"-");
+				break;
+			case 10:
+				win.window_bar.print_ui_settings.info2_selection.set_text(win, L"-");
+				break;
+		}
+	}
+
+	void controller_button_is_sticky_toggle_button::toggle_action(window_data& win, bool toggle_state) {
+		switch(key) {
+			case 5:
+				if(toggle_state != win.dynamic_settings.controller.first_group_sticky) {
+					win.dynamic_settings.controller.first_group_sticky = toggle_state;
+					win.controller_sticky_buttons.val = 0;
+					win.dynamic_settings.settings_changed = true;
+				}
+				break;
+			case 6:
+				if(toggle_state != win.dynamic_settings.controller.second_group_sticky) {
+					win.dynamic_settings.controller.second_group_sticky = toggle_state;
+					win.controller_sticky_buttons.val = 0;
+					win.dynamic_settings.settings_changed = true;
+				}
+				break;
+			case 7:
+				if(toggle_state != win.dynamic_settings.controller.escape.sticky) {
+					win.dynamic_settings.controller.escape.sticky = toggle_state;
+					win.controller_sticky_buttons.val = 0;
+					win.dynamic_settings.settings_changed = true;
+				}
+				break;
+			case 9:
+				if(toggle_state != win.dynamic_settings.controller.info.sticky) {
+					win.dynamic_settings.controller.info.sticky = toggle_state;
+					win.controller_sticky_buttons.val = 0;
+					win.dynamic_settings.settings_changed = true;
+				}
+				break;
+			default:
+				break;
+		}
+		
+	}
+
+	void common_printui_settings::update_with_controller_settings(window_data& win) {
+		button1_selection.set_text(win, to_label(win.dynamic_settings.controller.button1));
+		button2_selection.set_text(win, to_label(win.dynamic_settings.controller.button2));
+		button3_selection.set_text(win, to_label(win.dynamic_settings.controller.button3));
+		button4_selection.set_text(win, to_label(win.dynamic_settings.controller.button4));
+
+		group1_selection.set_text(win, to_label(win.dynamic_settings.controller.first_group));
+		group2_selection.set_text(win, to_label(win.dynamic_settings.controller.second_group));
+
+		esc1_selection.set_text(win, to_label(win.dynamic_settings.controller.escape.first_button));
+		esc2_selection.set_text(win, to_label(win.dynamic_settings.controller.escape.second_button != controller_button::no_button ? win.dynamic_settings.controller.escape.second_button : win.dynamic_settings.controller.escape.first_button));
+
+		info1_selection.set_text(win, to_label(win.dynamic_settings.controller.info.first_button));
+		info2_selection.set_text(win, to_label(win.dynamic_settings.controller.info.second_button != controller_button::no_button ? win.dynamic_settings.controller.info.second_button : win.dynamic_settings.controller.info.first_button));
+
+		if(group1_is_sticky.toggle_is_on != win.dynamic_settings.controller.first_group_sticky) {
+			group1_is_sticky.change_toggle_state(win, win.dynamic_settings.controller.first_group_sticky);
+		}
+		if(group2_is_sticky.toggle_is_on != win.dynamic_settings.controller.second_group_sticky) {
+			group2_is_sticky.change_toggle_state(win, win.dynamic_settings.controller.second_group_sticky);
+		}
+		if(button_esc_is_sticky.toggle_is_on != win.dynamic_settings.controller.escape.sticky) {
+			button_esc_is_sticky.change_toggle_state(win, win.dynamic_settings.controller.escape.sticky);
+		}
+		if(button_info_is_sticky.toggle_is_on != win.dynamic_settings.controller.info.sticky) {
+			button_info_is_sticky.change_toggle_state(win, win.dynamic_settings.controller.info.sticky);
+		}
+		if(thumbstick_is_left.toggle_is_on != win.dynamic_settings.controller.left_thumbstick) {
+			thumbstick_is_left.change_toggle_state(win, win.dynamic_settings.controller.left_thumbstick);
+		}
+		{
+			auto result_to_str = win.text_data.format_double(win.dynamic_settings.controller.deadzone * 100.0, 0);
+			deadzone_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_double(win.dynamic_settings.controller.sensitivity, 1);
+			sensitivity_e.quiet_set_text(win, result_to_str.text_content.text);
 		}
 	}
 

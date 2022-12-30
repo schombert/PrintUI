@@ -694,23 +694,234 @@ namespace printui {
 		*/
 	}
 
-	void test_for_button(uint32_t& new_buttons_pressed, uint32_t& new_buttons_released, uint32_t& button_state, WORD gamepadstate, uint32_t gamepadmask, uint32_t button_storage_mask) {
+	
 
-		if((gamepadstate & gamepadmask) != 0) {
-			if((button_state & button_storage_mask) == 0) {
-				button_state |= button_storage_mask;
-				new_buttons_pressed |= button_storage_mask;
+	uint32_t to_bitmask(controller_button b) {
+		switch(b) {
+			case controller_button::y:
+				return controller_button_state::button_y;
+			case controller_button::x:
+				return controller_button_state::button_x;
+			case controller_button::b:
+				return controller_button_state::button_b;
+			case controller_button::a:
+				return controller_button_state::button_a;
+			case controller_button::lb:
+				return controller_button_state::button_lb;
+			case controller_button::rb:
+				return controller_button_state::button_rb;
+			case controller_button::start:
+				return controller_button_state::button_start;
+			case controller_button::back:
+				return controller_button_state::button_back;
+			case controller_button::tleft:
+				return controller_button_state::thumb_left;
+			case controller_button::tright:
+				return controller_button_state::thumb_right;
+			case controller_button::dup:
+				return controller_button_state::dpad_up;
+			case controller_button::ddown:
+				return controller_button_state::dpad_down;
+			case controller_button::dleft:
+				return controller_button_state::dpad_left;
+			case controller_button::dright:
+				return controller_button_state::dpad_right;
+			case controller_button::no_button:
+				return 0;
+			default:
+				return 0;
+		}
+	}
+
+	uint32_t to_xinput_bitmask(controller_button b) {
+		switch(b) {
+			case controller_button::y:
+				return XINPUT_GAMEPAD_Y;
+			case controller_button::x:
+				return XINPUT_GAMEPAD_X;
+			case controller_button::b:
+				return XINPUT_GAMEPAD_B;
+			case controller_button::a:
+				return XINPUT_GAMEPAD_A;
+			case controller_button::lb:
+				return XINPUT_GAMEPAD_LEFT_SHOULDER;
+			case controller_button::rb:
+				return XINPUT_GAMEPAD_RIGHT_SHOULDER;
+			case controller_button::start:
+				return XINPUT_GAMEPAD_START;
+			case controller_button::back:
+				return XINPUT_GAMEPAD_BACK;
+			case controller_button::tleft:
+				return XINPUT_GAMEPAD_LEFT_THUMB;
+			case controller_button::tright:
+				return XINPUT_GAMEPAD_RIGHT_THUMB;
+			case controller_button::dup:
+				return XINPUT_GAMEPAD_DPAD_UP;
+			case controller_button::ddown:
+				return XINPUT_GAMEPAD_DPAD_DOWN;
+			case controller_button::dleft:
+				return XINPUT_GAMEPAD_DPAD_LEFT;
+			case controller_button::dright:
+				return XINPUT_GAMEPAD_DPAD_RIGHT;
+			case controller_button::no_button:
+				return 0;
+			default:
+				return 0;
+		}
+	}
+
+	void test_for_button(uint32_t& new_buttons_pressed, uint32_t& new_buttons_released, uint32_t& button_state, WORD gamepadstate, controller_button b) {
+
+		if((gamepadstate & to_xinput_bitmask(b)) != 0) {
+			if((button_state & to_bitmask(b)) == 0) {
+				button_state |= to_bitmask(b);
+				new_buttons_pressed |= to_bitmask(b);
 			}
 		} else {
-			if((button_state & button_storage_mask) != 0) {
-				button_state &= ~button_storage_mask;
-				new_buttons_released |= button_storage_mask;
+			if((button_state & to_bitmask(b)) != 0) {
+				button_state &= ~to_bitmask(b);
+				new_buttons_released |= to_bitmask(b);
 			}
 		}
+	}
 
+	void test_for_all_buttons(uint32_t& buttons_pressed, uint32_t& buttons_released, uint32_t& button_state, WORD gamepadstate) {
+
+		test_for_button(buttons_pressed, buttons_released, button_state, gamepadstate, controller_button::lb);
+		test_for_button(buttons_pressed, buttons_released, button_state, gamepadstate, controller_button::rb);
+		test_for_button(buttons_pressed, buttons_released, button_state, gamepadstate, controller_button::y);
+		test_for_button(buttons_pressed, buttons_released, button_state, gamepadstate, controller_button::x);
+		test_for_button(buttons_pressed, buttons_released, button_state, gamepadstate, controller_button::b);
+		test_for_button(buttons_pressed, buttons_released, button_state, gamepadstate, controller_button::a);
+		test_for_button(buttons_pressed, buttons_released, button_state, gamepadstate, controller_button::tleft);
+		test_for_button(buttons_pressed, buttons_released, button_state, gamepadstate, controller_button::tright);
+		test_for_button(buttons_pressed, buttons_released, button_state, gamepadstate, controller_button::start);
+		test_for_button(buttons_pressed, buttons_released, button_state, gamepadstate, controller_button::back);
+		test_for_button(buttons_pressed, buttons_released, button_state, gamepadstate, controller_button::dleft);
+		test_for_button(buttons_pressed, buttons_released, button_state, gamepadstate, controller_button::dright);
+		test_for_button(buttons_pressed, buttons_released, button_state, gamepadstate, controller_button::dup);
+		test_for_button(buttons_pressed, buttons_released, button_state, gamepadstate, controller_button::ddown);
+	}
+
+	bool window_data::controller_info_held_down() {
+		if(dynamic_settings.controller.info.second_button == controller_button::no_button) {
+			if((controller_buttons.val & to_bitmask(dynamic_settings.controller.info.first_button)) != 0) {
+				return true;
+			}
+		} else {
+			if(
+				(controller_buttons.val & to_bitmask(dynamic_settings.controller.info.first_button)) != 0 &&
+				(controller_buttons.val & to_bitmask(dynamic_settings.controller.info.second_button)) != 0) { // both are held down
+
+				return true;
+			}
+			
+		}
+		return false;
+	}
+	void window_data::reset_controller_info_keys() {
+		controller_sticky_buttons.val &= ~(to_bitmask(dynamic_settings.controller.info.first_button) | to_bitmask(dynamic_settings.controller.info.second_button));
 	}
 
 	void window_data::on_controller_input() {
+
+		//capture test
+		if(capture_button >= 0) {
+
+			for(int32_t i = 0; i < 4; ++i) {
+				if(((1 << i) & controller_number_plugged_in) != 0) {
+					XINPUT_STATE state;
+					ZeroMemory(&state, sizeof(XINPUT_STATE));
+
+					if(XInputGetState(i, &state) == ERROR_SUCCESS) {
+						uint32_t buttons_pressed = 0;
+						uint32_t buttons_released = 0;
+						test_for_all_buttons(buttons_pressed, buttons_released, controller_buttons.val, state.Gamepad.wButtons);
+
+						controller_button captured = controller_button::no_button;
+						if((buttons_pressed & controller_button_state::button_y) != 0)
+							captured = controller_button::y;
+						else if((buttons_pressed & controller_button_state::button_x) != 0)
+							captured = controller_button::x;
+						else if((buttons_pressed & controller_button_state::button_a) != 0)
+							captured = controller_button::a;
+						else if((buttons_pressed & controller_button_state::button_b) != 0)
+							captured = controller_button::b;
+						else if((buttons_pressed & controller_button_state::button_lb) != 0)
+							captured = controller_button::lb;
+						else if((buttons_pressed & controller_button_state::button_rb) != 0)
+							captured = controller_button::rb;
+						else if((buttons_pressed & controller_button_state::button_start) != 0)
+							captured = controller_button::start;
+						else if((buttons_pressed & controller_button_state::button_back) != 0)
+							captured = controller_button::back;
+						else if((buttons_pressed & controller_button_state::dpad_down) != 0)
+							captured = controller_button::ddown;
+						else if((buttons_pressed & controller_button_state::dpad_left) != 0)
+							captured = controller_button::dleft;
+						else if((buttons_pressed & controller_button_state::dpad_right) != 0)
+							captured = controller_button::dright;
+						else if((buttons_pressed & controller_button_state::dpad_up) != 0)
+							captured = controller_button::dup;
+						else if((buttons_pressed & controller_button_state::thumb_left) != 0)
+							captured = controller_button::tleft;
+						else if((buttons_pressed & controller_button_state::thumb_right) != 0)
+							captured = controller_button::tright;
+
+						if(captured != controller_button::no_button) {
+							switch(capture_button) {
+								case 1:
+									dynamic_settings.controller.button1 = captured;
+									break;
+								case 2:
+									dynamic_settings.controller.button2 = captured;
+									break;
+								case 3:
+									dynamic_settings.controller.button3 = captured;
+									break;
+								case 4:
+									dynamic_settings.controller.button4 = captured;
+									break;
+								case 5:
+									dynamic_settings.controller.first_group = captured;
+									break;
+								case 6:
+									dynamic_settings.controller.second_group = captured;
+									break;
+								case 7:
+									dynamic_settings.controller.escape.first_button = captured;
+									if(dynamic_settings.controller.escape.first_button == dynamic_settings.controller.escape.second_button)
+										dynamic_settings.controller.escape.second_button = controller_button::no_button;
+									break;
+								case 8:
+									dynamic_settings.controller.escape.second_button = captured;
+									if(dynamic_settings.controller.escape.first_button == dynamic_settings.controller.escape.second_button)
+										dynamic_settings.controller.escape.second_button = controller_button::no_button;
+									break;
+								case 9:
+									dynamic_settings.controller.info.first_button = captured;
+									if(dynamic_settings.controller.info.first_button == dynamic_settings.controller.info.second_button)
+										dynamic_settings.controller.info.second_button = controller_button::no_button;
+									break;
+								case 10:
+									dynamic_settings.controller.info.second_button = captured;
+									if(dynamic_settings.controller.info.first_button == dynamic_settings.controller.info.second_button)
+										dynamic_settings.controller.info.second_button = controller_button::no_button;
+									
+									break;
+							}
+							window_bar.print_ui_settings.update_with_controller_settings(*this);
+							rendering_interface.create_interactiable_tags(*this);
+							capture_button = -1;
+						}
+					}
+				}
+			}
+			return;
+		}
+
+		// end capture test
+
 		if(dynamic_settings.imode == input_mode::follow_input) {
 			// switch below
 		} else if(dynamic_settings.imode != input_mode::controller_only && dynamic_settings.imode != input_mode::controller_with_pointer) {
@@ -727,8 +938,8 @@ namespace printui {
 					
 
 					if(dynamic_settings.imode == input_mode::controller_with_pointer && (i == controller_mouse.for_controller || !controller_mouse.running)) {
-						double LX = state.Gamepad.sThumbLX;
-						double LY = state.Gamepad.sThumbLY;
+						double LX = dynamic_settings.controller.left_thumbstick ? state.Gamepad.sThumbLX : state.Gamepad.sThumbRX;
+						double LY = dynamic_settings.controller.left_thumbstick ? state.Gamepad.sThumbLY : state.Gamepad.sThumbRY;
 
 						//determine how far the controller is pushed
 						double magnitude = sqrt(LX * LX + LY * LY);
@@ -737,7 +948,7 @@ namespace printui {
 						magnitude = std::min(magnitude, 32767.0) / 32767.0;
 
 						//check if the controller is outside a circular dead zone
-						if(magnitude >= 0.02) {
+						if(magnitude >= dynamic_settings.controller.deadzone) {
 							if(!controller_mouse.running) {
 								controller_mouse.start_time = std::chrono::steady_clock::now();
 								controller_mouse.running = true;
@@ -755,8 +966,8 @@ namespace printui {
 								auto in_ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
 
 								auto scaled_magnitude = (magnitude * magnitude * magnitude) * 1.5;
-								controller_mouse.current_x += double(in_ms.count()) * norm_lx * scaled_magnitude;
-								controller_mouse.current_y += double(in_ms.count()) * norm_ly * scaled_magnitude;
+								controller_mouse.current_x += double(dynamic_settings.controller.sensitivity * in_ms.count()) * norm_lx * scaled_magnitude;
+								controller_mouse.current_y += double(dynamic_settings.controller.sensitivity * in_ms.count()) * norm_ly * scaled_magnitude;
 
 								auto winrect = window_interface.get_window_location();
 								auto temp_x = int32_t(controller_mouse.current_x);
@@ -775,12 +986,8 @@ namespace printui {
 
 					uint32_t buttons_pressed = 0;
 					uint32_t buttons_released = 0;
-					test_for_button(buttons_pressed, buttons_released, controller_buttons.val, state.Gamepad.wButtons, XINPUT_GAMEPAD_LEFT_SHOULDER, controller_buttons.button_lb);
-					test_for_button(buttons_pressed, buttons_released, controller_buttons.val, state.Gamepad.wButtons, XINPUT_GAMEPAD_RIGHT_SHOULDER, controller_buttons.button_rb);
-					test_for_button(buttons_pressed, buttons_released, controller_buttons.val, state.Gamepad.wButtons, XINPUT_GAMEPAD_Y, controller_buttons.button_y);
-					test_for_button(buttons_pressed, buttons_released, controller_buttons.val, state.Gamepad.wButtons, XINPUT_GAMEPAD_X, controller_buttons.button_x);
-					test_for_button(buttons_pressed, buttons_released, controller_buttons.val, state.Gamepad.wButtons, XINPUT_GAMEPAD_B, controller_buttons.button_b);
-					test_for_button(buttons_pressed, buttons_released, controller_buttons.val, state.Gamepad.wButtons, XINPUT_GAMEPAD_A, controller_buttons.button_a);
+
+					test_for_all_buttons(buttons_pressed, buttons_released, controller_buttons.val, state.Gamepad.wButtons);
 
 					if(buttons_pressed || buttons_released) {
 						if(dynamic_settings.imode == input_mode::follow_input) {
@@ -793,33 +1000,117 @@ namespace printui {
 							}
 						}
 
+						controller_sticky_buttons.val ^= buttons_pressed;
 
-						if((buttons_released & (controller_buttons.button_lb | controller_buttons.button_rb)) != 0) {
+						if((buttons_released & (to_bitmask(dynamic_settings.controller.first_group) | to_bitmask(dynamic_settings.controller.second_group))) != 0) {
 							window_interface.invalidate_window();
 						}
-						if((buttons_pressed & (controller_buttons.button_lb | controller_buttons.button_rb)) != 0) {
+						if((buttons_pressed & (to_bitmask(dynamic_settings.controller.first_group) | to_bitmask(dynamic_settings.controller.second_group))) != 0) {
 							window_interface.invalidate_window();
+						}
 
-							if((controller_buttons.val & (controller_buttons.button_lb | controller_buttons.button_rb)) == (controller_buttons.button_lb | controller_buttons.button_rb)) {
+						if(dynamic_settings.controller.escape.second_button == controller_button::no_button) {
+							if((buttons_pressed & to_bitmask(dynamic_settings.controller.escape.first_button)) != 0) {
 								execute_focus_action(focus_actions.escape);
-								return;
+							}
+						} else {
+							if(dynamic_settings.controller.escape.sticky) {
+								if((buttons_pressed & to_bitmask(dynamic_settings.controller.escape.first_button)) != 0 ||
+									(buttons_pressed & to_bitmask(dynamic_settings.controller.escape.second_button)) != 0) { // at least one has just been pushed
+									if(
+										(controller_sticky_buttons.val & to_bitmask(dynamic_settings.controller.escape.first_button)) != 0
+										&& (controller_sticky_buttons.val & to_bitmask(dynamic_settings.controller.escape.second_button)) != 0) { // both are sticky down
+
+										controller_sticky_buttons.val &= ~to_bitmask(dynamic_settings.controller.escape.first_button);
+										controller_sticky_buttons.val &= ~to_bitmask(dynamic_settings.controller.escape.second_button);
+										execute_focus_action(focus_actions.escape);
+									}
+								}
+							} else {
+								if((buttons_pressed & to_bitmask(dynamic_settings.controller.escape.first_button)) != 0 ||
+									(buttons_pressed & to_bitmask(dynamic_settings.controller.escape.second_button)) != 0) { // at least one has just been pushed
+									if(
+										(controller_buttons.val & to_bitmask(dynamic_settings.controller.escape.first_button)) != 0
+										&& (controller_buttons.val & to_bitmask(dynamic_settings.controller.escape.second_button)) != 0) { // both are held down
+
+										execute_focus_action(focus_actions.escape);
+									}
+								}
+							}
+						}
+
+						if(dynamic_settings.controller.info.second_button == controller_button::no_button) {
+							if(dynamic_settings.controller.info.sticky) {
+								if((buttons_pressed & to_bitmask(dynamic_settings.controller.info.first_button)) != 0) {
+									if((controller_sticky_buttons.val & to_bitmask(dynamic_settings.controller.info.first_button)) != 0) {
+										pending_right_click = true;
+									} else {
+										pending_right_click = false;
+									}
+									window_interface.invalidate_window();
+								}
+							} else {
+								if((buttons_released & to_bitmask(dynamic_settings.controller.info.first_button)) != 0) {
+									pending_right_click = false;
+									window_interface.invalidate_window();
+								}
+								if((buttons_pressed & to_bitmask(dynamic_settings.controller.info.first_button)) != 0) {
+									pending_right_click = true;
+									window_interface.invalidate_window();
+								}
+							}
+						} else {
+							if(dynamic_settings.controller.info.sticky) {
+								if((buttons_pressed & to_bitmask(dynamic_settings.controller.info.first_button)) != 0 || (buttons_pressed & to_bitmask(dynamic_settings.controller.info.second_button)) != 0) {
+
+									if(
+										(controller_sticky_buttons.val & to_bitmask(dynamic_settings.controller.info.first_button)) != 0 &&
+										(controller_sticky_buttons.val & to_bitmask(dynamic_settings.controller.info.second_button)) != 0) { // both are held down
+
+										pending_right_click = true;
+									} else {
+										pending_right_click = false;
+									}
+								
+									window_interface.invalidate_window();
+								}
+							} else {
+								if((buttons_pressed & to_bitmask(dynamic_settings.controller.info.first_button)) != 0 || (buttons_pressed & to_bitmask(dynamic_settings.controller.info.second_button)) != 0 || (buttons_released & to_bitmask(dynamic_settings.controller.info.first_button)) != 0 || (buttons_released & to_bitmask(dynamic_settings.controller.info.second_button)) != 0) {
+									if(
+										(controller_buttons.val & to_bitmask(dynamic_settings.controller.info.first_button)) != 0 &&
+										(controller_buttons.val & to_bitmask(dynamic_settings.controller.info.second_button)) != 0) { // both are held down
+
+										pending_right_click = true;
+									} else {
+										pending_right_click = false;
+									}
+									window_interface.invalidate_window();
+								}
 							}
 						}
 
 						int32_t action_offset = 0;
-						if((controller_buttons.val & controller_buttons.button_lb) != 0) {
+						if(((dynamic_settings.controller.first_group_sticky ? controller_sticky_buttons.val : controller_buttons.val) & to_bitmask(dynamic_settings.controller.first_group)) != 0) {
 							action_offset = 4;
-						} else if((controller_buttons.val & controller_buttons.button_rb) != 0) {
+						} else if(((dynamic_settings.controller.second_group_sticky ? controller_sticky_buttons.val : controller_buttons.val) & to_bitmask(dynamic_settings.controller.second_group)) != 0) {
 							action_offset = 8;
 						}
 
-						if((buttons_pressed & controller_buttons.button_y) != 0) {
+						if((buttons_pressed & to_bitmask(dynamic_settings.controller.button1)) != 0) {
+							controller_sticky_buttons.val &= ~to_bitmask(dynamic_settings.controller.first_group);
+							controller_sticky_buttons.val &= ~to_bitmask(dynamic_settings.controller.second_group);
 							execute_focus_action(focus_actions.button_actions[action_offset + 0]);
-						} else if((buttons_pressed & controller_buttons.button_x) != 0) {
+						} else if((buttons_pressed & to_bitmask(dynamic_settings.controller.button2)) != 0) {
+							controller_sticky_buttons.val &= ~to_bitmask(dynamic_settings.controller.first_group);
+							controller_sticky_buttons.val &= ~to_bitmask(dynamic_settings.controller.second_group);
 							execute_focus_action(focus_actions.button_actions[action_offset + 1]);
-						} else if((buttons_pressed & controller_buttons.button_b) != 0) {
+						} else if((buttons_pressed & to_bitmask(dynamic_settings.controller.button3)) != 0) {
+							controller_sticky_buttons.val &= ~to_bitmask(dynamic_settings.controller.first_group);
+							controller_sticky_buttons.val &= ~to_bitmask(dynamic_settings.controller.second_group);
 							execute_focus_action(focus_actions.button_actions[action_offset + 2]);
-						} else if((buttons_pressed & controller_buttons.button_a) != 0) {
+						} else if((buttons_pressed & to_bitmask(dynamic_settings.controller.button4)) != 0) {
+							controller_sticky_buttons.val &= ~to_bitmask(dynamic_settings.controller.first_group);
+							controller_sticky_buttons.val &= ~to_bitmask(dynamic_settings.controller.second_group);
 							execute_focus_action(focus_actions.button_actions[action_offset + 3]);
 						}
 

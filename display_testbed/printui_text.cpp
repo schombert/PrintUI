@@ -1016,6 +1016,27 @@ namespace printui::text {
 		register_name("keyboard_display_name_info", ::text_id::keyboard_display_name_info);
 		register_name("keyboard_display_edit_name", ::text_id::keyboard_display_edit_name);
 		register_name("info_key_sticky_info", ::text_id::info_key_sticky_info);
+		register_name("controller_header", ::text_id::controller_header);
+		register_name("button_ord_name", ::text_id::button_ord_name);
+		register_name("button_group_name", ::text_id::button_group_name);
+		register_name("button_group_sticky", ::text_id::button_group_sticky);
+		register_name("buttons_escape_name", ::text_id::buttons_escape_name);
+		register_name("buttons_info_name", ::text_id::buttons_info_name);
+		register_name("first_button_label", ::text_id::first_button_label);
+		register_name("second_button_label", ::text_id::second_button_label);
+		register_name("buttons_are_sticky", ::text_id::buttons_are_sticky);
+		register_name("thumbstick_label", ::text_id::thumbstick_label);
+		register_name("thumbstick_left_name", ::text_id::thumbstick_left_name);
+		register_name("thumbstick_right_name", ::text_id::thumbstick_right_name);
+		register_name("sensitivity_label", ::text_id::sensitivity_label);
+		register_name("deadzone_label", ::text_id::deadzone_label);
+		register_name("button_assignment_info", ::text_id::button_assignment_info);
+		register_name("info_button_info", ::text_id::info_button_info);
+		register_name("escape_button_info", ::text_id::escape_button_info);
+		register_name("controller_sticky_info", ::text_id::controller_sticky_info);
+		register_name("thumbstick_info", ::text_id::thumbstick_info);
+		register_name("sensitivity_info", ::text_id::sensitivity_info);
+		register_name("deadzone_info", ::text_id::deadzone_info);
 	}
 
 	UINT GetGrouping(WCHAR const* locale) {

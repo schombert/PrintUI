@@ -129,8 +129,29 @@ namespace text_id {
 	inline constexpr uint16_t keyboard_display_name_info = 101;
 	inline constexpr uint16_t keyboard_display_edit_name = 102;
 	inline constexpr uint16_t info_key_sticky_info = 103;
+	inline constexpr uint16_t controller_header = 104;
+	inline constexpr uint16_t button_ord_name = 105;
+	inline constexpr uint16_t button_group_name = 106;
+	inline constexpr uint16_t button_group_sticky = 107;
+	inline constexpr uint16_t buttons_escape_name = 108;
+	inline constexpr uint16_t buttons_info_name = 109;
+	inline constexpr uint16_t first_button_label = 110;
+	inline constexpr uint16_t second_button_label = 111;
+	inline constexpr uint16_t buttons_are_sticky = 112;
+	inline constexpr uint16_t thumbstick_label = 113;
+	inline constexpr uint16_t thumbstick_left_name = 114;
+	inline constexpr uint16_t thumbstick_right_name = 115;
+	inline constexpr uint16_t sensitivity_label = 116;
+	inline constexpr uint16_t deadzone_label = 117;
+	inline constexpr uint16_t button_assignment_info = 118;
+	inline constexpr uint16_t info_button_info = 119;
+	inline constexpr uint16_t escape_button_info = 120;
+	inline constexpr uint16_t controller_sticky_info = 121;
+	inline constexpr uint16_t thumbstick_info = 122;
+	inline constexpr uint16_t sensitivity_info = 123;
+	inline constexpr uint16_t deadzone_info = 124;
 
-	inline constexpr uint16_t first_free_id = 104;
+	inline constexpr uint16_t first_free_id = 125;
 }
 
 namespace printui {
@@ -324,6 +345,7 @@ namespace printui {
 		bool caret_blink = true;
 
 		key_mappings keys;
+		controller_mappings controller;
 
 		bool settings_changed = false;
 		
@@ -1700,6 +1722,38 @@ namespace printui {
 		virtual void toggle_action(window_data&, bool toggle_state) override;
 	};
 
+
+	struct button_choice_button : public button_control_base {
+		int32_t key = 0;
+
+		button_choice_button(int32_t key) : key(key), button_control_base(uint16_t(-1), content_alignment::trailing, text_id::button_assignment_info) {
+		}
+		virtual void button_action(window_data&) override;
+	};
+	struct deadzone_edit : public editable_numeric_range {
+		deadzone_edit() : editable_numeric_range(content_alignment::trailing, text_id::deadzone_label, text_id::deadzone_info, 4, 1, 0.0f, 90.0f, 0) {
+		}
+
+		virtual void on_edit_finished(window_data&, std::wstring const&) override;
+	};
+	struct sensitivity_edit : public editable_numeric_range {
+		sensitivity_edit() : editable_numeric_range(content_alignment::trailing, text_id::sensitivity_label, text_id::sensitivity_info, 4, 1, 0.1f, 3.0f, 1) {
+		}
+
+		virtual void on_edit_finished(window_data&, std::wstring const&) override;
+	};
+	struct thumbstick_toggle_button : public button_control_toggle {
+		thumbstick_toggle_button() : button_control_toggle(text_id::thumbstick_left_name, text_id::thumbstick_right_name, content_alignment::trailing, text_id::thumbstick_info) {
+		}
+		virtual void toggle_action(window_data&, bool toggle_state) override;
+	};
+	struct controller_button_is_sticky_toggle_button : public button_control_toggle {
+		int32_t key = 0;
+		controller_button_is_sticky_toggle_button(int32_t key) : key(key), button_control_toggle(text_id::generic_toggle_yes, text_id::generic_toggle_no, content_alignment::trailing, text_id::controller_sticky_info) {
+		}
+		virtual void toggle_action(window_data&, bool toggle_state) override;
+	};
+
 	struct common_printui_settings : public layout_interface {
 		single_line_empty_header header;
 		page_footer footer;
@@ -1860,6 +1914,51 @@ namespace printui {
 		label_control info_is_sticky_label;
 		info_is_sticky_toggle_button info_sticky_tb;
 
+		//controller settings
+		label_control controller_header;
+
+		label_control button1_label;
+		button_choice_button button1_selection;
+		label_control button2_label;
+		button_choice_button button2_selection;
+		label_control button3_label;
+		button_choice_button button3_selection;
+		label_control button4_label;
+		button_choice_button button4_selection;
+
+		label_control group1_label;
+		button_choice_button group1_selection;
+		label_control group1_sticky_label;
+		controller_button_is_sticky_toggle_button group1_is_sticky;
+
+		label_control group2_label;
+		button_choice_button group2_selection;
+		label_control group2_sticky_label;
+		controller_button_is_sticky_toggle_button group2_is_sticky;
+
+		label_control button_esc_label;
+		label_control button_esc1_label;
+		button_choice_button esc1_selection;
+		label_control button_esc2_label;
+		button_choice_button esc2_selection;
+		label_control button_esc_sticky_label;
+		controller_button_is_sticky_toggle_button button_esc_is_sticky;
+
+		label_control button_info_label;
+		label_control button_info1_label;
+		button_choice_button info1_selection;
+		label_control button_info2_label;
+		button_choice_button info2_selection;
+		label_control button_info_sticky_label;
+		controller_button_is_sticky_toggle_button button_info_is_sticky;
+
+		label_control thumbstick_is_left_label;
+		thumbstick_toggle_button thumbstick_is_left;
+		label_control deadzone_label;
+		deadzone_edit deadzone_e;
+		label_control sensitivity_label;
+		sensitivity_edit sensitivity_e;
+
 		accessibility_object_ptr acc_obj;
 
 		std::vector<page_content> content_description;
@@ -1878,6 +1977,7 @@ namespace printui {
 		virtual void go_to_page(window_data&, uint32_t i, page_information& pi) override;
 
 		void update_with_keyboard_settings(window_data& win);
+		void update_with_controller_settings(window_data& win);
 	};
 
 	struct settings_page_container : public layout_interface {
@@ -2292,17 +2392,9 @@ namespace printui {
 		int32_t caret_blink_ms = 1024;
 		decltype(std::chrono::steady_clock::now()) last_double_click;
 
-		struct {
-			uint32_t val = 0;
-			constexpr static uint32_t button_y = 0x001;
-			constexpr static uint32_t button_x = 0x002;
-			constexpr static uint32_t button_b = 0x004;
-			constexpr static uint32_t button_a = 0x008;
-			constexpr static uint32_t button_lb = 0x010;
-			constexpr static uint32_t button_rb = 0x020;
-			constexpr static uint32_t button_start = 0x040;
-			constexpr static uint32_t button_back = 0x080;
-		} controller_buttons;
+		int32_t capture_button = -1;
+		controller_button_state controller_buttons;
+		controller_button_state controller_sticky_buttons;
 		struct {
 			decltype(std::chrono::steady_clock::now()) start_time;
 			bool running = false;
@@ -2489,6 +2581,9 @@ namespace printui {
 
 		void load_locale_settings(std::wstring const& directory);
 		void load_locale_fonts(std::wstring const& directory);
+
+		bool controller_info_held_down();
+		void reset_controller_info_keys();
 	};
 
 	
@@ -2504,6 +2599,8 @@ namespace printui {
 	}
 	uint32_t content_alignment_to_text_alignment(content_alignment align);
 	void populate_key_mappings_by_type(key_mappings& k);
+	wchar_t const* to_label(controller_button b);
+	uint32_t to_bitmask(controller_button b);
 	
 }
 

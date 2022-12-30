@@ -501,6 +501,8 @@ namespace printui::parse {
 		}
 	}
 
+	void parse_controllersettings(controller_mappings& controller, char const* start, char const* end);
+
 	void settings_file(launch_settings& ls, std::unordered_map<std::string, uint32_t, text::string_hash, std::equal_to<>>& font_name_to_index, char const* start, char const* end) {
 
 		char const* pos = start;
@@ -655,6 +657,10 @@ namespace printui::parse {
 					if(extracted.values.size() >= 1) {
 						ls.heading_size_multiplier = std::stof(std::string(extracted.values[0].to_string()));
 					}
+				} else if(kstr == "controllersettings") {
+					if(extracted.values.size() >= 1) {
+						parse_controllersettings(ls.controller, extracted.values[0].start, extracted.values[0].end);
+					}
 				}
 
 			}
@@ -796,6 +802,203 @@ namespace printui::parse {
 		return result;
 	}
 
+	controller_button button_from_string(std::string_view v) {
+		if(v == "y")
+			return controller_button::y;
+		else if(v == "x")
+			return controller_button::x;
+		else if(v == "b")
+			return controller_button::b;
+		else if(v == "a")
+			return controller_button::a;
+		else if(v == "lb")
+			return controller_button::lb;
+		else if(v == "rb")
+			return controller_button::rb;
+		else if(v == "start")
+			return controller_button::start;
+		else if(v == "back")
+			return controller_button::back;
+		else if(v == "tleft")
+			return controller_button::tleft;
+		else if(v == "tright")
+			return controller_button::tright;
+		else if(v == "dup")
+			return controller_button::dup;
+		else if(v == "ddown")
+			return controller_button::ddown;
+		else if(v == "dleft")
+			return controller_button::dleft;
+		else if(v == "dright")
+			return controller_button::dright;
+		return controller_button::no_button;
+	}
+	std::string to_string(controller_button b) {
+		switch(b) {
+			case controller_button::y:
+				return "y";
+			case controller_button::x:
+				return "x";
+			case controller_button::b:
+				return "b";
+			case controller_button::a:
+				return "a";
+			case controller_button::lb:
+				return "lb";
+			case controller_button::rb:
+				return "rb";
+			case controller_button::start:
+				return "start";
+			case controller_button::back:
+				return "back";
+			case controller_button::tleft:
+				return "tleft";
+			case controller_button::tright:
+				return "tright";
+			case controller_button::dup:
+				return "dup";
+			case controller_button::ddown:
+				return "ddown";
+			case controller_button::dleft:
+				return "dleft";
+			case controller_button::dright:
+				return "dright";
+			case controller_button::no_button:
+				return "none";
+			default:
+				return "none";
+		}
+	}
+	std::string create_controllersettings(controller_mappings const& controller) {
+		std::string result;
+		result += "controllersettings {\n";
+		result += "\tbutton1{ " + to_string(controller.button1) + " }\n";
+		result += "\tbutton2{ " + to_string(controller.button2) + " }\n";
+		result += "\tbutton3{ " + to_string(controller.button3) + " }\n";
+		result += "\tbutton4{ " + to_string(controller.button4) + " }\n";
+
+		result += "\tsensitivity{ " + std::to_string(controller.sensitivity) + " }\n";
+		result += "\tdeadzone{ " + std::to_string(controller.deadzone) + " }\n";
+		result += "\tfirst_group{ " + to_string(controller.first_group) + " }\n";
+		result += "\tsecond_group{ " + to_string(controller.second_group) + " }\n";
+
+		result += "\tinfo1{ " + to_string(controller.info.first_button) + " }\n";
+		result += "\tinfo2{ " + to_string(controller.info.second_button) + " }\n";
+		result += "\tesc1{ " + to_string(controller.escape.first_button) + " }\n";
+		result += "\tesc2{ " + to_string(controller.escape.second_button) + " }\n";
+
+		result += "\tfirst_sticky{ " + std::string(controller.first_group_sticky ? "yes" : "no") + " }\n";
+		result += "\tsecond_sticky{ " + std::string(controller.second_group_sticky ? "yes" : "no") + " }\n";
+		result += "\tinfo_sticky{ " + std::string(controller.info.sticky ? "yes" : "no") + " }\n";
+		result += "\tesc_sticky{ " + std::string(controller.escape.sticky ? "yes" : "no") + " }\n";
+
+		result += "\tleft_stick{ " + std::string(controller.left_thumbstick ? "yes" : "no") + " }\n";
+
+		result += "}\n";
+		return result;
+	}
+	void parse_controllersettings(controller_mappings& controller, char const* start, char const* end) {
+		char const* pos = start;
+
+		while(pos < end) {
+			auto extracted = extract_item(pos, end);
+			pos = extracted.terminal;
+
+			if(extracted.key.start != extracted.key.end) {
+				std::string kstr(extracted.key.to_string());
+				if(kstr == "button1") {
+					if(extracted.values.size() >= 1) {
+						controller.button1 = button_from_string(extracted.values[0].to_string());
+					}
+				} else if(kstr == "button2") {
+					if(extracted.values.size() >= 1) {
+						controller.button2 = button_from_string(extracted.values[0].to_string());
+					}
+				} else if(kstr == "button3") {
+					if(extracted.values.size() >= 1) {
+						controller.button3 = button_from_string(extracted.values[0].to_string());
+					}
+				} else if(kstr == "button4") {
+					if(extracted.values.size() >= 1) {
+						controller.button4 = button_from_string(extracted.values[0].to_string());
+					}
+				} else if(kstr == "sensitivity") {
+					if(extracted.values.size() >= 1) {
+						controller.sensitivity = std::stof(std::string(extracted.values[0].to_string()));
+					}
+				} else if(kstr == "deadzone") {
+					if(extracted.values.size() >= 1) {
+						controller.deadzone = std::stod(std::string(extracted.values[0].to_string()));
+					}
+				} else if(kstr == "first_group") {
+					if(extracted.values.size() >= 1) {
+						controller.first_group = button_from_string(extracted.values[0].to_string());
+					}
+				} else if(kstr == "second_group") {
+					if(extracted.values.size() >= 1) {
+						controller.second_group = button_from_string(extracted.values[0].to_string());
+					}
+				} else if(kstr == "info1") {
+					if(extracted.values.size() >= 1) {
+						controller.info.first_button = button_from_string(extracted.values[0].to_string());
+					}
+				} else if(kstr == "info2") {
+					if(extracted.values.size() >= 1) {
+						controller.info.second_button = button_from_string(extracted.values[0].to_string());
+					}
+				} else if(kstr == "esc1") {
+					if(extracted.values.size() >= 1) {
+						controller.escape.first_button = button_from_string(extracted.values[0].to_string());
+					}
+				} else if(kstr == "esc2") {
+					if(extracted.values.size() >= 1) {
+						controller.escape.second_button = button_from_string(extracted.values[0].to_string());
+					}
+				} else if(kstr == "first_sticky") {
+					if(extracted.values.size() >= 1) {
+						const auto val = extracted.values[0].to_string();
+						if(val == "yes" || val == "y" || val == "YES" || val == "Y" || val == "true")
+							controller.first_group_sticky = true;
+						else if(val == "no" || val == "n" || val == "NO" || val == "N" || val == "false")
+							controller.first_group_sticky = false;
+					}
+				} else if(kstr == "second_sticky") {
+					if(extracted.values.size() >= 1) {
+						const auto val = extracted.values[0].to_string();
+						if(val == "yes" || val == "y" || val == "YES" || val == "Y" || val == "true")
+							controller.second_group_sticky = true;
+						else if(val == "no" || val == "n" || val == "NO" || val == "N" || val == "false")
+							controller.second_group_sticky = false;
+					}
+				} else if(kstr == "info_sticky") {
+					if(extracted.values.size() >= 1) {
+						const auto val = extracted.values[0].to_string();
+						if(val == "yes" || val == "y" || val == "YES" || val == "Y" || val == "true")
+							controller.info.sticky = true;
+						else if(val == "no" || val == "n" || val == "NO" || val == "N" || val == "false")
+							controller.info.sticky = false;
+					}
+				} else if(kstr == "esc_sticky") {
+					if(extracted.values.size() >= 1) {
+						const auto val = extracted.values[0].to_string();
+						if(val == "yes" || val == "y" || val == "YES" || val == "Y" || val == "true")
+							controller.escape.sticky = true;
+						else if(val == "no" || val == "n" || val == "NO" || val == "N" || val == "false")
+							controller.escape.sticky = false;
+					}
+				} else if(kstr == "left_stick") {
+					if(extracted.values.size() >= 1) {
+						const auto val = extracted.values[0].to_string();
+						if(val == "yes" || val == "y" || val == "YES" || val == "Y" || val == "true")
+							controller.left_thumbstick = true;
+						else if(val == "no" || val == "n" || val == "NO" || val == "N" || val == "false")
+							controller.left_thumbstick = false;
+					}
+				}
+			}
+		}
+	}
+
 	std::string create_settings_file(launch_settings const& ls) {
 		std::string result;
 
@@ -847,6 +1050,7 @@ namespace printui::parse {
 		result += "heading_size_multiplier{ " + std::to_string(ls.heading_size_multiplier) + " }\n";
 
 		result += make_keysettings_description(ls.keys);
+		result += create_controllersettings(ls.controller);
 		return result;
 	}
 

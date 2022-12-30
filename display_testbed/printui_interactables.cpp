@@ -684,10 +684,12 @@ namespace printui {
 
 			if(pending_right_click) {
 
-				if(window_interface.get_key_state(dynamic_settings.keys.info_key.scancode) == 0 || dynamic_settings.imode == input_mode::mouse_only) {
+				if((window_interface.get_key_state(dynamic_settings.keys.info_key.scancode) == 0 && !controller_info_held_down()) || dynamic_settings.imode == input_mode::mouse_only) {
 					pending_right_click = false; // right click modifier not held down
+					reset_controller_info_keys();
 					window_bar.info_i.mark_for_update(*this);
 				}
+				
 				i.ptr->on_right_click(*this, uint32_t(i.child_offset));
 			} else {
 				i.ptr->on_click(*this, uint32_t(i.child_offset));

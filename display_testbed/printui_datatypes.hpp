@@ -382,6 +382,58 @@ namespace printui {
 		keyboard_key_descriptor info_key;
 		bool info_key_is_sticky = false;
 	};
+
+	struct controller_button_state {
+		uint32_t val = 0;
+
+		constexpr static uint32_t button_y = 0x0001;
+		constexpr static uint32_t button_x = 0x0002;
+		constexpr static uint32_t button_b = 0x0004;
+		constexpr static uint32_t button_a = 0x0008;
+		constexpr static uint32_t button_lb = 0x0010;
+		constexpr static uint32_t button_rb = 0x0020;
+		constexpr static uint32_t button_start = 0x0040;
+		constexpr static uint32_t button_back = 0x0080;
+
+		constexpr static uint32_t thumb_left = 0x0100;
+		constexpr static uint32_t thumb_right = 0x0200;
+
+		constexpr static uint32_t dpad_up = 0x0400;
+		constexpr static uint32_t dpad_down = 0x0800;
+		constexpr static uint32_t dpad_left = 0x1000;
+		constexpr static uint32_t dpad_right = 0x2000;
+	};
+
+
+	enum class controller_button : uint8_t {
+		y, x, b, a, lb, rb, start, back, tleft, tright, dup, ddown, dleft, dright, no_button
+	};
+
+	struct button_combination {
+		controller_button first_button;
+		controller_button second_button;
+		bool sticky;
+	};
+
+	struct controller_mappings {
+		double deadzone = 0.02;
+		float sensitivity = 1.0f;
+
+		controller_button button1 = controller_button::y;
+		controller_button button2 = controller_button::x;
+		controller_button button3 = controller_button::b;
+		controller_button button4 = controller_button::a;
+
+		controller_button first_group = controller_button::lb;
+		bool first_group_sticky = false;
+		controller_button second_group = controller_button::rb;
+		bool second_group_sticky = false;
+
+		button_combination escape = button_combination{ controller_button::lb,controller_button::rb,false};
+		button_combination info = button_combination{ controller_button::no_button,controller_button::no_button,true };
+
+		bool left_thumbstick = true;
+	};
 }
 
 #endif

@@ -23,6 +23,43 @@
 
 namespace printui {
 
+	wchar_t const* to_label(controller_button b) {
+		switch(b) {
+			case controller_button::y:
+				return L"Y";
+			case controller_button::x:
+				return L"X";
+			case controller_button::b:
+				return L"B";
+			case controller_button::a:
+				return L"A";
+			case controller_button::lb:
+				return L"\U0001F13B";
+			case controller_button::rb:
+				return L"\U0001F141";
+			case controller_button::start:
+				return L"\u2BC8";
+			case controller_button::back:
+				return  L"\u2BC7";
+			case controller_button::tleft:
+				return L"\u24C1";
+			case controller_button::tright:
+				return L"\u24C7";
+			case controller_button::dup:
+				return L"\U0001F871";
+			case controller_button::ddown:
+				return L"\U0001F873";
+			case controller_button::dleft:
+				return L"\U0001F870";
+			case controller_button::dright:
+				return L"\U0001F872";
+			case controller_button::no_button:
+				return L"?";
+			default:
+				return L"?";
+		}
+	}
+
 	void ui_rectangle::rotate_borders(layout_orientation o) {
 		switch(o) {
 			case layout_orientation::horizontal_left_to_right:

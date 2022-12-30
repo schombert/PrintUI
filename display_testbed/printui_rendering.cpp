@@ -824,7 +824,11 @@ namespace printui {
 					d2d_device_context->SetTransform(D2D1::Matrix3x2F::Translation(float(location.x), float(location.y)));
 
 					int32_t resolved_icon = 0;
-					if((win.controller_buttons.val & (win.controller_buttons.button_lb | win.controller_buttons.button_rb)) == 0) {
+
+					bool first_group = ((win.dynamic_settings.controller.first_group_sticky ? win.controller_sticky_buttons.val : win.controller_buttons.val) & to_bitmask(win.dynamic_settings.controller.first_group)) != 0;
+					bool second_group = ((win.dynamic_settings.controller.second_group_sticky ? win.controller_sticky_buttons.val : win.controller_buttons.val) & to_bitmask(win.dynamic_settings.controller.second_group)) != 0;
+
+					if(!first_group && !second_group) {
 						if(state.get_key() < 4) {
 							resolved_icon = state.get_key();
 						} else if(state.get_key() < 8) {
@@ -832,7 +836,7 @@ namespace printui {
 						} else {
 							resolved_icon = 5;
 						}
-					} else if((win.controller_buttons.val & win.controller_buttons.button_lb ) != 0) {
+					} else if(first_group) {
 						if(state.get_key() < 4) {
 							resolved_icon = 6;
 						} else if(state.get_key() < 8) {
@@ -857,7 +861,10 @@ namespace printui {
 
 				} else if(state.holds_group()) {
 					int32_t resolved_icon = 0;
-					if((win.controller_buttons.val & (win.controller_buttons.button_lb | win.controller_buttons.button_rb)) == 0) {
+					bool first_group = ((win.dynamic_settings.controller.first_group_sticky ? win.controller_sticky_buttons.val : win.controller_buttons.val) & to_bitmask(win.dynamic_settings.controller.first_group)) != 0;
+					bool second_group = ((win.dynamic_settings.controller.second_group_sticky ? win.controller_sticky_buttons.val : win.controller_buttons.val) & to_bitmask(win.dynamic_settings.controller.second_group)) != 0;
+
+					if(!first_group && !second_group) {
 						if(state.get_key() < 4) {
 							resolved_icon = state.get_key();
 						} else if(state.get_key() < 8) {
@@ -865,7 +872,7 @@ namespace printui {
 						} else {
 							resolved_icon = 5;
 						}
-					} else if((win.controller_buttons.val & win.controller_buttons.button_lb) != 0) {
+					} else if(first_group) {
 						if(state.get_key() < 4) {
 							resolved_icon = 6;
 						} else if(state.get_key() < 8) {
@@ -887,7 +894,7 @@ namespace printui {
 					if(!state.is_group_start())
 						palette[resolved_brush]->SetOpacity(0.8f);
 					d2d_device_context->FillOpacityMask(
-						group_interactable[resolved_icon],
+						group_controller_interactable[resolved_icon],
 						palette[resolved_brush],
 						D2D1_OPACITY_MASK_CONTENT_GRAPHICS);
 					if(!state.is_group_start())
@@ -1446,7 +1453,14 @@ namespace printui {
 			}
 
 			std::array<ID2D1Bitmap1*, 12> button_text_bitmaps;
-			wchar_t button_names[] = { L'Y', L'X', L'B', L'A', L'L', L'R', L'-' };
+			wchar_t const* button_names[] = {
+				to_label(win.dynamic_settings.controller.button1),
+				to_label(win.dynamic_settings.controller.button2),
+				to_label(win.dynamic_settings.controller.button3),
+				to_label(win.dynamic_settings.controller.button4), 
+				to_label(win.dynamic_settings.controller.first_group),
+				to_label(win.dynamic_settings.controller.second_group), 
+				L"-" };
 
 			for(uint32_t i = 0; i < 7; ++i) {
 
@@ -1462,8 +1476,8 @@ namespace printui {
 				d2d_device_context->Clear(D2D1_COLOR_F{ 0.0f,0.0f,0.0f,0.0f });
 
 				if(auto dwf = win.text_interface.to_dwrite_format(label_format); dwf)
-					d2d_device_context->DrawTextW(button_names + i, 1, (IDWriteTextFormat3*)dwf,
-						D2D1_RECT_F{ 0.0f, (float(win.layout_size) * 5.0f) / 6.0f - label_format.baseline, float(win.layout_size), float(win.layout_size) }, dummy_brush);
+					d2d_device_context->DrawTextW(button_names[i], uint32_t(wcslen(button_names[i])), (IDWriteTextFormat3*)dwf,
+						D2D1_RECT_F{ 0.0f, float((win.layout_size - 1) / 2 + (cap_height - 1) / 2) - label_format.baseline, float(win.layout_size), float(win.layout_size) }, dummy_brush);
 
 				d2d_device_context->EndDraw();
 			}
