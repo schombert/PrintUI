@@ -398,31 +398,6 @@ namespace printui {
 		return total;
 	}
 
-	// assumes has page_info
-	std::vector<grouping_range> group_columns(window_data const& lm, layout_node const& n) {
-		std::vector<grouping_range> result;
-		result.reserve(12);
-
-		int32_t last_range = 0;
-
-		if(n.page_info() && n.page_info()->header != layout_reference_none) {
-			last_range = calaculate_interactables_at_node(lm, lm.get_node(n.page_info()->header));
-		}
-
-		for(auto r : visible_children(n)) {
-			if(lm.is_rendered(r)) {
-				auto& cn = lm.get_node(r);
-				
-				auto const interactable_in_obj = calaculate_interactables_at_node(lm, cn);
-				if(interactable_in_obj > 0)
-					result.push_back(grouping_range{ last_range, last_range + interactable_in_obj });
-				last_range += interactable_in_obj;
-			}
-		}
-
-		return result;
-	}
-
 	void reduce_groups(std::vector<grouping_range>& groups, size_t target) {
 		auto last = groups.size() > 0 ? groups.back().end : 0;
 
@@ -451,67 +426,38 @@ namespace printui {
 
 	int32_t make_top_groups(window_data const& lm, layout_node const& n, grouping_range* out) {
 		if(n.page_info() || n.container_info()) {
-			auto top_col_groups = group_columns(lm, n);
+			auto total_interactables = calaculate_interactables_at_node(lm, n);
 			auto top_divisions_count = calaculate_top_division_in_page(lm, n);
-			reduce_groups(top_col_groups, size_t(top_divisions_count));
 
-			if(top_col_groups.size() == 0) {
-				return 0;
-			}
 
 			auto pi = n.page_info();
 			auto header_count = (pi && pi->header != layout_reference_none) ? calaculate_interactables_at_node(lm, lm.get_node(pi->header)) : 0;
 			auto footer_count = (pi && pi->footer != layout_reference_none) ? calaculate_interactables_at_node(lm, lm.get_node(pi->footer)) : 0;
 
-			if(top_col_groups.size() == 1) {
-				auto groups = divide_group(top_col_groups.back(), top_divisions_count);
-				top_col_groups.clear();
+			
+			auto groups = divide_group(grouping_range{ header_count , total_interactables - footer_count }, top_divisions_count);
+				
 
-				int32_t i = 0;
+			int32_t i = 0;
 
-				if(header_count > 0) {
-					out[0] = grouping_range{ 0, header_count };
-					++i;
-				}
-
-				for(int32_t j = 0; j < top_divisions_count; ++j) {
-					if(groups[j].start != groups[j].end) {
-						out[i] = grouping_range{ groups[j].start + header_count, groups[j].end + header_count };
-						++i;
-					}
-				}
-
-				if(footer_count > 0) {
-					auto old_last = i != 0 ? out[i - 1].end : 0;
-					out[i] = grouping_range{ old_last, old_last + footer_count };
-					++i;
-				}
-
-				return i;
-			} else {
-
-				int32_t i = 0;
-
-				if(header_count > 0) {
-					out[0] = grouping_range{ 0, header_count };
-					++i;
-				}
-
-				for(uint32_t j = 0; j < top_col_groups.size(); ++j) {
-					if(top_col_groups[j].start != top_col_groups[j].end) {
-						out[i] = grouping_range{ top_col_groups[j].start + header_count, top_col_groups[j].end + header_count };
-						++i;
-					}
-				}
-
-				if(footer_count > 0) {
-					auto old_last = i != 0 ? out[i - 1].end : 0;
-					out[i] = grouping_range{ old_last, old_last + footer_count };
-					++i;
-				}
-
-				return i;
+			if(header_count > 0) {
+				out[0] = grouping_range{ 0, header_count };
+				++i;
 			}
+
+			for(int32_t j = 0; j < top_divisions_count; ++j) {
+				if(groups[j].start != groups[j].end) {
+					out[i] = grouping_range{ groups[j].start + header_count, groups[j].end + header_count };
+					++i;
+				}
+			}
+
+			if(footer_count > 0) {
+				auto old_last = i != 0 ? out[i - 1].end : 0;
+				out[i] = grouping_range{ old_last, old_last + footer_count };
+				++i;
+			}
+			return i;
 		} else {
 			return 0;
 		}

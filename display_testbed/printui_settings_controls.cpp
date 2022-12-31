@@ -132,7 +132,7 @@ namespace printui {
 		{
 			auto& self = win.get_node(l_id);
 			pi->header = win.create_node(&page_header, self.width, 2, false);
-			win.immediate_add_child(l_id, pi->header);
+			win.get_node(pi->header).parent = l_id;
 			win.get_node(pi->header).y = 0;
 			win.get_node(pi->header).x = 0;
 		}
@@ -182,9 +182,11 @@ namespace printui {
 	*/
 	common_printui_settings::common_printui_settings() :
 		language_label(text_id::language_label, content_alignment::leading, text_id::language_info),
+		general_header(text_id::general_header, content_alignment::centered, uint16_t(-1)),
 		orientation_label(text_id::orientation_label, content_alignment::leading, text_id::orientation_info),
 		input_mode_label(text_id::input_mode_label, content_alignment::leading, text_id::input_mode_info),
 		toggle_animations_label(text_id::ui_animations_label, content_alignment::leading, text_id::ui_animations_info),
+		cursor_blinks_label(text_id::cursor_blink_label, content_alignment::leading, text_id::cursor_blink_info),
 		ui_scale_label(text_id::ui_scale, content_alignment::leading, text_id::ui_scale_info),
 		fonts_header(text_id::fonts_header, content_alignment::centered, uint16_t(-1)),
 		primary_font_name_label(text_id::primary_font_label, content_alignment::leading, text_id::primary_font_info),
@@ -225,6 +227,18 @@ namespace printui {
 		header_top_lead_e(text_size::header),
 		header_bottom_lead_label(text_id::bottom_lead_label, content_alignment::leading, text_id::bottom_lead_edit_info),
 		header_bottom_lead_e(text_size::header),
+		label_font_name_label(text_id::label_font_label, content_alignment::leading, text_id::label_font_info),
+		label_font_menu(text_size::label),
+		label_font_weight_label(text_id::font_weight, content_alignment::leading, text_id::font_weight_info),
+		label_font_weight_e(text_size::label),
+		label_font_stretch_label(text_id::font_stretch, content_alignment::leading, text_id::font_stretch_info),
+		label_font_stretch_e(text_size::label),
+		label_font_italic_label(text_id::font_italic, content_alignment::leading, text_id::font_italic_info),
+		label_font_italic_toggle(text_size::label),
+		label_top_lead_label(text_id::top_lead_label, content_alignment::leading, text_id::top_lead_edit_info),
+		label_top_lead_e(text_size::label),
+		label_bottom_lead_label(text_id::bottom_lead_label, content_alignment::leading, text_id::bottom_lead_edit_info),
+		label_bottom_lead_e(text_size::label),
 		keyboard_header(text_id::keyboard_header, content_alignment::centered, uint16_t(-1)),
 		kb_arrangement_label(text_id::keyboard_arrangement, content_alignment::leading, text_id::keyboard_arragnement_info),
 		key1_label(text_id::key_ord_name, content_alignment::leading, uint16_t(-1)),
@@ -369,6 +383,12 @@ namespace printui {
 		header_font_menu.alt_text = text_id::header_font_info;
 		header_font_menu.name = text_id::header_font_label;
 
+		label_font_menu.open_button.set_text_alignment(content_alignment::trailing);
+		label_font_menu.page_size = 1;
+		label_font_menu.line_size = 10;
+		label_font_menu.alt_text = text_id::label_font_info;
+		label_font_menu.name = text_id::label_font_label;
+
 		kb_arrangement_list.text_alignment = content_alignment::trailing;
 		kb_arrangement_list.alt_text_id = text_id::keyboard_arragnement_info;
 		kb_arrangement_list.name = text_id::keyboard_arrangement;
@@ -449,11 +469,20 @@ namespace printui {
 
 		content_description.push_back(page_content{ &language_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
 		content_description.push_back(page_content{ &lang_menu, column_break_behavior::normal, item_type::item_end, nullptr });
+
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_footer, nullptr });
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
+
+		content_description.push_back(page_content{ &general_header, column_break_behavior::dont_break_after, item_type::normal, nullptr });
+		content_description.push_back(page_content{ nullptr, column_break_behavior::dont_break_after, item_type::single_space, nullptr });
+		
 		content_description.push_back(page_content{ &orientation_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
 		content_description.push_back(page_content{ &orientation_list, column_break_behavior::normal, item_type::item_end, nullptr });
 		content_description.push_back(page_content{ &input_mode_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
 		content_description.push_back(page_content{ &input_mode_list, column_break_behavior::normal, item_type::item_end, nullptr });
 		content_description.push_back(page_content{ &toggle_animations, column_break_behavior::normal, item_type::single_item, &toggle_animations_label });
+		content_description.push_back(page_content{ &cursor_blinks_toggle, column_break_behavior::normal, item_type::single_item, &cursor_blinks_label });
 		content_description.push_back(page_content{ &ui_scale_e, column_break_behavior::normal, item_type::single_item, &ui_scale_label });
 
 		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
@@ -492,6 +521,16 @@ namespace printui {
 		content_description.push_back(page_content{ &header_font_italic_toggle, column_break_behavior::dont_break_after, item_type::single_item, &header_font_italic_label });
 		content_description.push_back(page_content{ &header_top_lead_e, column_break_behavior::dont_break_after, item_type::single_item, &header_top_lead_label });
 		content_description.push_back(page_content{ &header_bottom_lead_e, column_break_behavior::normal, item_type::single_item, &header_bottom_lead_label });
+
+		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_space, nullptr });
+
+		content_description.push_back(page_content{ &label_font_name_label, column_break_behavior::dont_break_after, item_type::item_start, nullptr });
+		content_description.push_back(page_content{ &label_font_menu, column_break_behavior::dont_break_after, item_type::item_end, nullptr });
+		content_description.push_back(page_content{ &label_font_weight_e, column_break_behavior::dont_break_after, item_type::single_item, &label_font_weight_label });
+		content_description.push_back(page_content{ &label_font_stretch_e, column_break_behavior::dont_break_after, item_type::single_item, &label_font_stretch_label });
+		content_description.push_back(page_content{ &label_font_italic_toggle, column_break_behavior::dont_break_after, item_type::single_item, &label_font_italic_label });
+		content_description.push_back(page_content{ &label_top_lead_e, column_break_behavior::dont_break_after, item_type::single_item, &label_top_lead_label });
+		content_description.push_back(page_content{ &label_bottom_lead_e, column_break_behavior::normal, item_type::single_item, &label_bottom_lead_label });
 
 		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::single_space, nullptr });
 		content_description.push_back(page_content{ nullptr, column_break_behavior::normal, item_type::decoration_footer, nullptr });
@@ -635,6 +674,9 @@ namespace printui {
 		if(toggle_animations.toggle_is_on != win.dynamic_settings.uianimations) {
 			toggle_animations.change_toggle_state(win, win.dynamic_settings.uianimations);
 		}
+		if(cursor_blinks_toggle.toggle_is_on != win.dynamic_settings.caret_blink) {
+			cursor_blinks_toggle.change_toggle_state(win, win.dynamic_settings.caret_blink);
+		}
 		lang_menu.open_button.set_text(win, win.text_data.locale_display_name(win));
 		orientation_list.quiet_select_option_by_value(win, size_t(win.orientation));
 		input_mode_list.quiet_select_option_by_value(win, size_t(win.dynamic_settings.imode));
@@ -646,6 +688,7 @@ namespace printui {
 		primary_font_menu.open_button.set_text(win, win.dynamic_settings.primary_font.name);
 		small_font_menu.open_button.set_text(win, win.dynamic_settings.small_font.name);
 		header_font_menu.open_button.set_text(win, win.dynamic_settings.header_font.name);
+		label_font_menu.open_button.set_text(win, win.dynamic_settings.label_font.name);
 
 		if(primary_font_italic_toggle.toggle_is_on != win.dynamic_settings.primary_font.is_oblique) {
 			primary_font_italic_toggle.change_toggle_state(win, win.dynamic_settings.primary_font.is_oblique);
@@ -655,6 +698,9 @@ namespace printui {
 		}
 		if(header_font_italic_toggle.toggle_is_on != win.dynamic_settings.header_font.is_oblique) {
 			header_font_italic_toggle.change_toggle_state(win, win.dynamic_settings.header_font.is_oblique);
+		}
+		if(label_font_italic_toggle.toggle_is_on != win.dynamic_settings.label_font.is_oblique) {
+			label_font_italic_toggle.change_toggle_state(win, win.dynamic_settings.label_font.is_oblique);
 		}
 		{
 			auto result_to_str = win.text_data.format_int(win.dynamic_settings.primary_font.weight, 0);
@@ -711,6 +757,22 @@ namespace printui {
 		{
 			auto result_to_str = win.text_data.format_double(win.dynamic_settings.heading_size_multiplier, 3);
 			header_relative_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.label_font.weight, 0);
+			label_font_weight_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_double(win.dynamic_settings.label_font.span, 0);
+			label_font_stretch_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.label_font.top_leading, 0);
+			label_top_lead_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.label_font.bottom_leading, 0);
+			label_bottom_lead_e.quiet_set_text(win, result_to_str.text_content.text);
 		}
 
 		update_with_keyboard_settings(win);
@@ -902,44 +964,62 @@ namespace printui {
 				win.dynamic_settings.settings_changed = true;
 				win.text_data.update_fonts(win);
 			}
-		} else {
+		} else if(text_sz == text_size::header) {
 			if(toggle_state != win.dynamic_settings.header_font.is_oblique) {
 				win.dynamic_settings.header_font.is_oblique = toggle_state;
 				win.dynamic_settings.settings_changed = true;
 				win.text_data.update_fonts(win);
 			}
+		} else {
+			if(toggle_state != win.dynamic_settings.label_font.is_oblique) {
+				win.dynamic_settings.label_font.is_oblique = toggle_state;
+				win.dynamic_settings.settings_changed = true;
+				win.rendering_interface.create_interactiable_tags(win);
+				win.window_interface.invalidate_window();
+			}
 		}
 
-		win.get_layout();
-		auto containing_pi = win.get_node(win.window_bar.print_ui_settings.l_id).page_info();
-		int pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, l_id);
-		if(pn >= 0) {
-			win.window_bar.print_ui_settings.go_to_page(win, uint32_t(pn), *containing_pi);
-			win.redraw_ui();
-		}
-	}
 
-	void font_top_lead_edit::on_edit_finished(window_data& win, std::wstring const& txt) {
-		auto extracted_value = win.text_data.text_to_int(txt.data(), uint32_t(txt.length()));
-		if(extracted_value > 0) {
-			extracted_value = std::clamp(extracted_value, 0i64, 20i64);
-
-			if(text_sz == text_size::standard)
-				win.dynamic_settings.primary_font.top_leading = int32_t(extracted_value);
-			else if(text_sz == text_size::note)
-				win.dynamic_settings.small_font.top_leading = int32_t(extracted_value);
-			else
-				win.dynamic_settings.header_font.top_leading = int32_t(extracted_value);
-
-			win.dynamic_settings.settings_changed = true;
-			win.text_data.update_fonts(win);
-
+		if(text_sz != text_size::label) {
 			win.get_layout();
 			auto containing_pi = win.get_node(win.window_bar.print_ui_settings.l_id).page_info();
 			int pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, l_id);
 			if(pn >= 0) {
 				win.window_bar.print_ui_settings.go_to_page(win, uint32_t(pn), *containing_pi);
 				win.redraw_ui();
+			}
+		}
+	}
+
+	void font_top_lead_edit::on_edit_finished(window_data& win, std::wstring const& txt) {
+		auto extracted_value = win.text_data.text_to_int(txt.data(), uint32_t(txt.length()));
+		if(extracted_value > -11) {
+			extracted_value = std::clamp(extracted_value, -10i64, 20i64);
+
+			if(text_sz == text_size::standard)
+				win.dynamic_settings.primary_font.top_leading = int32_t(extracted_value);
+			else if(text_sz == text_size::note)
+				win.dynamic_settings.small_font.top_leading = int32_t(extracted_value);
+			else if(text_sz == text_size::header)
+				win.dynamic_settings.header_font.top_leading = int32_t(extracted_value);
+			else {
+				win.dynamic_settings.label_font.top_leading = int32_t(extracted_value);
+				win.rendering_interface.create_interactiable_tags(win);
+				win.window_interface.invalidate_window();
+			}
+
+			win.dynamic_settings.settings_changed = true;
+
+			if(text_sz != text_size::label) {
+				win.text_data.update_fonts(win);
+
+				win.get_layout();
+				auto containing_pi = win.get_node(win.window_bar.print_ui_settings.l_id).page_info();
+				int pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, l_id);
+				if(pn >= 0) {
+					win.window_bar.print_ui_settings.go_to_page(win, uint32_t(pn), *containing_pi);
+					win.redraw_ui();
+				}
 			}
 		}
 		auto result_to_str = win.text_data.format_int(extracted_value, 0);
@@ -948,25 +1028,33 @@ namespace printui {
 
 	void font_bottom_lead_edit::on_edit_finished(window_data& win, std::wstring const& txt) {
 		auto extracted_value = win.text_data.text_to_int(txt.data(), uint32_t(txt.length()));
-		if(extracted_value > 0) {
-			extracted_value = std::clamp(extracted_value, 0i64, 20i64);
+		if(extracted_value > -11) {
+			extracted_value = std::clamp(extracted_value, -10i64, 20i64);
 
 			if(text_sz == text_size::standard)
 				win.dynamic_settings.primary_font.bottom_leading = int32_t(extracted_value);
 			else if(text_sz == text_size::note)
 				win.dynamic_settings.small_font.bottom_leading = int32_t(extracted_value);
-			else
+			else if(text_sz == text_size::header)
 				win.dynamic_settings.header_font.bottom_leading = int32_t(extracted_value);
+			else {
+				win.dynamic_settings.label_font.bottom_leading = int32_t(extracted_value);
+				win.rendering_interface.create_interactiable_tags(win);
+				win.window_interface.invalidate_window();
+			}
 
 			win.dynamic_settings.settings_changed = true;
-			win.text_data.update_fonts(win);
 
-			win.get_layout();
-			auto containing_pi = win.get_node(win.window_bar.print_ui_settings.l_id).page_info();
-			int pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, l_id);
-			if(pn >= 0) {
-				win.window_bar.print_ui_settings.go_to_page(win, uint32_t(pn), *containing_pi);
-				win.redraw_ui();
+			if(text_sz != text_size::label) {
+				win.text_data.update_fonts(win);
+
+				win.get_layout();
+				auto containing_pi = win.get_node(win.window_bar.print_ui_settings.l_id).page_info();
+				int pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, l_id);
+				if(pn >= 0) {
+					win.window_bar.print_ui_settings.go_to_page(win, uint32_t(pn), *containing_pi);
+					win.redraw_ui();
+				}
 			}
 		}
 		auto result_to_str = win.text_data.format_int(extracted_value, 0);
@@ -982,18 +1070,26 @@ namespace printui {
 				win.dynamic_settings.primary_font.weight = int32_t(extracted_value);
 			else if(text_sz == text_size::note)
 				win.dynamic_settings.small_font.weight = int32_t(extracted_value);
-			else
+			else if(text_sz == text_size::header)
 				win.dynamic_settings.header_font.weight = int32_t(extracted_value);
+			else {
+				win.dynamic_settings.label_font.weight = int32_t(extracted_value);
+				win.rendering_interface.create_interactiable_tags(win);
+				win.window_interface.invalidate_window();
+			}
 
 			win.dynamic_settings.settings_changed = true;
-			win.text_data.update_fonts(win);
 
-			win.get_layout();
-			auto containing_pi = win.get_node(win.window_bar.print_ui_settings.l_id).page_info();
-			int pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, l_id);
-			if(pn >= 0) {
-				win.window_bar.print_ui_settings.go_to_page(win, uint32_t(pn), *containing_pi);
-				win.redraw_ui();
+			if(text_sz != text_size::label) {
+				win.text_data.update_fonts(win);
+
+				win.get_layout();
+				auto containing_pi = win.get_node(win.window_bar.print_ui_settings.l_id).page_info();
+				int pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, l_id);
+				if(pn >= 0) {
+					win.window_bar.print_ui_settings.go_to_page(win, uint32_t(pn), *containing_pi);
+					win.redraw_ui();
+				}
 			}
 		}
 		auto result_to_str = win.text_data.format_int(extracted_value, 0);
@@ -1053,18 +1149,26 @@ namespace printui {
 				win.dynamic_settings.primary_font.span = float(extracted_value);
 			else if(text_sz == text_size::note)
 				win.dynamic_settings.small_font.span = float(extracted_value);
-			else
+			else if(text_sz == text_size::header)
 				win.dynamic_settings.header_font.span = float(extracted_value);
+			else {
+				win.dynamic_settings.label_font.span = float(extracted_value);
+				win.rendering_interface.create_interactiable_tags(win);
+				win.window_interface.invalidate_window();
+			}
 
 			win.dynamic_settings.settings_changed = true;
-			win.text_data.update_fonts(win);
 
-			win.get_layout();
-			auto containing_pi = win.get_node(win.window_bar.print_ui_settings.l_id).page_info();
-			int pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, l_id);
-			if(pn >= 0) {
-				win.window_bar.print_ui_settings.go_to_page(win, uint32_t(pn), *containing_pi);
-				win.redraw_ui();
+			if(text_sz != text_size::label) {
+				win.text_data.update_fonts(win);
+
+				win.get_layout();
+				auto containing_pi = win.get_node(win.window_bar.print_ui_settings.l_id).page_info();
+				int pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, l_id);
+				if(pn >= 0) {
+					win.window_bar.print_ui_settings.go_to_page(win, uint32_t(pn), *containing_pi);
+					win.redraw_ui();
+				}
 			}
 		}
 		auto result_to_str = win.text_data.format_double(extracted_value, 0);
@@ -1076,37 +1180,47 @@ namespace printui {
 			win.dynamic_settings.primary_font.name = name;
 		else if(text_sz == text_size::note)
 			win.dynamic_settings.small_font.name = name;
-		else
+		else if(text_sz == text_size::header)
 			win.dynamic_settings.header_font.name = name;
+		else {
+			win.dynamic_settings.label_font.name = name;
+			win.rendering_interface.create_interactiable_tags(win);
+			win.window_interface.invalidate_window();
+		}
 
 		win.dynamic_settings.settings_changed = true;
-		win.text_data.update_fonts(win);
-		
-		win.get_layout();
 
-		auto containing_pi = win.get_node(win.window_bar.print_ui_settings.l_id).page_info();
-		int pn = -1;
+		if(text_sz != text_size::label) {
+			win.text_data.update_fonts(win);
 
-		if(text_sz == text_size::standard)
-			pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, win.window_bar.print_ui_settings.primary_font_menu.l_id);
-		else if(text_sz == text_size::note)
-			pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, win.window_bar.print_ui_settings.small_font_menu.l_id);
-		else
-			pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, win.window_bar.print_ui_settings.header_font_menu.l_id);
+			win.get_layout();
 
-		
-		if(pn >= 0) {
-			win.window_bar.print_ui_settings.go_to_page(win, uint32_t(pn), *containing_pi);
-			win.redraw_ui();
+			auto containing_pi = win.get_node(win.window_bar.print_ui_settings.l_id).page_info();
+			int pn = -1;
+
+
+			if(text_sz == text_size::standard)
+				pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, win.window_bar.print_ui_settings.primary_font_menu.l_id);
+			else if(text_sz == text_size::note)
+				pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, win.window_bar.print_ui_settings.small_font_menu.l_id);
+			else
+				pn = win.get_containing_page_number(win.window_bar.print_ui_settings.l_id, *containing_pi, win.window_bar.print_ui_settings.header_font_menu.l_id);
+
+
+			if(pn >= 0) {
+				win.window_bar.print_ui_settings.go_to_page(win, uint32_t(pn), *containing_pi);
+				win.redraw_ui();
+			}
 		}
-		
 
 		if(text_sz == text_size::standard)
 			win.window_bar.print_ui_settings.primary_font_menu.close(win, true);
 		else if(text_sz == text_size::note)
 			win.window_bar.print_ui_settings.small_font_menu.close(win, true);
-		else
+		else if(text_sz == text_size::header)
 			win.window_bar.print_ui_settings.header_font_menu.close(win, true);
+		else
+			win.window_bar.print_ui_settings.label_font_menu.close(win, true);
 	}
 
 	std::vector<page_content> font_menu::get_options(window_data& win) {
@@ -1222,6 +1336,13 @@ namespace printui {
 	void ui_animation_toggle_button::toggle_action(window_data& win, bool toggle_state) {
 		if(toggle_state != win.dynamic_settings.uianimations) {
 			win.dynamic_settings.uianimations = toggle_state;
+			win.dynamic_settings.settings_changed = true;
+		}
+	}
+
+	void cursor_blinks_toggle_button::toggle_action(window_data& win, bool toggle_state) {
+		if(toggle_state != win.dynamic_settings.caret_blink) {
+			win.dynamic_settings.caret_blink = toggle_state;
 			win.dynamic_settings.settings_changed = true;
 		}
 	}

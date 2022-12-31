@@ -111,7 +111,7 @@ namespace printui::text {
 		void initialize_font_fallbacks(window_data& win);
 		void create_font_collection(window_data& win);
 		arrangement_result create_text_arragement(window_data const& win, std::wstring_view text, content_alignment text_alignment, text_size text_sz, bool single_line, int32_t max_width, std::vector<format_marker> const* formatting = nullptr) const;
-		text_format create_text_format(wchar_t const* name, int32_t capheight) const;
+		text_format create_text_format(window_data const& win, wchar_t const* name, int32_t capheight, bool italic, float stretch, int32_t weight, int32_t top_lead, int32_t bottom_lead) const;
 		void release_text_format(text_format fmt) const;
 		void* to_dwrite_format(text_format fmt) const;
 		void* to_dwrite_layout(arranged_text* ptr) const;

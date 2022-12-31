@@ -1425,7 +1425,7 @@ namespace printui {
 		void direct2d_rendering::create_interactiable_tags(window_data& win) {
 
 			auto cap_height = (win.layout_size * 15) / 32;
-			auto label_format = win.text_interface.create_text_format(L"Arial", cap_height);
+			auto label_format = win.text_interface.create_text_format(win, win.dynamic_settings.label_font.name.c_str(), cap_height, win.dynamic_settings.label_font.is_oblique, win.dynamic_settings.label_font.span, win.dynamic_settings.label_font.weight, win.dynamic_settings.label_font.top_leading, win.dynamic_settings.label_font.bottom_leading);
 			
 
 			std::array<ID2D1Bitmap1*, 12> text_bitmaps;

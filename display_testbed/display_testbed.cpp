@@ -64,6 +64,11 @@ void printui::window_data::load_default_dynamic_settings() {
 	dynamic_settings.header_font.top_leading = 0;
 	dynamic_settings.header_font.bottom_leading = 1;
 
+	dynamic_settings.label_font.name = L"Source Sans 3";
+	dynamic_settings.label_font.type = printui::font_type::sans;
+	dynamic_settings.label_font.top_leading = 0;
+	dynamic_settings.label_font.bottom_leading = 0;
+
 	// define shared animation effects
 	printui::list_control::list_appearance = printui::animation_defintion{printui::animation_type::fade, 0.25f, true};
 	printui::list_control::list_disappearance = printui::animation_defintion{ printui::animation_type::fade, 0.25f, false };

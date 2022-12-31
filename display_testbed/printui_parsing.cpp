@@ -550,6 +550,12 @@ namespace printui::parse {
 						parse_main_font_description(new_font, extracted.values[0].start, extracted.values[0].end);
 						ls.header_font = new_font;
 					}
+				} else if(kstr == "label_font") {
+					if(extracted.values.size() >= 1) {
+						printui::font_description new_font;
+						parse_main_font_description(new_font, extracted.values[0].start, extracted.values[0].end);
+						ls.label_font = new_font;
+					}
 				} else if(kstr == "custom_font") {
 					if(extracted.values.size() >= 1) {
 						parse_named_font_description(ls, font_name_to_index, extracted.values[0].start, extracted.values[0].end);
@@ -1008,6 +1014,7 @@ namespace printui::parse {
 		result += "primary_font{\n" + make_font_description(ls.primary_font) + "}\n";
 		result += "small_font{\n" + make_font_description(ls.small_font) + "}\n";
 		result += "header_font{\n" + make_font_description(ls.header_font) + "}\n";
+		result += "label_font{\n" + make_font_description(ls.label_font) + "}\n";
 		result += "palette{\n" + make_palette_description(ls) + "}\n";
 		if(ls.preferred_orientation == layout_orientation::horizontal_left_to_right)
 			result += "orientation{ ltr }\n";

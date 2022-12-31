@@ -1371,6 +1371,8 @@ namespace printui {
 	}
 	void simple_editable_text::on_click(window_data& win, uint32_t x, uint32_t y) {
 		internal_move_cursor_to_point(win, int32_t(x), int32_t(y), win.window_interface.is_shift_held_down());
+		if(win.window_interface.is_mouse_cursor_visible() && (x != 0 || y != 0))
+			win.selecting_edit_text = edit_selection_mode::standard;
 		if(!win.window_interface.is_shift_held_down())
 			mouse_entry_position = cursor_position;
 		win.set_keyboard_focus(this);

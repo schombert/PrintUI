@@ -1037,6 +1037,11 @@ namespace printui::text {
 		register_name("thumbstick_info", ::text_id::thumbstick_info);
 		register_name("sensitivity_info", ::text_id::sensitivity_info);
 		register_name("deadzone_info", ::text_id::deadzone_info);
+		register_name("general_header", ::text_id::general_header);
+		register_name("cursor_blink_label", ::text_id::cursor_blink_label);
+		register_name("cursor_blink_info", ::text_id::cursor_blink_info);
+		register_name("label_font_label", ::text_id::label_font_label);
+		register_name("label_font_info", ::text_id::label_font_info);
 	}
 
 	UINT GetGrouping(WCHAR const* locale) {
@@ -3729,6 +3734,9 @@ namespace printui::text {
 	}
 
 	void direct_write_text::initialize_fonts(window_data& win) {
+
+		auto locale_str = win.text_data.locale_string() != nullptr ? win.text_data.locale_string() : L"";
+
 		// metrics
 		{
 			IDWriteFont3* f = nullptr;
@@ -3744,7 +3752,7 @@ namespace printui::text {
 			fl->GetFont(0, &f);
 			safe_release(fl);
 
-			update_font_metrics(win.dynamic_settings.primary_font, win.text_data.locale_string(), float(win.layout_size), win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f, f);
+			update_font_metrics(win.dynamic_settings.primary_font, locale_str, float(win.layout_size), win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f, f);
 			safe_release(f);
 		}
 		{
@@ -3762,7 +3770,7 @@ namespace printui::text {
 			fl2->GetFont(0, &f2);
 			safe_release(fl2);
 
-			update_font_metrics(win.dynamic_settings.small_font, win.text_data.locale_string(), std::round(float(win.layout_size) * win.dynamic_settings.small_size_multiplier), win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f, f2);
+			update_font_metrics(win.dynamic_settings.small_font, locale_str, std::round(float(win.layout_size) * win.dynamic_settings.small_size_multiplier), win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f, f2);
 			safe_release(f2);
 			
 		}
@@ -3779,12 +3787,12 @@ namespace printui::text {
 			fl->GetFont(0, &f);
 			safe_release(fl);
 
-			update_font_metrics(win.dynamic_settings.header_font, win.text_data.locale_string(), std::round(float(win.layout_size) * win.dynamic_settings.heading_size_multiplier), win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f, f);
+			update_font_metrics(win.dynamic_settings.header_font, locale_str, std::round(float(win.layout_size) * win.dynamic_settings.heading_size_multiplier), win.dynamic_settings.global_size_multiplier * win.dpi / 96.0f, f);
 			safe_release(f);
 		}
 
 
-		auto locale_str = win.text_data.locale_string() != nullptr ? win.text_data.locale_string() : L"";
+		
 		// text formats
 		{
 			safe_release(common_text_format);
@@ -3847,6 +3855,7 @@ namespace printui::text {
 		win.window_bar.print_ui_settings.primary_font_menu.open_button.set_text(win, win.dynamic_settings.primary_font.name);
 		win.window_bar.print_ui_settings.small_font_menu.open_button.set_text(win, win.dynamic_settings.small_font.name);
 		win.window_bar.print_ui_settings.header_font_menu.open_button.set_text(win, win.dynamic_settings.header_font.name);
+		win.window_bar.print_ui_settings.label_font_menu.open_button.set_text(win, win.dynamic_settings.label_font.name);
 
 		if(win.window_bar.print_ui_settings.primary_font_italic_toggle.toggle_is_on != win.dynamic_settings.primary_font.is_oblique) {
 			win.window_bar.print_ui_settings.primary_font_italic_toggle.change_toggle_state(win, win.dynamic_settings.primary_font.is_oblique);
@@ -3856,6 +3865,9 @@ namespace printui::text {
 		}
 		if(win.window_bar.print_ui_settings.header_font_italic_toggle.toggle_is_on != win.dynamic_settings.header_font.is_oblique) {
 			win.window_bar.print_ui_settings.header_font_italic_toggle.change_toggle_state(win, win.dynamic_settings.header_font.is_oblique);
+		}
+		if(win.window_bar.print_ui_settings.label_font_italic_toggle.toggle_is_on != win.dynamic_settings.label_font.is_oblique) {
+			win.window_bar.print_ui_settings.label_font_italic_toggle.change_toggle_state(win, win.dynamic_settings.label_font.is_oblique);
 		}
 		{
 			auto result_to_str = win.text_data.format_int(win.dynamic_settings.primary_font.weight, 0);
@@ -3882,6 +3894,14 @@ namespace printui::text {
 			win.window_bar.print_ui_settings.header_font_stretch_e.quiet_set_text(win, result_to_str.text_content.text);
 		}
 		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.label_font.weight, 0);
+			win.window_bar.print_ui_settings.label_font_weight_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_double(win.dynamic_settings.label_font.span, 0);
+			win.window_bar.print_ui_settings.label_font_stretch_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
 			auto result_to_str = win.text_data.format_int(win.dynamic_settings.primary_font.top_leading, 0);
 			win.window_bar.print_ui_settings.primary_top_lead_e.quiet_set_text(win, result_to_str.text_content.text);
 		}
@@ -3904,6 +3924,14 @@ namespace printui::text {
 		{
 			auto result_to_str = win.text_data.format_int(win.dynamic_settings.header_font.bottom_leading, 0);
 			win.window_bar.print_ui_settings.header_bottom_lead_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.label_font.top_leading, 0);
+			win.window_bar.print_ui_settings.label_top_lead_e.quiet_set_text(win, result_to_str.text_content.text);
+		}
+		{
+			auto result_to_str = win.text_data.format_int(win.dynamic_settings.label_font.bottom_leading, 0);
+			win.window_bar.print_ui_settings.label_bottom_lead_e.quiet_set_text(win, result_to_str.text_content.text);
 		}
 		{
 			auto result_to_str = win.text_data.format_double(win.dynamic_settings.small_size_multiplier, 3);
@@ -4401,18 +4429,21 @@ namespace printui::text {
 			is_inside == TRUE, is_trailing == TRUE };
 	}
 
-	text_format direct_write_text::create_text_format(wchar_t const* name, int32_t capheight) const {
-		IDWriteTextFormat3* label_format;
+	text_format direct_write_text::create_text_format(window_data const& win, wchar_t const* name, int32_t capheight, bool italic, float stretch, int32_t weight, int32_t top_lead, int32_t bottom_lead) const {
+		IDWriteTextFormat3* label_format_out = nullptr;;
+		IDWriteTextFormat* label_format = nullptr;
 
 		DWRITE_FONT_AXIS_VALUE fax[] = {
-			DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WEIGHT, DWRITE_FONT_WEIGHT_BOLD},
-			DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WIDTH, 100.0f } ,
-			DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_ITALIC, 0.0f } };
+			DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WEIGHT, float(weight) },
+			DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_WIDTH, stretch }
+		};
+
+		auto adjusted_cap_height = std::round(capheight - (top_lead + bottom_lead) * win.dpi / 96.0f);
 
 		IDWriteFont3* label_font = nullptr;
 
 		IDWriteFontList2* fl;
-		font_collection->GetMatchingFonts(name, fax, 3, &fl);
+		font_collection->GetMatchingFonts(name, fax, 2, &fl);
 		fl->GetFont(0, &label_font);
 		safe_release(fl);
 
@@ -4420,16 +4451,23 @@ namespace printui::text {
 		label_font->GetMetrics(&metrics);
 		safe_release(label_font);
 
-		auto adjusted_size = (metrics.capHeight > 0 && metrics.capHeight <= metrics.ascent) ? (capheight * float(metrics.designUnitsPerEm) / float(metrics.capHeight)) : (capheight * float(metrics.designUnitsPerEm) / float(metrics.ascent));
+		auto adjusted_size = (metrics.capHeight > 0 && metrics.capHeight <= metrics.ascent) ? (adjusted_cap_height * float(metrics.designUnitsPerEm) / float(metrics.capHeight)) : (adjusted_cap_height * float(metrics.designUnitsPerEm) / float(metrics.ascent));
 
 		auto baseline = float(metrics.ascent) * (adjusted_size) / (float(metrics.designUnitsPerEm));
+		auto locale_str = win.text_data.locale_string() != nullptr ? win.text_data.locale_string() : L"";
 
-		dwrite_factory->CreateTextFormat(L"Arial", font_collection, fax, 3, adjusted_size, L"", &label_format);
+		dwrite_factory->CreateTextFormat(name, font_collection, DWRITE_FONT_WEIGHT(weight), italic ? DWRITE_FONT_STYLE_ITALIC : DWRITE_FONT_STYLE_NORMAL, from_float_stretch_to_enum(stretch), adjusted_size, locale_str, &label_format);
+
+		//dwrite_factory->CreateTextFormat(name, font_collection, fax, 2, adjusted_size, locale_str, &label_format);
+
 		label_format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
 		label_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
-		label_format->SetAutomaticFontAxes(DWRITE_AUTOMATIC_FONT_AXES_OPTICAL_SIZE);
 
-		return text_format{(text_format_ptr*)(label_format), baseline };
+		label_format->QueryInterface(IID_PPV_ARGS(&label_format_out));
+		label_format_out->SetAutomaticFontAxes(DWRITE_AUTOMATIC_FONT_AXES_OPTICAL_SIZE);
+
+		safe_release(label_format);
+		return text_format{(text_format_ptr*)(label_format_out), baseline + std::round(bottom_lead * win.dpi / 96.0f) };
 	}
 	void direct_write_text::release_text_format(text_format fmt) const {
 		IDWriteTextFormat3* format = (IDWriteTextFormat3*)(fmt.ptr);

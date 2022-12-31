@@ -61,7 +61,7 @@ namespace printui {
 	};
 
 	enum class text_size : uint8_t {
-		standard, note, header
+		standard, note, header, label
 	};
 
 	enum class interactable_type : uint8_t {

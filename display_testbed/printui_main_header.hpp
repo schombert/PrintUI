@@ -151,7 +151,13 @@ namespace text_id {
 	inline constexpr uint16_t sensitivity_info = 123;
 	inline constexpr uint16_t deadzone_info = 124;
 
-	inline constexpr uint16_t first_free_id = 125;
+	inline constexpr uint16_t general_header = 125;
+	inline constexpr uint16_t cursor_blink_label = 126;
+	inline constexpr uint16_t cursor_blink_info = 127;
+	inline constexpr uint16_t label_font_label = 128;
+	inline constexpr uint16_t label_font_info = 129;
+
+	inline constexpr uint16_t first_free_id = 130;
 }
 
 namespace printui {
@@ -316,6 +322,7 @@ namespace printui {
 		font_description primary_font;
 		font_description small_font;
 		font_description header_font;
+		font_description label_font;
 		std::vector<font_description> named_fonts;
 		std::vector<font_fallback> fallbacks;
 		std::vector<brush> brushes;
@@ -1754,12 +1761,20 @@ namespace printui {
 		virtual void toggle_action(window_data&, bool toggle_state) override;
 	};
 
+	struct cursor_blinks_toggle_button : public button_control_toggle {
+		cursor_blinks_toggle_button() : button_control_toggle(text_id::generic_toggle_yes, text_id::generic_toggle_no, content_alignment::trailing, text_id::cursor_blink_info) {
+		}
+		virtual void toggle_action(window_data&, bool toggle_state) override;
+	};
+
 	struct common_printui_settings : public layout_interface {
 		single_line_empty_header header;
 		page_footer footer;
 
 		label_control language_label;
 		language_menu lang_menu;
+
+		label_control general_header;
 
 		label_control orientation_label;
 		settings_orientation_list orientation_list;
@@ -1769,6 +1784,9 @@ namespace printui {
 
 		label_control toggle_animations_label;
 		ui_animation_toggle_button toggle_animations;
+
+		label_control cursor_blinks_label;
+		cursor_blinks_toggle_button cursor_blinks_toggle;
 
 		label_control ui_scale_label;
 		ui_scale_edit ui_scale_e;
@@ -1820,6 +1838,20 @@ namespace printui {
 		font_top_lead_edit header_top_lead_e;
 		label_control header_bottom_lead_label;
 		font_bottom_lead_edit header_bottom_lead_e;
+
+		//label font
+		label_control label_font_name_label;
+		font_menu label_font_menu;
+		label_control label_font_weight_label;
+		font_weight_edit label_font_weight_e;
+		label_control label_font_stretch_label;
+		font_stretch_edit label_font_stretch_e;
+		label_control label_font_italic_label;
+		font_italic_toggle_button label_font_italic_toggle;
+		label_control label_top_lead_label;
+		font_top_lead_edit label_top_lead_e;
+		label_control label_bottom_lead_label;
+		font_bottom_lead_edit label_bottom_lead_e;
 
 		//keyboard settings
 		label_control keyboard_header;
