@@ -377,8 +377,12 @@ namespace printui {
 		rendering_interface.stop_ui_animations(*this);
 		text_interface.initialize_fonts(*this);
 		rendering_interface.recreate_dpi_dependent_resource(*this);
+		rendering_interface.create_window_size_resources(*this);
+		rendering_interface.mark_for_complete_redraw();
 
 		client_on_dpi_change();
+
+		window_interface.invalidate_window();
 	}
 
 
@@ -1594,7 +1598,7 @@ namespace printui {
 	}
 
 	void window_data::create_window() {
-		dpi = float(window_interface.get_window_dpi());
+		//dpi = float(window_interface.get_window_dpi());
 		load_default_dynamic_settings();
 		text_interface.create_font_collection(*this);
 
@@ -1624,7 +1628,7 @@ namespace printui {
 
 		ui_width = width;
 		ui_height = height;
-		dpi = float(window_interface.get_window_dpi());
+		//dpi = float(window_interface.get_window_dpi());
 
 		recreate_layout();
 

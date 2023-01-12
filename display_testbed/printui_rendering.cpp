@@ -1846,6 +1846,7 @@ namespace printui {
 						D2D1_DEVICE_CONTEXT_OPTIONS_NONE,
 						&d2d_device_context
 					);
+					d2d_device_context->SetUnitMode(D2D1_UNIT_MODE_PIXELS);
 				}
 				if(SUCCEEDED(hr)) {
 					hr = dxgi_device->GetAdapter(&pAdapter);
