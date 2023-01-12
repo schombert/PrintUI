@@ -3805,7 +3805,7 @@ namespace printui::text {
 				DWRITE_FONT_AXIS_VALUE{DWRITE_FONT_AXIS_TAG_OPTICAL_SIZE,
 					win.dynamic_settings.primary_font.font_size * 96.0f / win.dpi } };
 
-			dwrite_factory->CreateTextFormat(win.dynamic_settings.primary_font.name.c_str(), font_collection, fax, 2, win.dynamic_settings.primary_font.font_size, locale_str, &common_text_format);
+			dwrite_factory->CreateTextFormat(win.dynamic_settings.primary_font.name.c_str(), font_collection, fax, 3, win.dynamic_settings.primary_font.font_size, locale_str, &common_text_format);
 			common_text_format->SetFontFallback(font_fallbacks);
 			common_text_format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
 			common_text_format->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, win.dynamic_settings.primary_font.line_spacing, win.dynamic_settings.primary_font.baseline);

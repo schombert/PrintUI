@@ -375,9 +375,11 @@ namespace printui {
 		window_border = int32_t(std::round(float(dynamic_settings.window_border) * dpi / 96.0f));
 
 		rendering_interface.stop_ui_animations(*this);
-		text_interface.initialize_fonts(*this);
+		
 		rendering_interface.recreate_dpi_dependent_resource(*this);
 		rendering_interface.create_window_size_resources(*this);
+		text_interface.initialize_fonts(*this);
+		change_orientation(dynamic_settings.preferred_orientation);
 		rendering_interface.mark_for_complete_redraw();
 
 		client_on_dpi_change();
