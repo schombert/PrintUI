@@ -370,6 +370,7 @@ namespace printui {
 	}
 
 
+
 	void window_data::on_dpi_change() {
 		layout_size = int32_t(std::round(dynamic_settings.global_size_multiplier * float(dynamic_settings.layout_base_size) * dpi / 96.0f));
 		window_border = int32_t(std::round(float(dynamic_settings.window_border) * dpi / 96.0f));
